@@ -1,6 +1,6 @@
-const { getDefaultConfig } = require('@react-native/metro-config');
+import { getDefaultConfig } from '@react-native/metro-config';
 
-module.exports = (async () => {
+export default (async () => {
   const config = await getDefaultConfig(__dirname);
   const { assetExts } = config.resolver;
 

@@ -23,9 +23,11 @@ a:hover {
 }
 
 body {
-  width: 100%;
+  width: 100vw;
+  height: 100vh;
   margin: 0;
   display: flex;
+  align-items: stretch;
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
@@ -69,5 +71,6 @@ button:focus-visible {
 }
 
 #root {
+  height: 100%;
   flex-grow: 1;
 }

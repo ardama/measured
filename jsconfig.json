@@ -1,20 +1,28 @@
 {
-    "compilerOptions": {
-      "checkJs": true,
-      "jsx": "react-jsx",
-      "baseUrl": ".",
-      "paths": {
-        "@/*": ["./src/*"],
-        "@t/*": ["./src/types/*"],
-        "@store/*": ["./src/store/*"],
-      },
-      "resolveJsonModule": true,
-      "lib": ["es6", "dom"],
-      "noEmit": true,
-      "strict": true,
-      "allowJs": true,
-      "moduleResolution": "node"
+  "compilerOptions": {
+    "checkJs": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@c/*": ["./src/components/*"],
+      "@components/*": ["./src/components/*"],
+      "@s/*": ["./src/store/*"],
+      "@store/*": ["./src/store/*"],
+      "@t/*": ["./src/types/*"],
+      "@type/*": ["./src/types/*"],
+      "@u/*": ["./src/utils/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@a/*": ["./src/assets/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@/*": ["./src/*"],
     },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "build"]
-  }
+    "resolveJsonModule": true,
+    "lib": ["es6", "dom"],
+    "noEmit": true,
+    "strict": true,
+    "allowJs": true,
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build"]
+}
