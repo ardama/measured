@@ -4,13 +4,19 @@
     "strict": true,
     "paths": {
       "@c/*": ["./src/components/*"],
+      "@components/*": ["./src/components/*"],
       "@s/*": ["./src/store/*"],
+      "@store/*": ["./src/store/*"],
       "@t/*": ["./src/types/*"],
       "@type/*": ["./src/types/*"],
       "@u/*": ["./src/utils/*"],
+      "@utils/*": ["./src/utils/*"],
       "@a/*": ["./src/assets/*"],
-      "@/*": ["./src/*"],
-    }
+      "@assets/*": ["./src/assets/*"],
+      "@/*": ["./src/*"]
+    },
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
   },
   "include": [
     "**/*.ts",
@@ -19,3 +25,4 @@
     "expo-env.d.ts"
   ]
 }
+
