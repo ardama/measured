@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { View, Text, Pressable, TextInput, FlatList, StyleSheet, SectionList } from "react-native";
+import { View, Pressable, TextInput, FlatList, StyleSheet, SectionList } from "react-native";
 
 import { useMeasurements, useUser } from "@/store/selectors";
 import { addMeasurement, removeMeasurement, editMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
 import { type Measurement, createMeasurement, createMeasurementUnit } from "@/types/measurements";
 import { type UnknownAction } from "@reduxjs/toolkit";
+import { Card, Icon, Surface, Text } from 'react-native-paper';
 
 const MeasurementItem = ({ measurement, onEdit, onDelete }: {
     measurement: Measurement;
@@ -21,14 +22,22 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
   };
 
   if (!isEditing) return (
-    <Pressable style={itemStyles.item} onPress={() => setIsEditing(true)}>
-      <Text>{measurement.activity}</Text>
-      <Text>{measurement.variant}</Text>
+    <Pressable onPress={() => setIsEditing(true)}>
+      <Card style={itemStyles.item} elevation={2}>
+        <Card.Title
+          title={measurement.activity || 'Sample activity'}
+          subtitle={measurement.variant || 'Sample variant'}
+          left={() => <Icon source={'clock'} size={40} /> }
+          right={() => <>
+            <Text>{measurement.step || 'Sample step'} {measurement.unit.label || 'Sample unit'}</Text>
+          </>}
+        />
+      </Card>
     </Pressable>
   );
 
   return (
-    <View style={itemStyles.item}>
+    <Card elevation={2} style={itemStyles.item}>
       <TextInput
         style={itemStyles.input}
         value={editedMeasurement.activity}
@@ -71,14 +80,13 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
           <Text>Delete</Text>
         </Pressable>
       </View>
-    </View>
+    </Card>
   )
 };
 
 const itemStyles = StyleSheet.create({
   item: {
     display: 'flex',
-    backgroundColor: '#eeeeee',
     padding: 16,
     marginBottom: 8,
     borderRadius: 8,
@@ -140,8 +148,8 @@ const MeasurementList = () => {
   const handleAddMeasurement = (): UnknownAction  => dispatch(addMeasurement(createMeasurement(user, '', '', 'duration', createMeasurementUnit('minutes', 'm'), 15)));
 
   return (
-    <View style={listStyles.container}>
-      <Text style={listStyles.title}>Measurements</Text>
+    <Surface elevation={1} style={listStyles.container}>
+      <Text variant='titleLarge'>Measurements</Text>
       <FlatList
         data={measurements}
         keyExtractor={(item) => item.id}
@@ -156,14 +164,16 @@ const MeasurementList = () => {
       <Pressable style={listStyles.addButton} onPress={handleAddMeasurement}>
         <Text>Add</Text>
       </Pressable>
-    </View>
-  )
+    </Surface>
+  );
 };
 
 const listStyles = StyleSheet.create({
   container: {
     flex: 1,
+    margin: 16,
     padding: 16,
+    borderRadius: 8,
   },
   title: {
     fontSize: 24,
