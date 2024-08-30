@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { View, Pressable, TextInput, FlatList, StyleSheet, SectionList } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Platform } from "react-native";
 
 import { useMeasurements, useUser } from "@/store/selectors";
 import { addMeasurement, removeMeasurement, editMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
-import { type Measurement, createMeasurement, createMeasurementUnit } from "@/types/measurements";
+import { type Measurement, createMeasurement, createMeasurementUnit, measurementTypeData, type MeasurementType } from "@/types/measurements";
 import { type UnknownAction } from "@reduxjs/toolkit";
-import { Card, Icon, Surface, Text } from 'react-native-paper';
+import { Button, Card, FAB, Icon, IconButton, List, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import Select from 'react-native-picker-select';
+import { Picker } from '@react-native-picker/picker';
 
 const MeasurementItem = ({ measurement, onEdit, onDelete }: {
     measurement: Measurement;
@@ -21,33 +23,50 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
     setIsEditing(false);
   };
 
+  const typeData = measurementTypeData.find((data) => data.type === measurement.type) || measurementTypeData[0];
+
   if (!isEditing) return (
-    <Pressable onPress={() => setIsEditing(true)}>
-      <Card style={itemStyles.item} elevation={2}>
-        <Card.Title
-          title={measurement.activity || 'Sample activity'}
-          subtitle={measurement.variant || 'Sample variant'}
-          left={() => <Icon source={'clock'} size={40} /> }
-          right={() => <>
+    <Surface style={[itemStyles.item, itemStyles.itemCollapsed]} elevation={1}>
+      <Pressable style={itemStyles.content} onPress={() => setIsEditing(true)}>
+          <View style={itemStyles.left}>
+            <Icon source={typeData.icon} size={40} />
+          </View>
+          <View style={itemStyles.center}>
+            <Text variant='titleMedium'>{measurement.activity || 'Sample activity'}</Text>
+            <Text variant='bodyMedium'>{measurement.variant || 'Sample variant'}</Text>
+          </View>
+          <View style={itemStyles.right}>
+            <View style={Platform.OS === 'web' ? {} : { marginTop: 3 }}>
+              <Icon source='plus-minus' size={16}/>
+            </View>
             <Text>{measurement.step || 'Sample step'} {measurement.unit.label || 'Sample unit'}</Text>
-          </>}
-        />
-      </Card>
-    </Pressable>
+          </View>
+      </Pressable>
+    </Surface>
   );
 
   return (
-    <Card elevation={2} style={itemStyles.item}>
+    <Surface elevation={1} style={[itemStyles.item, itemStyles.itemExpanded]}>
+      <SegmentedButtons
+        style={{ marginBottom: 10 }}
+        value={editedMeasurement.type}
+        onValueChange={(value) => setEditedMeasurement({ ...editedMeasurement, type: value})}
+        buttons={measurementTypeData.map((data) => ({ label: data.label, value: data.type, icon: data.icon }))}
+      />
       <TextInput
+        label="Activity"
         style={itemStyles.input}
+        mode='outlined'
         value={editedMeasurement.activity}
         onChangeText={(text) => setEditedMeasurement({ ...editedMeasurement, activity: text })}
-      />
+        />
       <TextInput
+        label="Variant"
         style={itemStyles.input}
+        mode='outlined'
         value={editedMeasurement.variant}
         onChangeText={(text) => setEditedMeasurement({ ...editedMeasurement, variant: text })}
-      />
+        />
       {/* <Picker
         style={itemStyles.picker}
         selectedValue={editedMeasurement.type}
@@ -57,9 +76,11 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
         <Picker.Item label="Time" value="time" />
         <Picker.Item label="Count" value="count" />
         <Picker.Item label="Boolean" value="bool" />
-      </Picker> */}
+        </Picker> */}
       <TextInput
+        label="Increment"
         style={itemStyles.input}
+        mode='outlined'
         value={editedMeasurement.step.toString()}
         onChangeText={(text) => {
           const step = parseFloat(text);
@@ -70,33 +91,53 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
         keyboardType="numeric"
       />
       <View style={itemStyles.buttons}>
-        <Pressable style={itemStyles.saveButton} onPress={handleSave}>
+        <Button style={itemStyles.saveButton} onPress={handleSave}>
           <Text>Save</Text>
-        </Pressable>
-        <Pressable style={itemStyles.cancelButton} onPress={() => setIsEditing(false)}>
+        </Button>
+        <Button style={itemStyles.cancelButton} onPress={() => setIsEditing(false)}>
           <Text>Cancel</Text>
-        </Pressable>
-        <Pressable style={itemStyles.deleteButton} onPress={() => onDelete(measurement)}>
+        </Button>
+        <Button style={itemStyles.deleteButton} onPress={() => onDelete(measurement)}>
           <Text>Delete</Text>
-        </Pressable>
+        </Button>
       </View>
-    </Card>
+    </Surface>
   )
 };
 
 const itemStyles = StyleSheet.create({
   item: {
-    display: 'flex',
-    padding: 16,
     marginBottom: 8,
     borderRadius: 8,
   },
+  itemCollapsed: {
+    height: 80,
+  },
+  itemExpanded: {
+    padding: 16,
+  },
+  content: {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'row',
+  },
+  left: {
+    height: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  center: {
+    flex: 1,
+    height: '100%',
+    paddingVertical: 16,
+  },
+  right: {
+    flexDirection: 'row',
+    height: '100%',
+    padding: 16,
+  },
   input: {
-    backgroundColor: '#ffffff',
-    padding: 8,
-    marginBottom: 8,
-    borderRadius: 4,
-    color: "red",
+    marginBottom: 8, 
   },
   picker: {
     backgroundColor: '#ffffff',
@@ -107,30 +148,30 @@ const itemStyles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 4,
   },
-  saveButton: {
-    flex: 1,
-    backgroundColor: '#e0e0e0',
-    padding: 8,
-    borderRadius: 4,
-    alignItems: 'center',
-    margin: 4,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: '#e0e0e0',
-    padding: 8,
-    borderRadius: 4,
-    alignItems: 'center',
-    margin: 4,
-  },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: '#ff6b6b',
-    padding: 8,
-    borderRadius: 4,
-    alignItems: 'center',
-    margin: 4,
-  },
+  // saveButton: {
+  //   flex: 1,
+  //   backgroundColor: '#e0e0e0',
+  //   padding: 8,
+  //   borderRadius: 4,
+  //   alignItems: 'center',
+  //   margin: 4,
+  // },
+  // cancelButton: {
+  //   flex: 1,
+  //   backgroundColor: '#e0e0e0',
+  //   padding: 8,
+  //   borderRadius: 4,
+  //   alignItems: 'center',
+  //   margin: 4,
+  // },
+  // deleteButton: {
+  //   flex: 1,
+  //   backgroundColor: '#ff6b6b',
+  //   padding: 8,
+  //   borderRadius: 4,
+  //   alignItems: 'center',
+  //   margin: 4,
+  // },
 });
 
 const MeasurementList = () => {
@@ -145,48 +186,69 @@ const MeasurementList = () => {
   
   const handleDeleteMeasurement = (measurement: Measurement) => dispatch(removeMeasurement(measurement.id));
 
-  const handleAddMeasurement = (): UnknownAction  => dispatch(addMeasurement(createMeasurement(user, '', '', 'duration', createMeasurementUnit('minutes', 'm'), 15)));
+  const handleAddMeasurement = (): UnknownAction  => dispatch(addMeasurement(createMeasurement(user.id, '', '', 'duration', createMeasurementUnit('minutes', 'm'), 15)));
 
   return (
-    <Surface elevation={1} style={listStyles.container}>
-      <Text variant='titleLarge'>Measurements</Text>
-      <FlatList
-        data={measurements}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <MeasurementItem
-            measurement={item}
-            onEdit={handleEditMeasurement}
-            onDelete={handleDeleteMeasurement}
-          />
-        )}
+    <View style={listStyles.container}>
+      <ScrollView style={listStyles.scrollContainer}>
+        <View style={listStyles.measurementsContainer}>
+            {
+              measurements.map((measurement) => (
+                <MeasurementItem
+                key={measurement.id}
+                measurement={measurement}
+                onEdit={handleEditMeasurement}
+                onDelete={handleDeleteMeasurement}
+                />
+              ))
+            }
+        </View>
+      </ScrollView>
+      <FAB
+        style={listStyles.createButton}
+        onPress={handleAddMeasurement}
+        icon={'plus'}
+        customSize={72}
       />
-      <Pressable style={listStyles.addButton} onPress={handleAddMeasurement}>
-        <Text>Add</Text>
-      </Pressable>
-    </Surface>
+    </View>
   );
 };
 
 const listStyles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContainer: {
+    padding: 0,
+    flex: 1,
+  },
+  measurementsContainer: {
+    padding: 16,
+    paddingBottom: 96
+  },
+  createButtonWrapper: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    height: 80,
+    width: 80,
+    borderRadius: 40,
+    padding: 0,
+    margin: 0,
+  },
+  createButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+
     margin: 16,
-    padding: 16,
-    borderRadius: 8,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+  createButtonIcon: {
+    position: 'absolute',
+    top: -20,
+    left: -20,
+
   },
-  addButton: {
-    backgroundColor: '#4ecdc4',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  }
 })
 
 

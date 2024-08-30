@@ -4,16 +4,16 @@ import type { User } from '@t/users';
 
 interface Habit {
   id: string;
+  userId: string;
   name: string;
   operator: HabitOperator;
   target: number;
-  user: User;
   measurement: Measurement;
 }
 
-const createHabit = (user: User, measurement: Measurement, name: string, operator: HabitOperator, target: number): Habit => ({
+const createHabit = (userId: string, measurement: Measurement, name: string, operator: HabitOperator, target: number): Habit => ({
   id: generateId(),
-  user,
+  userId,
   measurement,
   name,
   operator,

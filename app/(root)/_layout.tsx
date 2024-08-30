@@ -69,7 +69,7 @@ export default function TabLayout() {
         name="configuration"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'pencil-box-multiple' : 'pencil-box-multiple-outline'} color={color} />
+            <TabBarIcon name={focused ? 'timer-settings' : 'timer-settings-outline'} color={color} />
           ),
         }}
       />
@@ -77,7 +77,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
+            <TabBarIcon name={focused ? 'weather-sunset' : 'weather-sunset'} color={color} />
           ),
         }}
       />
