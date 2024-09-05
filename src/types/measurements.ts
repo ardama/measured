@@ -7,13 +7,13 @@ interface Measurement {
   type: MeasurementType;
   activity: string;
   variant: string;
-  unit: MeasurementUnit;
+  unit: string;
   step: number;
   archived: boolean;
-  recordings: MeasurementRecording[];
+  recordings: string[];
 }
 
-const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: MeasurementUnit, step: number): Measurement => ({
+const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: string, step: number): Measurement => ({
   id: generateId(),
   userId,
   activity,
@@ -28,43 +28,51 @@ const createMeasurement = (userId: string, activity: string, variant: string, ty
 interface MeasurementUnit {
   id: string;
   label: string;
-  abbreviation: string | undefined;
+  abbreviation: string;
   types: MeasurementType[];
+  isDefault: boolean,
+  isDeletable: boolean,
 }
 
-const createMeasurementUnit = (label: string, abbreviation: string, types: MeasurementType[] = []): MeasurementUnit => ({
+const createMeasurementUnit = (label: string, abbreviation: string, types: MeasurementType[] = [], isDefault: boolean = false, isDeletable: boolean = true): MeasurementUnit => ({
   id: generateId(),
   label,
   abbreviation,
   types,
+  isDefault,
+  isDeletable,
 });
 
+const defaultMeasurementUnits: string[] = [
+  '',
+  'min',
+  'hr',
+  'times',
+  'reps',
+  'sets',
+  'oz',
+  'l',
+  'g',
+  'cal',
+]
 const generateDefaultMeasurementUnits = () => [
-  createMeasurementUnit('minutes', 'm', ['duration', 'time']),
-  createMeasurementUnit('hours', 'h', ['duration', 'time']),
+  generateDefaultEmptyUnit(),
 
-  createMeasurementUnit('times', 'times', ['count']),
+  createMeasurementUnit('minutes', 'min', ['duration', 'time'], true, false),
+  createMeasurementUnit('hours', 'hr', ['duration', 'time'], true, false),
 
-  createMeasurementUnit('reps', 'reps', ['count']),
-  createMeasurementUnit('sets', 'sets', ['count']),
+  createMeasurementUnit('times', 'times', ['count'], true, false),
+
+  createMeasurementUnit('reps', 'reps', ['count'], true),
+  createMeasurementUnit('sets', 'sets', ['count'], true),
   
-  createMeasurementUnit('ounces', 'oz', ['count']),
-  createMeasurementUnit('liters', 'l', ['count']),
-  createMeasurementUnit('grams', 'g', ['count']),
-  createMeasurementUnit('calories', 'kcal', ['count']),
+  createMeasurementUnit('ounces', 'oz', ['count'], true),
+  createMeasurementUnit('liters', 'l', ['count'], true),
+  createMeasurementUnit('grams', 'g', ['count'], true),
+  createMeasurementUnit('calories', 'kcal', ['count'], true),
 ]
 
-interface MeasurementRecording {
-  id: string;
-  date: string;
-  value: number;
-}
-
-const createMeasurementRecording = (date: Date, value: number): MeasurementRecording => ({
-  id: generateId(),
-  date: date.toISOString(),
-  value,
-});
+const generateDefaultEmptyUnit = () => createMeasurementUnit('(no unit)', '', ['duration', 'time', 'count', 'bool'], true, false);
 
 type MeasurementType = 'duration' | 'time' | 'count' | 'bool';
 
@@ -82,9 +90,9 @@ export {
   type MeasurementUnit,
   createMeasurementUnit,
   generateDefaultMeasurementUnits,
+  generateDefaultEmptyUnit,
 
-  type MeasurementRecording,
-  createMeasurementRecording,
+  defaultMeasurementUnits,
   
   type MeasurementType,
   measurementTypeData,

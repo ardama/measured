@@ -1,12 +1,15 @@
 import { generateId } from "@/utils/helpers";
 import type { Habit } from '@t/habits';
-import type { Measurement } from '@t/measurements';
+import { generateDefaultMeasurementUnits, type Measurement, type MeasurementUnit } from '@t/measurements';
+import type { Recording } from '@t/recording';
 
 interface User {
   id: string;
   name: string;
   email: string;
   measurements: Measurement[];
+  measurementUnits: MeasurementUnit[];
+  recordings: Recording[],
   habits: Habit[];
 }
 
@@ -15,6 +18,8 @@ const createUser = (name: string = "Guest", email: string = ""): User => ({
   name,
   email,
   measurements: [],
+  measurementUnits: generateDefaultMeasurementUnits(),
+  recordings: [],
   habits: [],
 });
 

@@ -1,4 +1,5 @@
 import { generateId } from "@/utils/helpers";
+import { generateDefaultMeasurementUnits } from '@t/measurements';
 import type { User } from '@t/users';
 
 interface RootState {
@@ -17,6 +18,8 @@ const createUserState = (name: string | undefined = 'Guest', email: string | und
   name,
   email,
   measurements: [],
+  measurementUnits: generateDefaultMeasurementUnits(),
+  recordings: [],
   habits: [],
 
   loading: false,
@@ -25,11 +28,11 @@ const createUserState = (name: string | undefined = 'Guest', email: string | und
 });
 
 interface AppState {
-  activeTab: number;
+  darkMode: boolean;
 }
 
 const createAppState = (): AppState => ({
-  activeTab: 1,
+  darkMode: false,
 });
 
 export {

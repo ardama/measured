@@ -7,17 +7,13 @@ const appStateSlice = createSlice({
   name: 'appState',
   initialState,
   reducers: {
-    /**
-     * @param {AppState} state 
-     * @param {PayloadAction<number>} action 
-     */
-    changeActiveTab: (state: AppState, action: PayloadAction<number>) => {
-      state.activeTab = action.payload;
+    toggleDarkMode: (state: AppState) => {
+      state.darkMode = !state.darkMode;
     },
   },
 });
 
 export const {
-  changeActiveTab,
+  toggleDarkMode,
 } = appStateSlice.actions;
 export default appStateSlice.reducer;

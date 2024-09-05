@@ -1,6 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Habit } from '@t/habits';
-import type { Measurement } from '@t/measurements';
+import type { Measurement, MeasurementUnit } from '@t/measurements';
+import type { Recording, RecordingData } from '@t/recording';
 import type { User } from '@t/users';
 import { createUserState, type UserState } from '@type/redux';
 
@@ -38,6 +39,70 @@ const userStateSlice = createSlice({
       if (index !== -1) {
         state.measurements[index] = { ...state.measurements[index], ...action.payload.updates };
       }
+    },
+
+    addMeasurementUnit: (state: UserState, action: PayloadAction<MeasurementUnit>) => {
+      state.measurementUnits.push(action.payload);
+    },
+
+    removeMeasurementUnit: (state: UserState, action: PayloadAction<string>) => {
+      state.measurementUnits = state.measurementUnits.filter(
+        (m): boolean => m.id !== action.payload
+      );
+    },
+
+    editMeasurementUnit: (state: UserState, action: PayloadAction<{
+        id: string;
+        updates: Partial<MeasurementUnit>;
+      }>) => {
+      const index = state.measurementUnits.findIndex(
+        (m): boolean => m.id === action.payload.id
+      );
+      if (index !== -1) {
+        state.measurementUnits[index] = { ...state.measurementUnits[index], ...action.payload.updates };
+      }
+    },
+
+    addRecording: (state: UserState, action: PayloadAction<Recording>) => {
+      state.recordings.unshift(action.payload);
+    },
+
+    addRecordings: (state: UserState, action: PayloadAction<Recording[]>) => {
+      state.recordings.unshift(...action.payload);
+    },
+
+    editRecording: (state: UserState, action: PayloadAction<{
+      id: string;
+      updates: Partial<Recording>;
+    }>) => {
+      const index = state.recordings.findIndex(
+        (m): boolean => m.id === action.payload.id
+      );
+      if (index !== -1) {
+        state.recordings[index] = { ...state.recordings[index], ...action.payload.updates };
+      }
+    },
+
+    editRecordingData: (state: UserState, action: PayloadAction<{
+        id: string;
+        measurementId: string,
+        updates: Partial<RecordingData>;
+      }>) => {
+      const recordingIndex = state.recordings.findIndex(
+        (r): boolean => r.id === action.payload.id
+      );
+      if (recordingIndex == -1) return;
+    
+      const recording = state.recordings[recordingIndex];
+      const dataIndex = recording.data.findIndex(
+        (d): boolean => d.measurementId === action.payload.measurementId
+      );
+
+      if (dataIndex == -1) return;
+
+      const nextData = [...state.recordings[recordingIndex].data];
+      nextData[dataIndex] = { ...nextData[dataIndex], ...action.payload.updates };
+      state.recordings[recordingIndex] = { ...state.recordings[recordingIndex], data: nextData };    
     },
 
     addHabit: (state: UserState, action: PayloadAction<Habit>) => {
@@ -97,6 +162,15 @@ export const {
   addMeasurement,
   removeMeasurement,
   editMeasurement,
+
+  addRecording,
+  addRecordings,
+  editRecording,
+  editRecordingData,
+
+  addMeasurementUnit,
+  removeMeasurementUnit,
+  editMeasurementUnit,
 
   addHabit,
   removeHabit,

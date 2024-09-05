@@ -69,7 +69,7 @@ export default function TabLayout() {
         name="configuration"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'timer-settings' : 'timer-settings-outline'} color={color} />
+            <TabBarIcon name={focused ? 'timer-cog' : 'timer-cog-outline'} color={color} />
           ),
         }}
       />
@@ -77,7 +77,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'weather-sunset' : 'weather-sunset'} color={color} />
+            <TabBarIcon name={focused ? 'format-list-checks' : 'format-list-checks'} color={color} />
           ),
         }}
       />
