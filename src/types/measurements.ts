@@ -1,5 +1,4 @@
 import { generateId } from "@/utils/helpers";
-import type { User } from '@t/users';
 
 interface Measurement {
   id: string;

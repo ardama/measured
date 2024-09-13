@@ -87,8 +87,8 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
             <Icon source={typeData.icon} size={40} />
           </View>
           <View style={itemStyles.content}>
-            <Text variant='titleMedium'>{measurement.activity || 'New activity'}</Text>
-            <Text variant='bodyMedium'>{measurement.variant || 'New variant'}</Text>
+            <Text variant='titleMedium'>{measurement.activity}</Text>
+            <Text variant='bodyMedium'>{measurement.variant || '(no variant)'}</Text>
           </View>
           <View style={{ marginVertical: 24, marginRight: -8}}>
             <Chip
@@ -119,38 +119,62 @@ const MeasurementItem = ({ measurement, onEdit, onDelete }: {
 
   return (
     <Surface elevation={1} style={[itemStyles.item, itemStyles.itemExpanded]}>
-      <View style={{ width: '100%', flexDirection: 'row', marginBottom: 8}}>
+      <View style={{ flexGrow: 1, flexDirection: 'row', marginBottom: 20, height: 44 }}>
+        <View style={itemStyles.typeIconExpanded}>
+          <Icon source={editedTypeData.icon} size={28} />
+        </View>
         {
-          measurementTypeData.map((data) => data.type === editedMeasurement.type ? (
-            <Button
-              key={data.type}
-              style={{ marginRight: 8, marginBottom: 16, borderRadius: 200 }}
-              mode='contained-tonal'
-              onPress={() => {
-                setEditedMeasurement({ ...editedMeasurement, type: data.type })
-              }}
-              compact
-            >
-              <View style={{ flexDirection: 'row', top: 4, paddingHorizontal: 5, margin: -2 }}>
-                <Icon source={data.icon} size={22} />
-                <Text variant='titleMedium' style={{ padding: 4, marginTop: -4, top: -2 }}>{data.label}</Text>
-              </View>
-            </Button>
-          ) : (
-            <Button
-              key={data.type}
-              style={{ marginRight: 8, marginBottom: 16, borderRadius: 200 }}
-              mode='text'
-              onPress={() => {
-                setEditedMeasurement({ ...editedMeasurement, type: data.type })
-              }}
-              compact
-            >
-              <View style={{ flexDirection: 'row', top: 1, paddingHorizontal: 4, paddingVertical: 2, marginHorizontal: -1 }}>
-                <Icon source={data.icon} size={22} />
-              </View>
-            </Button>
-          ))
+          measurementTypeData.map((data) => {
+            const selected = data.type === editedMeasurement.type;
+            return (
+              <Button
+                key={data.type}
+                style={{ marginRight: 4, borderRadius: 200, paddingHorizontal: forWeb(0, 6) }}
+                mode={selected ? 'contained-tonal' : 'text'}
+                onPress={() => {
+                  setEditedMeasurement({ ...editedMeasurement, type: data.type })
+                }}
+                compact
+              >
+                <Text variant='titleMedium' style={{ lineHeight: selected ? 24 : 26, marginHorizontal: forWeb(6, 0) }}>{data.label}</Text>
+              </Button>
+            );
+          })
+        }
+        {
+          // measurementTypeData.map((data) => data.type === editedMeasurement.type ? (
+          //   <Button
+          //     key={data.type}
+          //     style={{ marginRight: 8, borderRadius: 200 }}
+          //     mode='contained-tonal'
+          //     onPress={() => {
+          //       setEditedMeasurement({ ...editedMeasurement, type: data.type })
+          //     }}
+          //     compact
+          //   >
+          //     <View style={{ flexDirection: 'row' }}>
+          //       <View style={{ height: 24, padding: 1 }}>
+          //         <Icon source={data.icon} size={22} />
+          //       </View>
+          //       <Text variant='titleMedium' style={{ }}>{data.label}</Text>
+          //     </View>
+          //       {/* <Text variant='titleMedium' style={{ }}>{data.label}</Text> */}
+          //   </Button>
+          // ) : (
+          //   <Button
+          //     key={data.type}
+          //     style={{ marginRight: 8, borderRadius: 200 }}
+          //     mode='text'
+          //     onPress={() => {
+          //       setEditedMeasurement({ ...editedMeasurement, type: data.type })
+          //     }}
+          //     compact
+          //   >
+          //     <View style={{ padding: 4 }}>
+          //       <Icon source={data.icon} size={22} />
+          //     </View>
+          //   </Button>
+          // ))
         }
       </View>
       <TextInput
@@ -232,6 +256,10 @@ const itemStyles = StyleSheet.create({
     height: '100%',
     paddingHorizontal: 20,
     paddingVertical: 20,
+  },
+  typeIconExpanded: {
+    marginVertical: 8,
+    marginRight: 12,
   },
   typeIcons: {
     flexDirection: 'row',

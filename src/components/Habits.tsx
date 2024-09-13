@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 
-import { useHabits, useMeasurementUnits, useMeasurements, useUser } from "@/store/selectors";
-import { editHabit, removeHabit, addHabit, addMeasurement, addMeasurementUnit } from "@/store/userReducer";
+import { useHabits, useMeasurement, useMeasurements, useUser } from "@/store/selectors";
+import { editHabit, removeHabit, addHabit, addMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
 import { createHabit, habitOperatorData, type Habit } from "@/types/habits";
-import { Button, Icon, IconButton, Menu, Surface, Text, TextInput, AnimatedFAB, FAB, useTheme as usePaperTheme, Chip, Divider, useTheme } from 'react-native-paper';
-import { forWeb } from '@u/helpers';
-import { createMeasurement, createMeasurementUnit, measurementTypeData } from '@t/measurements';
+import { Button, Icon, IconButton, Menu, Surface, Text, TextInput, AnimatedFAB, FAB, useTheme as usePaperTheme, Chip, Divider, useTheme, type MD3Theme } from 'react-native-paper';
+import { formatNumber, forWeb } from '@u/helpers';
+import { createMeasurement, measurementTypeData } from '@t/measurements';
 import { EmptyError, NoError, Error } from '@u/constants/Errors';
 
 const HabitItem = ({ habit, onEdit, onDelete }: {
@@ -15,14 +15,17 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
     onEdit: (habit: Habit) => void;
     onDelete: (habit: Habit) => void;
   }): JSX.Element => {
+    
+  const theme = useTheme();
+  const itemStyles = createItemStyles(theme);
+
   const [isEditing, setIsEditing] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  
   const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
   const [isOperatorMenuVisible, setIsOperatorMenuVisible] = useState(false);
   const [isDaysPerWeekMenuVisible, setIsDaysPerWeekMenuVisible] = useState(false);
   const [isPointsMenuVisible, setIsPointsMenuVisible] = useState(false);
-
+  
   const getInitialEditedHabit = (habit: Habit) => ({
     ...habit,
     daily: habit.daily?.toString(),
@@ -30,19 +33,13 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
     points: habit.points?.toString(),
   });
   const [editedHabit, setEditedHabit] = useState(getInitialEditedHabit(habit));
-  
-  const measurements = useMeasurements();
-  const typeData = measurementTypeData.find((data) => data.type === habit.measurement.type) || measurementTypeData[0];
-  const operatorData = habitOperatorData.find((data) => data.operator === habit.operator) || habitOperatorData[0];
-  const unit = editedHabit.measurement?.unit || '';
-  const theme = useTheme()
 
   const handleSave = () => {
     if (hasErrors()) return;
     const nextHabit = {
       ...editedHabit,
       name: editedHabit.name.trim(),
-      daily: editedHabit.daily ? parseInt(editedHabit.daily) : undefined,
+      daily: parseInt(editedHabit.daily) || 0,
       daysPerWeek: editedHabit.daysPerWeek ? parseInt(editedHabit.daysPerWeek) : 7,
       points: editedHabit.points ? parseInt(editedHabit.points) : 1,
     };
@@ -74,51 +71,71 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
     return NoError;
   }
 
-  if (!isEditing) return (
-    <Surface style={[itemStyles.item, itemStyles.itemCollapsed]} elevation={1}>
-      <Pressable style={itemStyles.container} onPress={() => setIsEditing(true)}>
-        <View style={itemStyles.content}>
-          <View style={{ flexDirection: 'row', width: '100%', marginBottom: 8 }}>
-            <Text variant='titleMedium' style={{flex: 1, lineHeight: 40 }}>{habit.name || 'New habit'}</Text>
-            <Menu
-              visible={isMenuVisible}
-              onDismiss={() => setIsMenuVisible(false)}
-              anchor={
-                <IconButton
-                  style={{ margin: 0 }} icon='dots-vertical' size={24}
-                  onPress={() => { setIsMenuVisible(true); }}
-                  onResponderRelease={(e) => { e.preventDefault(); }}
-                />
-              }
-              anchorPosition='bottom'
-            >
-              <Menu.Item leadingIcon='archive-outline' onPress={() => { onDelete(habit); }} title="Archive" />
-              <Menu.Item leadingIcon='delete-outline' onPress={() => { onDelete(habit); }} title="Delete" />
-            </Menu>
-          </View>
-          <View style={{ flexDirection: 'row', width: '100%' }}>
-            <Chip icon={typeData.icon} mode='flat'>
-              <Text variant='titleMedium'>{habit.measurement.activity}</Text>
-              {habit.measurement.variant && <Text variant='bodyLarge'>: {habit.measurement.variant}</Text>}
-            </Chip>
-            {habit.measurement.type !== 'bool' && (
-              <>
-                <View style={itemStyles.operatorIcon}>
-                  <Icon source={operatorData.icon} size={28} color={theme.colors.inversePrimary} />
+  const measurements = useMeasurements();
+  const operatorData = habitOperatorData.find((data) => data.operator === habit.operator) || habitOperatorData[0];
+  
+  if (!isEditing) {
+    const measurement = useMeasurement(habit.measurementId);
+    const typeData = measurementTypeData.find((data) => data.type === measurement?.type) || measurementTypeData[0];
+    return measurement ? (
+      <Surface style={[itemStyles.item, itemStyles.itemCollapsed]} elevation={1}>
+        <Pressable style={itemStyles.container} onPress={() => setIsEditing(true)}>
+          <View style={itemStyles.content}>
+            <View style={{ flexDirection: 'row', width: '100%' }}>
+              <Text variant='titleMedium' style={{flex: 1, lineHeight: 40 }}>{habit.name}</Text>
+              <View style={itemStyles.daysPerWeek}>
+                <Icon source={`numeric-${habit.daysPerWeek}`} size={30} />
+              </View>
+              <View style={itemStyles.daysPerWeekMultiply}>
+                <Icon source={`alpha-x`} size={26} />
+              </View>
+              <View style={itemStyles.points}>
+                <Text style={itemStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
+                <View style={itemStyles.pointsIcon}>
+                  <Icon source={`star-four-points`} size={16} color={theme.colors.onPrimary} />
                 </View>
-                <Chip>
-                  <Text variant='titleMedium'>{habit.daily}</Text>
-                  <Text variant='bodyLarge' style={{ marginLeft: 4 }}>{habit.measurement.unit}</Text>
-                </Chip>
-              </>
-            )}
+              </View>
+              <Menu
+                visible={isMenuVisible}
+                onDismiss={() => setIsMenuVisible(false)}
+                anchor={
+                  <IconButton
+                    style={{ margin: 0 }} icon='dots-vertical' size={24}
+                    onPress={() => { setIsMenuVisible(true); }}
+                    onResponderRelease={(e) => { e.preventDefault(); }}
+                  />
+                }
+                anchorPosition='bottom'
+              >
+                <Menu.Item leadingIcon='archive-outline' onPress={() => { onDelete(habit); }} title="Archive" />
+                <Menu.Item leadingIcon='delete-outline' onPress={() => { onDelete(habit); }} title="Delete" />
+              </Menu>
+            </View>
+            <View style={{ flexDirection: 'row', width: '100%' }}>
+              <View style={itemStyles.measurement}>
+                <View style={itemStyles.measurementIcon}>
+                  <Icon source={typeData.icon} size={20} />
+                </View>
+                <Text numberOfLines={1} variant='bodyLarge' style={itemStyles.measurementActivity}>{measurement.activity}</Text>
+                {measurement.variant ? <Text numberOfLines={1} variant='bodyLarge' style={itemStyles.measurementVariant}> : {measurement.variant}</Text> : null}
+              </View>
+              {measurement.type !== 'bool' && (
+                <>
+                  <Text variant='bodyLarge' style={itemStyles.habitOperator}> {operatorData.label.toLowerCase()} </Text>
+                  <Text variant='titleMedium' style={itemStyles.habitDaily}>{formatNumber(habit.daily)}</Text>
+                  <Text variant='titleMedium' style={itemStyles.measurementUnit}> {measurement.unit}</Text>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </Pressable>
-    </Surface>
-  );
+        </Pressable>
+      </Surface>
+    ) : <></>;
+  }
 
-  return (
+  const editedMeasurement = useMeasurement(editedHabit.measurementId);
+  const unit = editedMeasurement?.unit || '';
+  return editedMeasurement ? (
     <Surface elevation={1} style={[itemStyles.item, itemStyles.itemExpanded]}>
       <TextInput
         label="Name"
@@ -140,7 +157,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
                   label="Measurement"
                   mode='outlined'
                   readOnly
-                  value={`${editedHabit.measurement.activity}: ${editedHabit.measurement.variant}`}
+                  value={`${editedMeasurement.activity}${editedMeasurement.variant ? ` : ${editedMeasurement.variant}` : ''}`}
                   />
               </Pressable>
             }
@@ -152,10 +169,10 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
                   style={{ maxWidth: 600 }}
                   contentStyle={{ maxWidth: 600 }}
                   key={measurement.id}
-                  title={`${measurement.activity}: ${measurement.variant}`}
+                  title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
                   leadingIcon={(measurementTypeData.find(({ type }) => type === measurement.type) || measurementTypeData[0]).icon}
                   onPress={() => {
-                    const nextEditedHabit = { ...editedHabit, measurement };
+                    const nextEditedHabit = { ...editedHabit, measurementId: measurement.id };
                     if (measurement.type === 'bool') {
                       nextEditedHabit.operator = '>';
                       nextEditedHabit.daily = '0';
@@ -168,7 +185,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
             }
           </Menu>
         </View>
-        {editedHabit.measurement.type !== 'bool' && (
+        {editedMeasurement.type !== 'bool' && (
           <>
             <View style={[itemStyles.input, itemStyles.inputPartial, { maxWidth: 78 }]}>
               <Menu
@@ -217,7 +234,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
         )}
       </View>
       <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'flex-end' }}>
-        <View style={[itemStyles.input, itemStyles.inputPartial, { minWidth: 108, maxWidth: 108 }]}>
+        <View style={[itemStyles.input, itemStyles.inputPartial, { minWidth: 92, maxWidth: 92 }]}>
           <Menu
             visible={isDaysPerWeekMenuVisible}
             onDismiss={() => setIsDaysPerWeekMenuVisible(false)}
@@ -228,7 +245,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
                   mode='outlined'
                   readOnly
                   value={editedHabit.daysPerWeek}
-                  right={<TextInput.Affix text="/week" />}
+                  right={<TextInput.Affix text="/wk" />}
                 />
               </Pressable>
             }
@@ -248,7 +265,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
             }
           </Menu>
         </View>
-        <View style={[itemStyles.input, itemStyles.inputPartial, { minWidth: 108, maxWidth: 108, marginHorizontal: 12 }]}>
+        <View style={[itemStyles.input, itemStyles.inputPartial, { minWidth: 92, maxWidth: 92, marginHorizontal: 12 }]}>
           <Menu
             visible={isPointsMenuVisible}
             onDismiss={() => setIsPointsMenuVisible(false)}
@@ -259,7 +276,7 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
                   mode='outlined'
                   readOnly
                   value={editedHabit.points}
-                  right={<TextInput.Affix text="points" />}
+                  right={<TextInput.Affix text={parseInt(editedHabit.points) === 1 ? 'pt' : 'pts'} />}
                 />
               </Pressable>
             }
@@ -271,8 +288,8 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
                   key={num}
                   title={num}
                   onPress={() => {
-                    setEditedHabit({ ...editedHabit, daysPerWeek: num.toString() });
-                    setIsDaysPerWeekMenuVisible(false);
+                    setEditedHabit({ ...editedHabit, points: num.toString() });
+                    setIsPointsMenuVisible(false);
                   }}
                 />
               ))
@@ -290,16 +307,16 @@ const HabitItem = ({ habit, onEdit, onDelete }: {
         </View>
       </View>
     </Surface>
-  )
+  ) : <></>;
 };
 
-const itemStyles = StyleSheet.create({
+const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
   item: {
     marginBottom: 8,
     borderRadius: 8,
   },
   itemCollapsed: {
-    height: 116,
+    height: 92,
   },
   itemExpanded: {
     padding: 20,
@@ -318,9 +335,7 @@ const itemStyles = StyleSheet.create({
     paddingVertical: 2,
   },
   operatorIcon: {
-    height: 36,
-    width: 36,
-    padding: 4,
+    paddingHorizontal: 4,
   },
   content: {
     flex: 1,
@@ -342,7 +357,68 @@ const itemStyles = StyleSheet.create({
     paddingVertical: 14,
   },
   button: {
-    marginLeft: 8
+    marginLeft: 8,
+  },
+  measurement: {
+    backgroundColor: theme.colors.primaryContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    flexDirection: 'row',
+    flexGrow: 0,
+    flexShrink: 0,
+    flexWrap: 'nowrap',
+  },
+  measurementIcon: {
+    marginTop: 3,
+    marginRight: 4
+  },
+  measurementActivity: {
+    lineHeight: 24,
+  },
+  measurementVariant: {
+    color: theme.colors.outline,
+    lineHeight: 24,
+  },
+  habitOperator: {
+    marginLeft: 2,
+    lineHeight: 28,
+  },
+  habitDaily: {
+    lineHeight: 28,
+    fontWeight: 900,
+  },
+  measurementUnit: {
+    lineHeight: 28,
+    fontWeight: 900,
+    
+  },
+  points: {
+    width: 48,
+    height: 28,
+    flexDirection: 'row',
+    marginVertical: 6,
+    marginRight: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+  },
+  pointsText: {
+    flex: 1,
+    textAlign: 'center',
+    color: theme.colors.onPrimary,
+    marginRight: 4,
+  },
+  pointsIcon: {
+    marginTop: 2,
+  },
+  daysPerWeek: {
+    marginTop: 6,
+    marginRight: -18,
+  },
+  daysPerWeekMultiply: {
+    marginTop: 8,
   },
 });
 
@@ -377,7 +453,7 @@ const Habits = () => {
       measurement = createMeasurement(user.id, 'New measurement', 'New variant', 'duration', 'min', 15);
       dispatch(addMeasurement(measurement));
     }
-    dispatch(addHabit(createHabit(user.id, measurement, 'New habit', '>', 0)));
+    dispatch(addHabit(createHabit(user.id, measurement.id, 'New habit', '>', 0)));
     scrollToEnd();
   }
 

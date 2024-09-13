@@ -80,6 +80,11 @@ export class SimpleDate {
     // Use the getDaysInMonth function to get the number of days
     return new SimpleDate(previousYear, previousMonth, 1).getDaysInMonth();
   }
+
+  getDayOfWeek() {
+    const date = this.toDate();
+    return date.getDay();
+  }
   
   isLeapYear() {
     // Leap year is divisible by 4
@@ -115,8 +120,8 @@ export const generateDates = (numDays = 7, offset = 0) => {
   
   for (let i = 0; i < numDays; i++) {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i + offset));
-    date.setMinutes(date.getMinutes() - tzOffset);
-    dates.push(SimpleDate.fromDate(date));
+    date.setMinutes(date.getMinutes());
+    dates.unshift(SimpleDate.fromDate(date));
   }
   return dates;
 }

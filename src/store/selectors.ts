@@ -84,6 +84,6 @@ export const useHabit = (id: string): Habit | undefined => useSelector(selectHab
 const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState) => Habit[] =>
   createSelector(
     selectHabits,
-    (habits) => habits.filter(({ measurement: { id } }) => measurement.id === id)
+    (habits) => habits.filter(({ measurementId }) => measurementId === measurement.id)
   );
 export const useHabitsByMeasurement = (measurement: Measurement): Habit[] => useSelector(selectHabitsByMeasurement(measurement));

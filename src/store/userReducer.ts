@@ -3,9 +3,9 @@ import type { Habit } from '@t/habits';
 import type { Measurement, MeasurementUnit } from '@t/measurements';
 import type { Recording, RecordingData } from '@t/recording';
 import type { User } from '@t/users';
-import { createUserState, type UserState } from '@type/redux';
+import { createUserState, generateTestUser, type UserState } from '@type/redux';
 
-const initialState: UserState = createUserState();
+const initialState: UserState = generateTestUser();
 
 const userStateSlice = createSlice({
   name: 'userState',
@@ -64,11 +64,13 @@ const userStateSlice = createSlice({
     },
 
     addRecording: (state: UserState, action: PayloadAction<Recording>) => {
-      state.recordings.unshift(action.payload);
+      state.recordings.push(action.payload);
+      state.recordings.sort(({ date: aDate }, { date: bDate} ) => aDate < bDate ? -1 : 1);
     },
-
+    
     addRecordings: (state: UserState, action: PayloadAction<Recording[]>) => {
-      state.recordings.unshift(...action.payload);
+      state.recordings.push(...action.payload);
+      state.recordings.sort(({ date: aDate }, { date: bDate} ) => aDate < bDate ? -1 : 1);
     },
 
     editRecording: (state: UserState, action: PayloadAction<{

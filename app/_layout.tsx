@@ -2,10 +2,10 @@
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { PaperProvider, Portal } from 'react-native-paper';
+import { Portal } from 'react-native-paper';
 import { Provider } from 'react-redux';
 
 import { store } from '@s/utils';

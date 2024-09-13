@@ -2,7 +2,6 @@ import { TabScreen, Tabs, TabsProvider } from 'react-native-paper-tabs';
 
 import Habits from '@c/Habits';
 import Measurements from '@c/Measurements';
-import Units from '@c/Units';
 import Header from '@c/Header';
 
 const ConfigurationScreen = () => {
