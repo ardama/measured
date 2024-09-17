@@ -1,10 +1,10 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
 import { useHabits, useMeasurement, useMeasurements, useRecordings, useUser } from '@s/selectors';
 import { measurementTypeData, type Measurement } from '@t/measurements';
-import { Checkbox, Divider, FAB, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Switch, Text, useTheme, type MD3Theme } from 'react-native-paper';
-import { createRecording, type Recording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { generateDates, SimpleDate } from '@u/dates';
+import { Checkbox, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
+import { createRecording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { generateDates } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
 import { addRecording, editRecording, editRecordingData } from '@s/userReducer';
@@ -91,12 +91,7 @@ export default function HomeScreen() {
   if (dateIndex === dates.length - 1) dateLabel = 'Today';
   else if (dateIndex === dates.length - 2) dateLabel = 'Yesterday';
 
-  console.log('weeklyMeasurementRecordings: ', weeklyMeasurementRecordings);
   const [viewScope, setViewScope] = useState('day');
-  const segmentedButtonRef = useRef();
-  useLayoutEffect(() => {
-
-  });
 
   return (
     <>
