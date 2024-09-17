@@ -29,10 +29,10 @@ export const formatNumber = (num: number): string => {
 
 export const movingAverage = (data: number[], windowSize: number): (number | null)[] => {
   return data.map((_, index, array) => {
-    const adjustedWindowSize = Math.min(windowSize, index + 1);
+    if (index + 1 < windowSize) return null;
 
-    const windowData = array.slice(index - adjustedWindowSize + 1, index + 1);
+    const windowData = array.slice(index - windowSize + 1, index + 1);
     const sum = windowData.reduce((acc, curr) => acc + curr, 0);
-    return sum / adjustedWindowSize;
+    return sum / windowSize;
   });
 }

@@ -11,18 +11,6 @@ import { CommonActions } from '@react-navigation/native';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
-  const [routes] = useState([
-    { key: 'measurements', title: 'Measurements', focusedIcon: 'pencil-ruler', unfocusedIcon: 'pencil-ruler-outline'},
-    { key: 'home', title: 'Home', focusedIcon: 'home', unfocusedIcon: 'home-outline'},
-    { key: 'history', title: 'History', focusedIcon: 'chart-box-multiple', unfocusedIcon: 'chart-box-multiple-outline'},
-  ]);
-
-  // const renderScene = BottomNavigation.SceneMap({
-  //   measurements: () => <Redirect href='explore' />,
-  //   home: () => <Slot initialRouteName='home' />,
-  //   history: () => <Slot initialRouteName='/',
-  // })
-
   const renderTabBar = ({ navigation, state, descriptors, insets}: BottomTabBarProps): ReactNode => {
 
     return (

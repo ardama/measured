@@ -1,9 +1,9 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
 import { useHabits, useMeasurement, useMeasurements, useRecordings, useUser } from '@s/selectors';
 import { measurementTypeData, type Measurement } from '@t/measurements';
-import { Divider, Icon, IconButton, ProgressBar, Surface, Switch, Text, useTheme, type MD3Theme } from 'react-native-paper';
+import { Checkbox, Divider, FAB, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Switch, Text, useTheme, type MD3Theme } from 'react-native-paper';
 import { createRecording, type Recording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { generateDates, SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
@@ -62,7 +62,7 @@ export default function HomeScreen() {
       const data = weeklyRecording?.data.find(({ measurementId }) => measurementId === current.measurementId);
       if (!data) return previous;
   
-      const [complete, _] = getHabitCompletion(current, data);
+      const [complete, _] = getHabitCompletion(current, data.value);
       return previous + (complete ? current.points : 0);
     }, 0);
   });
@@ -78,9 +78,26 @@ export default function HomeScreen() {
   const proratedWeeklyTarget = weeklyPointTarget * weekDates.length / 7; 
   const dailyPointTarget = weeklyPointTarget / 7;
 
+  const weeklyMeasurementRecordings = new Map<string, number[]>();
+  weekRecordings.forEach((weeklyRecording, index) => {
+    weeklyRecording?.data.forEach(({ measurementId, value }) => {
+      const current = weeklyMeasurementRecordings.get(measurementId) || [0, 0, 0, 0, 0, 0, 0];
+      current[index] = value;
+      weeklyMeasurementRecordings.set(measurementId, current);
+    })
+  })
+
   let dateLabel = currentDate.toFormattedString();
   if (dateIndex === dates.length - 1) dateLabel = 'Today';
   else if (dateIndex === dates.length - 2) dateLabel = 'Yesterday';
+
+  console.log('weeklyMeasurementRecordings: ', weeklyMeasurementRecordings);
+  const [viewScope, setViewScope] = useState('day');
+  const segmentedButtonRef = useRef();
+  useLayoutEffect(() => {
+
+  });
+
   return (
     <>
       <Header title='Home' />
@@ -213,6 +230,8 @@ export default function HomeScreen() {
                               const nextRecordingData = { ...data, value: toggled ? 1 : 0};
                               dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates: nextRecordingData }));                        
                             }}
+                            scope={viewScope}
+                            weeklyData={weeklyMeasurementRecordings.get(data.measurementId) || []}
                           />
                         );
                       })
@@ -239,6 +258,8 @@ export default function HomeScreen() {
                       key={habit.id}
                       data={data}
                       habit={habit}
+                      scope={viewScope}
+                      weeklyData={(weeklyMeasurementRecordings.get(data.measurementId) || []).slice(0, weekDates.length)}
                     />
                   );
                 })
@@ -246,6 +267,29 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         </ScrollView>
+        <Surface style={styles.scopeButtonsContainer}>
+          <SegmentedButtons
+            style={styles.scopeButtons}
+            value={viewScope}
+            onValueChange={(value) => setViewScope(value)}
+            buttons={[
+              {
+                value: 'day',
+                label: 'Day',
+                icon: 'calendar-today',
+                style: styles.scopeButton,
+                labelStyle: styles.scopeButtonLabel,
+              },
+              {
+                value: 'week',
+                label: 'Week',
+                icon: 'calendar-week',
+                style: styles.scopeButton,
+                labelStyle: styles.scopeButtonLabel,
+              }
+            ]}
+          />
+        </Surface>
       </View>
     </>
   );
@@ -287,7 +331,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginHorizontal: 8,
     marginTop: 8,
     flexDirection: 'row',
-    height: 60,
+    height: 64,
   },
   weekday: {
     position: 'absolute',
@@ -356,8 +400,27 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  scopeButtonsContainer: {
+    position: 'absolute',
+    top: 174,
+    right: 16,
+
+    width: 200,
+    height: 38,
+    borderRadius: 19,
+  },
+  scopeButtons: {
+    width: 200,
+  },
+  scopeButton: {
+    borderWidth: 0,
+  },
+  scopeButtonLabel: {    
+  },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 48,
   },
   recordingContainer: {
     marginVertical: 16,
@@ -381,14 +444,60 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   recordingDivider: {
     marginVertical: 24,
   },
+  viewScopeButton: {
+    position: 'absolute',
+    top: 220,
+    right: 24,
+  },
 });
 
+type RecordingDataMeasurementProps = {
+  data: RecordingDataMeasurement,
+  measurement: Measurement,
+  onPlus: (() => void) | undefined, onMinus: (() => void) | undefined,
+  onToggle: ((toggled: boolean) => void) | undefined,
+  weeklyData: number[],
+  scope: string,
+}
 
-const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle } : { data: RecordingDataMeasurement, measurement: Measurement, onPlus: (() => void) | undefined, onMinus: (() => void) | undefined, onToggle: ((toggled: boolean) => void) | undefined }) : JSX.Element | null  => {
+const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle, weeklyData, scope } : RecordingDataMeasurementProps) : JSX.Element | null  => {
   const theme = useTheme();
   const typeData = measurementTypeData.find((data) => data.type === measurement.type);
   if (!typeData) return null;
 
+  let controlContent;
+  if (scope === 'week') {
+    controlContent = (<>
+      <Text style={measurementStyles.value} variant='titleMedium'>{weeklyData.reduce((acc, curr) => acc + curr, 0)}</Text>
+      {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
+      {measurement.type === 'bool' && (
+        <View style={{ marginTop: 15, marginRight: 6 }}>
+          <Icon source='check' size={18} />
+        </View>
+      )}
+    </>);
+  } else if (measurement.type === 'bool') {
+    controlContent = (<>
+      <Text style={measurementStyles.value} variant='titleMedium'> </Text>
+      <IconButton size={18} mode={!data.value ? 'contained' : undefined} icon='window-close' onPress={() => {
+        onToggle && onToggle(false);
+      }}/>
+      <IconButton size={18} mode={data.value ? 'contained' : undefined} icon='check' onPress={() => {
+        onToggle && onToggle(true);
+      }}/>
+    </>);
+  } else {
+    controlContent = (<>
+      <Text style={measurementStyles.value} variant='titleMedium'>{formatNumber(data.value)}</Text>
+      {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
+      <IconButton size={18} icon='minus' disabled={!data.value} onPress={() => {
+        onMinus && onMinus();
+      }}/>
+      <IconButton size={18} icon='plus' onPress={() => {
+        onPlus && onPlus();
+      }}/>
+    </>)
+  }
   return (
     <>
       <View style={measurementStyles.container}>
@@ -405,33 +514,7 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
           ) : null}
         </View>
         <View style={measurementStyles.controlContainer}>
-          {
-            measurement.type !== 'bool' && (
-              <>
-                <Text style={measurementStyles.value} variant='titleMedium'>{formatNumber(data.value)}</Text>
-                {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
-                <IconButton size={18} icon='plus' onPress={() => {
-                  onPlus && onPlus();
-                }}/>
-                <IconButton size={18} icon='minus' disabled={!data.value} onPress={() => {
-                  onMinus && onMinus();
-                }}/>
-              </>
-            )
-          }
-          {
-            measurement.type === 'bool' && (
-              <>
-                <Text style={measurementStyles.value} variant='titleMedium'> </Text>
-                <IconButton size={18} mode={data.value ? 'contained' : undefined} icon='check' onPress={() => {
-                  onToggle && onToggle(true);
-                }}/>
-                <IconButton size={18} mode={!data.value ? 'contained' : undefined} icon='window-close' onPress={() => {
-                  onToggle && onToggle(false);
-                }}/>
-              </>
-            )
-          }
+          {controlContent}
         </View>
       </View>
     </>
@@ -486,16 +569,93 @@ const measurementStyles = StyleSheet.create({
   },
 });
 
-const RecordingDataHabit = ({ data, habit } : { data: RecordingDataMeasurement, habit: Habit }) : JSX.Element | null => {
+type RecordingDataHabitProps = {
+  data: RecordingDataMeasurement,
+  habit: Habit,
+  weeklyData: number[],
+  scope: string,
+}
+
+const RecordingDataHabit = ({ data, habit, weeklyData, scope } : RecordingDataHabitProps) : JSX.Element | null => {
   const theme = useTheme();
   const habitStyles = createHabitStyles(theme);
   const measurement = useMeasurement(habit.measurementId);
   const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
   if (!typeData) return null;
 
-  const [complete, progress] = getHabitCompletion(habit, data);
+  
+  let content;
+  if (scope === 'week') {
+    content = (<>
+      <View style={habitStyles.checkboxContainer}>
+        {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
+          const value = weeklyData[index];
+          const [complete, __] = getHabitCompletion(habit, value || 0);
 
-
+          let color = theme.colors.primary;
+          let status = 'unchecked';
+          if (value === undefined) {
+            color = theme.colors.outline;
+          }
+          else if (complete) {
+            status = 'checked';
+          }
+          return (
+            <View style={habitStyles.checkbox}>
+              <Checkbox
+                status={status as ('unchecked' | 'indeterminate' | 'checked')}
+                color={color}
+                uncheckedColor={color}
+                disabled={value === undefined}
+              />
+            </View>
+          );
+        })}
+      </View>
+    </>);
+  } else {
+    const [complete, progress] = getHabitCompletion(habit, data.value);
+    content = (<>
+      <View style={habitStyles.progressContainer}>
+        <View>
+          <ProgressBar
+            style={habitStyles.progress}
+            progress={progress}
+            color={complete ? theme.colors.primary : theme.colors.outlineVariant}
+            />
+        </View>
+        <View style={habitStyles.progressLabel}>
+          {typeData.type === 'bool' ? (
+            <View style={{ marginTop: 2 }}>
+              <Icon source={data.value ? 'check' : 'window-close'} size={16} />
+            </View>
+          ) : (
+            <Text style={habitStyles.progressLabelCurrent} variant='bodyMedium'>
+              {formatNumber(data.value)}
+            </Text>
+          )}
+          <Text style={habitStyles.progressLabelDivider} variant='bodyMedium'>
+            {' / '}
+          </Text>
+          {typeData.type === 'bool' ? (
+            <View style={{ marginTop: 2 }}>
+              <Icon source='check' size={16} />
+            </View>
+          ) : (
+            <Text numberOfLines={1} style={habitStyles.progressLabelTarget} variant='bodyMedium'>
+              {formatNumber(habit.daily)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
+            </Text>
+          )}
+        </View>
+      </View>
+      <View style={[habitStyles.points, (complete ? habitStyles.pointsComplete : null)]}>
+        <Text style={habitStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
+        <View style={habitStyles.pointsIcon}>
+          <Icon source={`star-four-points`} size={14} color={theme.colors.onPrimary} />
+        </View>
+      </View>
+    </>);
+  }
   return (
     <>
       <View style={habitStyles.container}>
@@ -514,30 +674,7 @@ const RecordingDataHabit = ({ data, habit } : { data: RecordingDataMeasurement, 
             ) : null}
           </View>
         </View>
-        {measurement?.type !== 'bool' ? (
-          <View style={habitStyles.progressContainer}>
-            <View>
-              <ProgressBar
-                style={habitStyles.progress}
-                progress={progress}
-                color={complete ? theme.colors.primary : theme.colors.outlineVariant}
-              />
-            </View>
-            <View style={habitStyles.progressLabel}>
-              <Text style={habitStyles.progressLabelCurrent} variant='bodyMedium'>{formatNumber(data.value)}</Text>
-              <Text style={habitStyles.progressLabelDivider} variant='bodyMedium'> / </Text>
-              <Text numberOfLines={1} style={habitStyles.progressLabelTarget} variant='bodyMedium'>
-                {formatNumber(habit.daily)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-        <View style={[habitStyles.points, (complete ? habitStyles.pointsComplete : null)]}>
-          <Text style={habitStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
-          <View style={habitStyles.pointsIcon}>
-            <Icon source={`star-four-points`} size={14} color={theme.colors.onPrimary} />
-          </View>
-        </View>
+        {content}
       </View>
     </>
   );
@@ -642,45 +779,51 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   pointsIcon: {
     marginTop: 3,
   },
+  checkboxContainer: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  checkbox: {
+  },
 });
 
-const getHabitCompletion = (habit: Habit, data: RecordingDataMeasurement): [boolean, number] => {
+const getHabitCompletion = (habit: Habit, value: number): [boolean, number] => {
   let progress = 0;
   let complete = false;
   switch (habit.operator) {
     case '>':
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value > habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value > habit.daily;
       break;
     case '>=':
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value >= habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value >= habit.daily;
       break;
     case '<':
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value < habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value < habit.daily;
       break;
     case '<=':
-      if (habit.daily === 0 && data.value === 0) {
+      if (habit.daily === 0 && value === 0) {
         progress = 1;
         complete = true;
         break;
       }
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value <= habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value <= habit.daily;
       break;
     case '==':
-      if (habit.daily === 0 && data.value === 0) {
+      if (habit.daily === 0 && value === 0) {
         progress = 1;
         complete = true;
         break;
       }
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value === habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value === habit.daily;
       break;
     case '!=':
-      progress = Math.min(data.value / habit.daily, 1.0) || 0;
-      complete = data.value !== habit.daily;
+      progress = Math.min(value / habit.daily, 1.0) || 0;
+      complete = value !== habit.daily;
       break;
   }
   return [complete, progress];
