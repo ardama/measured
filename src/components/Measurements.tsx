@@ -1,333 +1,39 @@
-import { useRef, useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Fragment, useRef, useState } from "react";
+import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Dimensions } from "react-native";
 
-import { useMeasurements, useUser, useMeasurementUnits, useAllMeasurementUnitsByMeasurementType, useMeasurementUnitsByMeasurementType, useHabitsByMeasurement } from "@/store/selectors";
+import { useMeasurements, useUser, useMeasurementUnits, useAllMeasurementUnitsByMeasurementType, useMeasurementUnitsByMeasurementType, useHabitsByMeasurement, useHabitsByMeasurements } from "@/store/selectors";
 import { addMeasurement, removeMeasurement, editMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
 import { type Measurement, createMeasurement, createMeasurementUnit, measurementTypeData, type MeasurementType, generateDefaultEmptyUnit, defaultMeasurementUnits } from "@/types/measurements";
-import { Button, Icon, IconButton, Menu, SegmentedButtons, Surface, Text, TextInput, AnimatedFAB, FAB, HelperText, Chip, useTheme } from 'react-native-paper';
+import { Button, Icon, IconButton, Menu, SegmentedButtons, Surface, Text, TextInput, AnimatedFAB, FAB, HelperText, Chip, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple } from 'react-native-paper';
 import { forWeb } from '@u/helpers';
 import { EmptyError, Error, NoError } from '@u/constants/Errors';
 
-const MeasurementItem = ({ measurement, onEdit, onDelete }: {
-    measurement: Measurement;
-    onEdit: (measurement: Measurement) => void;
-    onDelete: (measurement: Measurement) => void;
-  }): JSX.Element => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [isUnitMenuVisible, setIsUnitMenuVisible] = useState(false);
-  
-  const getInitialEditedMeasurement = (measurement: Measurement) => ({
-    ...measurement,
-    step: measurement.step.toString(),
-  });
-  const [editedMeasurement, setEditedMeasurement] = useState(getInitialEditedMeasurement(measurement));
-
-  const units = defaultMeasurementUnits;
-  const habits = useHabitsByMeasurement(measurement);
-  const habitCount = habits.length;
-  
-  const theme = useTheme();
-  const typeActiveColor = theme.colors.primary;
-  const typeInactiveColor = theme.colors.onSurfaceDisabled;
-  
-  const handleSave = () => {
-    if (hasErrors()) return;
-
-    const step = editedMeasurement.type !== 'bool' ? parseFloat(editedMeasurement.step) : 1;
-    const unit = editedMeasurement.type !== 'bool' ? editedMeasurement.unit : '';
-    const nextMeasurement = {
-      ...editedMeasurement,
-      activity: editedMeasurement.activity.trim(),
-      variant: editedMeasurement.variant.trim(),
-      unit,
-      step,
-    };
-
-    onEdit(nextMeasurement);
-    setIsEditing(false);
-    setEditedMeasurement(getInitialEditedMeasurement(nextMeasurement))
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditedMeasurement(getInitialEditedMeasurement(measurement));
-  }
-
-  const hasErrors = () => {
-    if (getActivityErrors().hasError) return true;
-    if (getVariantErrors().hasError) return true;
-    if (getStepErrors().hasError) return true;
-    return false
-  }
-
-  const getActivityErrors = () => {
-    return editedMeasurement.activity ? NoError : EmptyError;
-  }
-
-  const getVariantErrors = () => {
-    return NoError;
-  }
-
-  const getStepErrors = () => {
-    if (!editedMeasurement.step) return EmptyError;
-    const step = parseFloat(editedMeasurement.step);
-    if (isNaN(step) || !isFinite(step) || step < 0) return Error('Invalid step');
-    return NoError;
-  }
-
-  const typeData = measurementTypeData.find((data) => data.type === measurement.type) || measurementTypeData[0];
-  const editedTypeData = measurementTypeData.find((data) => data.type === editedMeasurement.type) || measurementTypeData[0];
-
-  if (!isEditing) return (
-    <Surface style={[itemStyles.item, itemStyles.itemCollapsed]} elevation={1}>
-      <Pressable style={itemStyles.container} onPress={() => setIsEditing(true)}>
-          <View style={itemStyles.typeIconCollapsed}>
-            <Icon source={typeData.icon} size={40} />
-          </View>
-          <View style={itemStyles.content}>
-            <Text variant='titleMedium'>{measurement.activity}</Text>
-            <Text variant='bodyMedium'>{measurement.variant || '(no variant)'}</Text>
-          </View>
-          <View style={{ marginVertical: 24, marginRight: -8}}>
-            <Chip
-              icon='checkbox-multiple-outline'
-              disabled={!habitCount}
-            >
-              <Text style={{ color: !!habitCount ? theme.colors.primary : theme.colors.onSurfaceDisabled }} variant='titleSmall'>{habitCount} Habit{habitCount === 1 ? '' : 's'}</Text>
-            </Chip>
-          </View>
-          <Menu
-            visible={isMenuVisible}
-            onDismiss={() => setIsMenuVisible(false)}
-            anchor={
-              <IconButton
-                style={{ marginVertical: 20, marginHorizontal: 16 }} icon='dots-vertical' size={24}
-                onPress={() => { setIsMenuVisible(true); }}
-                onResponderRelease={(e) => { e.preventDefault(); }}
-              />
-            }
-            anchorPosition='bottom'
-          >
-            <Menu.Item leadingIcon='archive-outline' onPress={() => { onDelete(measurement); }} title="Archive" />
-            <Menu.Item leadingIcon='delete-outline' onPress={() => { onDelete(measurement); }} title="Delete" />
-          </Menu>
-      </Pressable>
-    </Surface>
-  );
-
-  return (
-    <Surface elevation={1} style={[itemStyles.item, itemStyles.itemExpanded]}>
-      <View style={{ flexGrow: 1, flexDirection: 'row', marginBottom: 20, height: 44 }}>
-        <View style={itemStyles.typeIconExpanded}>
-          <Icon source={editedTypeData.icon} size={28} />
-        </View>
-        {
-          measurementTypeData.map((data) => {
-            const selected = data.type === editedMeasurement.type;
-            return (
-              <Button
-                key={data.type}
-                style={{ marginRight: 4, borderRadius: 200, paddingHorizontal: forWeb(0, 6) }}
-                mode={selected ? 'contained-tonal' : 'text'}
-                onPress={() => {
-                  setEditedMeasurement({ ...editedMeasurement, type: data.type })
-                }}
-                compact
-              >
-                <Text variant='titleMedium' style={{ lineHeight: selected ? 24 : 26, marginHorizontal: forWeb(6, 0) }}>{data.label}</Text>
-              </Button>
-            );
-          })
-        }
-        {
-          // measurementTypeData.map((data) => data.type === editedMeasurement.type ? (
-          //   <Button
-          //     key={data.type}
-          //     style={{ marginRight: 8, borderRadius: 200 }}
-          //     mode='contained-tonal'
-          //     onPress={() => {
-          //       setEditedMeasurement({ ...editedMeasurement, type: data.type })
-          //     }}
-          //     compact
-          //   >
-          //     <View style={{ flexDirection: 'row' }}>
-          //       <View style={{ height: 24, padding: 1 }}>
-          //         <Icon source={data.icon} size={22} />
-          //       </View>
-          //       <Text variant='titleMedium' style={{ }}>{data.label}</Text>
-          //     </View>
-          //       {/* <Text variant='titleMedium' style={{ }}>{data.label}</Text> */}
-          //   </Button>
-          // ) : (
-          //   <Button
-          //     key={data.type}
-          //     style={{ marginRight: 8, borderRadius: 200 }}
-          //     mode='text'
-          //     onPress={() => {
-          //       setEditedMeasurement({ ...editedMeasurement, type: data.type })
-          //     }}
-          //     compact
-          //   >
-          //     <View style={{ padding: 4 }}>
-          //       <Icon source={data.icon} size={22} />
-          //     </View>
-          //   </Button>
-          // ))
-        }
-      </View>
-      <TextInput
-        label="Activity"
-        style={itemStyles.input}
-        mode='outlined'
-        error={getActivityErrors().hasError}
-        value={editedMeasurement.activity || ' '}
-        onChangeText={(text) => setEditedMeasurement({ ...editedMeasurement, activity: text })}
-        />
-      <TextInput
-        label="Variant"
-        style={itemStyles.input}
-        mode='outlined'
-        error={getVariantErrors().hasError}
-        value={editedMeasurement.variant || ' '}
-        onChangeText={(text) => setEditedMeasurement({ ...editedMeasurement, variant: text })}
-      />
-      <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'flex-end' }}>
-        {editedMeasurement.type === 'bool' ? null : (
-          <>
-            <View style={[itemStyles.input, itemStyles.inputPartial, { maxWidth: 100 }]}>
-              <TextInput
-                label="Step"
-                mode='outlined'
-                error={!!getStepErrors().hasError}
-                value={editedMeasurement.step.toString() || ' '}
-                onChangeText={(text) => {
-                  setEditedMeasurement({ ...editedMeasurement, step: text });
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={[itemStyles.input, itemStyles.inputPartial]}>
-              <TextInput
-                label='Unit'
-                mode='outlined'
-                value={editedMeasurement.unit}
-                onChangeText={(text) => {
-                  setEditedMeasurement({ ...editedMeasurement, unit: text });
-                }}
-              />
-            </View>
-          </>
-        )}
-        <View style={itemStyles.buttons}>
-          <Button mode="contained-tonal" style={itemStyles.button} onPress={handleSave} disabled={hasErrors()}>
-            <Text>Save</Text>
-          </Button>
-          <Button mode="contained-tonal" style={itemStyles. button} onPress={handleCancel}>
-            <Text>Cancel</Text>
-          </Button>
-        </View>
-      </View>
-    </Surface>
-  );
+type EditedMeasurement = {
+  step: string;
+  id: string;
+  userId: string;
+  type: MeasurementType;
+  activity: string;
+  variant: string;
+  unit: string;
+  archived: boolean;
+  recordings: string[];
 };
-
-const itemStyles = StyleSheet.create({
-  item: {
-    marginBottom: 8,
-    borderRadius: 8,
-  },
-  itemCollapsed: {
-    height: 80,
-  },
-  itemExpanded: {
-    padding: 20,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
-  container: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'row',
-  },
-  typeIconCollapsed: {
-    height: '100%',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  typeIconExpanded: {
-    marginVertical: 8,
-    marginRight: 12,
-  },
-  typeIcons: {
-    flexDirection: 'row',
-    alignContent: 'space-between',
-    flexWrap: 'wrap',
-    height: 56,
-    width: 128,
-    paddingVertical: 17,
-    marginLeft: 16,
-    marginRight: 8,
-  },
-  typeIcon: {
-    height: 24,
-    width: 24,
-    marginRight: 8,
-  },
-  content: {
-    flex: 1,
-    height: '100%',
-    paddingVertical: 16,
-  },
-  habitCount: {
-    position: 'relative',
-    height: 32,
-    width: 32,
-    marginTop: 24,
-  },
-  habitCountText: {
-    position: 'absolute',
-    top: 2.5,
-    left: 11,
-    width: 16,
-    textAlign: 'center',
-    fontWeight: '900',
-    lineHeight: 20,
-  },
-  input: {
-    marginBottom: 12, 
-    width: '100%',
-  },
-  inputPartial: {
-    width: 'auto',
-    flex: 1,
-    marginRight: 8, 
-  },
-  buttons: {
-    height: 68,
-    flexDirection: 'row',
-    paddingVertical: 14,
-  },
-  button: {
-    marginLeft: 8
-  },
-});
 
 const Measurements = () => {
   const dispatch = useDispatch();
   const measurements = useMeasurements();
-  const units = useMeasurementUnits();
   const user = useUser();
 
-  const scrollViewRef = useRef<ScrollView>(null);
-  const [isFABExtended, setIsFABExtended] = useState(true);
+  const theme = useTheme();
+  const formStyles = createFormStyles(theme);
 
-  const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    const currentScrollPosition =  Math.floor(nativeEvent?.contentOffset?.y) ?? 0;
-    setIsFABExtended(currentScrollPosition <= 0);
-  };
+  const [showForm, setShowForm] = useState(false);
+  const [newMeasurement, setNewMeasurement] = useState<EditedMeasurement | null>(null);
+  const [editedMeasurement, setEditedMeasurement] = useState<EditedMeasurement | null>(null);
+
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const scrollToEnd = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -339,55 +45,377 @@ const Measurements = () => {
   }));
   
   const handleDeleteMeasurement = (measurement: Measurement) => dispatch(removeMeasurement(measurement.id));
+  const handleArchiveMeasurement = (measurement: Measurement, archived: boolean) => {
+    dispatch(editMeasurement({
+      id: measurement.id,
+      updates: { ...measurement, archived },
+    }));
+  };
 
-  const handleAddMeasurement = () => {
-    dispatch(addMeasurement(createMeasurement(user.id, 'New activity', 'New variant', 'duration', 'min', 15)));
-    scrollToEnd();
+  const handleAddMeasurement = (newMeasurement: Measurement) => {
+    dispatch(addMeasurement(newMeasurement));
+    setTimeout(() => {
+      scrollToEnd();
+    }, 0);
+  }
+  
+  const getInitialEditedMeasurement = (measurement: Measurement) => ({
+    ...measurement,
+    step: measurement.step.toString(),
+  });
+  
+  const handleAddMeasurementPress = () => {
+    setShowForm(true);
+    setNewMeasurement(getInitialEditedMeasurement(createMeasurement(user.id, 'New activity', 'New variant', 'duration', 'min', 15)));
+  }
+  const handleMeasurementPress = (measurement: Measurement) => {
+    setShowForm(true);
+    setEditedMeasurement(getInitialEditedMeasurement(measurement));
   }
 
+  const hideForm = () => {
+    setShowForm(false);
+    setTimeout(() => {
+      setNewMeasurement(null);
+      setEditedMeasurement(null);
+    }, 250);
+  }
+
+  const renderForm = () => {
+    const isNew = !!newMeasurement;
+    const formMeasurement = newMeasurement || editedMeasurement || null;
+    if (formMeasurement === null) return;
+
+    const handleFormEdit = (nextMeasurement: EditedMeasurement) => {
+      if (isNew) setNewMeasurement(nextMeasurement);
+      else setEditedMeasurement(nextMeasurement);
+    }
+  
+    const handleSave = () => {
+      if (hasErrors()) return;
+  
+      const step = isBool ? 1 : parseFloat(formMeasurement.step);
+      const unit = isBool ? '' : formMeasurement.unit;
+      const nextMeasurement = {
+        ...formMeasurement,
+        activity: formMeasurement.activity.trim(),
+        variant: formMeasurement.variant.trim(),
+        unit,
+        step,
+      };
+  
+      if (isNew) handleAddMeasurement(nextMeasurement);
+      else handleEditMeasurement(nextMeasurement);
+
+      hideForm();
+    };
+  
+    const handleCancel = () => {
+      hideForm();
+    }
+
+    const hasErrors = () => {
+      if (getActivityErrors().hasError) return true;
+      if (getVariantErrors().hasError) return true;
+      if (getStepErrors().hasError) return true;
+      return false
+    }
+  
+    const getActivityErrors = () => {
+      return formMeasurement.activity ? NoError : EmptyError;
+    }
+  
+    const getVariantErrors = () => {
+      return NoError;
+    }
+  
+    const getStepErrors = () => {
+      if (isBool) return NoError;
+      if (!formMeasurement.step) return EmptyError;
+      const step = parseFloat(formMeasurement.step);
+      if (isNaN(step) || !isFinite(step) || step < 0) return Error('Invalid step');
+      return NoError;
+    }
+  
+    const typeData = measurementTypeData.find((data) => data.type === formMeasurement.type) || measurementTypeData[0];
+    const isBool = formMeasurement.type === 'bool';
+  
+    return (
+      <>
+        <View style={formStyles.header}>
+          <Text variant='titleLarge' style={formStyles.title} >{`${isNew ? 'Create' : 'Edit'} measurement`}</Text>
+          <IconButton style={formStyles.closeButton} icon={'window-close'} onPress={() => hideForm() } />
+        </View>
+        <TextInput
+          label="Activity"
+          style={formStyles.input}
+          mode='outlined'
+          error={getActivityErrors().hasError}
+          value={formMeasurement.activity || ' '}
+          onChangeText={(text) => {
+            const nextMeasurement = { ...formMeasurement, activity: text };
+            handleFormEdit(nextMeasurement);
+          }}
+          />
+        <TextInput
+          label="Variant"
+          style={formStyles.input}
+          mode='outlined'
+          error={getVariantErrors().hasError}
+          value={formMeasurement.variant || ''}
+          onChangeText={(text) => {
+            const nextMeasurement = { ...formMeasurement, variant: text };
+            handleFormEdit(nextMeasurement);
+          }}
+        />
+        <View style={formStyles.typeSelection}>
+          <View style={formStyles.typeIcon}>
+            <Icon source={typeData.icon} size={28} color={theme.colors.primary} />
+          </View>
+          {measurementTypeData.map((data) => {
+              const selected = data.type === formMeasurement.type;
+              const disabled = !isNew && !selected;
+              return (
+                <Button
+                  key={data.type}
+                  style={formStyles.typeButton}
+                  mode={selected ? 'contained-tonal' : 'text'}
+                  onPress={() => {
+                    const nextMeasurement = { ...formMeasurement, type: data.type };
+                    handleFormEdit(nextMeasurement);
+                  }}
+                  compact
+                  disabled={disabled}
+                  labelStyle={disabled ? formStyles.typeLabelDisabled : formStyles.typeLabel}
+                >
+                  {data.label}
+                </Button>
+              );
+            }
+          )}
+        </View>
+            <TextInput
+              style={formStyles.input}
+              mode='outlined'
+              label="Step"
+              error={!!getStepErrors().hasError}
+              value={isBool ? '--' : formMeasurement.step.toString() || ''}
+              onChangeText={(text) => {
+                const nextMeasurement = { ...formMeasurement, step: text };
+                handleFormEdit(nextMeasurement);
+              }}
+              keyboardType="numeric"
+              disabled={isBool}
+            />
+            <TextInput
+              style={formStyles.input}
+              mode='outlined'
+              label='Unit'
+              value={isBool ? '--' : formMeasurement.unit}
+              onChangeText={(text) => {
+                const nextMeasurement = { ...formMeasurement, unit: text };
+                handleFormEdit(nextMeasurement);
+              }}
+              disabled={isBool}
+            />
+        <View style={formStyles.buttons}>
+          <Button
+            mode="contained-tonal"
+            style={formStyles.button}
+            labelStyle={formStyles.buttonLabel}
+            onPress={() => handleSave()}
+            disabled={hasErrors()}
+          >
+            <Text variant='labelLarge' style={formStyles.buttonText}>Save</Text>
+          </Button>
+          <Button
+            mode="contained-tonal"
+            style={formStyles.button}
+            labelStyle={formStyles.buttonLabel}
+            onPress={() => handleCancel()}
+          >
+            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
+          </Button>
+        </View>
+      </>
+    );
+  }
+
+  const habitsByMeasurement = useHabitsByMeasurements();
+  const activeMeasurements = measurements.filter(({id, archived }) => !archived && habitsByMeasurement.get(id));
+  const inactiveMeasurements = measurements.filter(({ id, archived }) => !archived && !habitsByMeasurement.get(id));
+  const archivedMeasurements = measurements.filter(({ archived }) => archived);
+
+  const [showActiveOverride, setShowActiveOverride] = useState(0);
+  const showActiveMeasurements = showActiveOverride !== -1;
+  const [showInactiveOverride, setShowInactiveOverride] = useState(0);
+  const showInactiveMeasurements = showInactiveOverride === 1 || !!(showInactiveOverride === 0 && inactiveMeasurements.length);
+  const [showArchivedOverride, setShowArchivedOverride] = useState(0);
+  const showArchivedMeasurements = showArchivedOverride === 1;
+
+  const listStyles = createListStyles(theme);
   return (
     <View style={listStyles.container}>
-      <ScrollView ref={scrollViewRef} style={listStyles.scrollContainer} onScroll={handleScroll} scrollEventThrottle={64}>
+      <ScrollView ref={scrollViewRef} style={listStyles.scrollContainer} scrollEventThrottle={64}>
         <View style={listStyles.measurementsContainer}>
-            {
-              measurements.map((measurement) => (
-                <MeasurementItem
-                  key={measurement.id}
-                  measurement={measurement}
-                  onEdit={handleEditMeasurement}
-                  onDelete={handleDeleteMeasurement}
-                  
-                />
-              ))
+          <List.Accordion
+            title={
+              <View style={listStyles.sectionHeaderTitle}>
+                <View style={listStyles.sectionHeaderTitleIcon}>
+                  <Icon source='pencil-outline' size={18} color={theme.colors.primary} />
+                </View>
+                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveMeasurements ? '' : ` (${activeMeasurements.length})`}`}</Text>
+              </View>
             }
+            expanded={showActiveMeasurements}
+            onPress={() => setShowActiveOverride(showActiveMeasurements ? -1 : 1)}
+            style={listStyles.sectionHeader}
+            right={() => (
+              <View style={listStyles.sectionHeaderIcon}>
+                <Icon source={showActiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+              </View>
+            )}
+          >
+            {showActiveMeasurements ? (
+              <>
+                {activeMeasurements.length ? (
+                  activeMeasurements.map((measurement) => (
+                    <Fragment key={measurement.id}>
+                      <Divider style={listStyles.divider} />
+                      <MeasurementItem
+                        measurement={measurement}
+                        onPress={handleMeasurementPress}
+                        onArchive={handleArchiveMeasurement}
+                        onDelete={handleDeleteMeasurement}
+                      />
+                    </Fragment>
+                  ))
+                ) : (
+                  <View style={listStyles.noData}>
+                    <View style={listStyles.noDataIcon}>
+                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={listStyles.noDataText} variant='bodyLarge'>No active measurements</Text>
+                  </View>
+                )}
+              </>
+            ) : null}
+          </List.Accordion>
+          <List.Accordion
+            title={
+              <View style={listStyles.sectionHeaderTitle}>
+                <View style={listStyles.sectionHeaderTitleIcon}>
+                  <Icon source='pencil-off-outline' size={18} color={theme.colors.primary} />
+                </View>
+                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Inactive${showInactiveMeasurements ? '' : ` (${inactiveMeasurements.length})`}`}</Text>
+              </View>
+            }
+            expanded={showInactiveMeasurements}
+            onPress={() => setShowInactiveOverride(showInactiveMeasurements ? -1 : 1)}
+            style={listStyles.sectionHeader}
+            right={() => (
+              <View style={listStyles.sectionHeaderIcon}>
+                <Icon source={showInactiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+              </View>
+            )}
+            >
+            {showInactiveMeasurements ? (
+              <>
+                {inactiveMeasurements.length ? (
+                  inactiveMeasurements.map((measurement) => (
+                    <Fragment key={measurement.id}>
+                      <Divider style={listStyles.divider} />
+                      <MeasurementItem
+                        measurement={measurement}
+                        onPress={handleMeasurementPress}
+                        onArchive={handleArchiveMeasurement}
+                        onDelete={handleDeleteMeasurement}
+                      />
+                    </Fragment>
+                  ))
+                ) : (
+                  <View style={listStyles.noData}>
+                    <View style={listStyles.noDataIcon}>
+                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={listStyles.noDataText} variant='bodyLarge'>No inactive measurements</Text>
+                  </View>
+                )}
+              </>
+            ) : null}
+          </List.Accordion>
+          <List.Accordion
+            title={
+              <View style={listStyles.sectionHeaderTitle}>
+                <View style={listStyles.sectionHeaderTitleIcon}>
+                  <Icon source='archive-outline' size={18} color={theme.colors.primary} />
+                </View>
+                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedMeasurements ? '' : ` (${archivedMeasurements.length})`}`}</Text>
+              </View>
+            }
+            expanded={showArchivedMeasurements}
+            onPress={() => setShowArchivedOverride(showArchivedMeasurements ? -1 : 1)}
+            style={listStyles.sectionHeader}
+            right={() => (
+              <View style={listStyles.sectionHeaderIcon}>
+                <Icon source={showArchivedMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+              </View>
+            )}
+          >
+            {showArchivedMeasurements ? (
+              <>
+                {archivedMeasurements.length ? (
+                  archivedMeasurements.map((measurement) => (
+                    <Fragment key={measurement.id}>
+                      <Divider style={listStyles.divider} />
+                      <MeasurementItem
+                        measurement={measurement}
+                        onPress={handleMeasurementPress}
+                        onArchive={handleArchiveMeasurement}
+                        onDelete={handleDeleteMeasurement}
+                      />
+                    </Fragment>
+                  ))
+                ) : (
+                  <View style={listStyles.noData}>
+                    <View style={listStyles.noDataIcon}>
+                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={listStyles.noDataText} variant='bodyLarge'>No archived measurements</Text>
+                  </View>
+                )}
+              </>
+            ) : null}
+          </List.Accordion>
         </View>
       </ScrollView>
-      {
-        forWeb((
-          <FAB
-            style={listStyles.createButton}
-            onPress={handleAddMeasurement}
-            icon={'plus'}
-            customSize={64}
-          />
-        ), (
-          <AnimatedFAB
-            style={listStyles.createButton}
-            onPress={handleAddMeasurement}
-            icon={'plus'}
-            label='New Measurement'
-            extended={isFABExtended}
-            animateFrom='right'
-            iconMode='dynamic'
-          />
-        ))
-      }
-      
+      <View style={listStyles.createButtonContainer}>
+        <Button
+          style={listStyles.createButton}
+          onPress={() => handleAddMeasurementPress()}
+          icon='clipboard-edit-outline'
+          mode='elevated'
+          buttonColor={theme.colors.secondaryContainer}
+          contentStyle={{ height: 56}}
+        >
+          <Text variant='labelLarge' style={listStyles.createButtonText}>Create measurement</Text>  
+        </Button>
+      </View>
+      <Modal
+        visible={!!showForm}
+        onDismiss={() => {
+          hideForm();
+        }}
+        contentContainerStyle={formStyles.container}
+        dismissable={false}
+      >
+        {renderForm()}
+      </Modal>
     </View>
   );
 };
 
-const listStyles = StyleSheet.create({
+const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -396,15 +424,261 @@ const listStyles = StyleSheet.create({
     flex: 1,
   },
   measurementsContainer: {
+    paddingBottom: 88
+  },
+  sectionHeader: {
+    paddingHorizontal: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
+    backgroundColor: theme.colors.elevation.level3,
+  },
+  sectionHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  sectionHeaderTitleIcon: {
+
+  },
+  sectionHeaderText: {
+    color: theme.colors.primary,
+  },
+  sectionHeaderIcon: {
+    marginRight: 8,
+  },
+  divider: {
+    backgroundColor: theme.colors.surfaceVariant,
+    marginHorizontal: 16,
+    display: 'none',
+  },
+  createButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    alignItems: 'center',
+    width: '100%',
     padding: 16,
-    paddingBottom: 96
   },
   createButton: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 600,
+  },
+  createButtonText: {
+    color: theme.colors.primary,
+    fontSize: 16,
+  },
+  noData: {
+    flexDirection: 'row',
+    paddingVertical: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: theme.colors.outline,
+  },
+  noDataIcon: {
+    marginRight: 8,
   },
 })
 
+const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
+  container: {
+    marginHorizontal: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: {
+    lineHeight: 40,
+  },
+  closeButton: {
+    margin: 0,
+  },
+  formRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  input: {
+    marginBottom: 16,
+    // backgroundColor: theme.colors.elevation.level3,
+  },
+  typeSelection: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    // height: 44,
+
+    marginBottom: 20,
+    marginTop: 32,
+  },
+  typeIcon: {
+    marginLeft: 8,
+    marginRight: 4,
+
+  },
+  typeButton: {
+    // marginRight: 4,
+    // borderRadius: 200,
+    // paddingHorizontal: forWeb(0, 6),
+    // marginVertical: 10,
+  },
+  typeLabel: {
+    paddingHorizontal: 6,
+    color: theme.colors.primary,
+    // marginVertical: 10,
+  },
+  typeLabelDisabled: {
+    paddingHorizontal: 6,
+  },
+  buttons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 20,
+  },
+  button: {
+    borderRadius: 40,
+  },
+  buttonLabel: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+
+  },
+  buttonText: {
+    color: theme.colors.primary,
+  },
+});
+
+const MeasurementItem = ({ measurement, onPress, onArchive, onDelete }: {
+  measurement: Measurement;
+  onPress: (measurement: Measurement) => void;
+  onArchive: (measurement: Measurement, archived: boolean) => void;
+  onDelete: (measurement: Measurement) => void;
+}): JSX.Element => {
+
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+
+  const habits = useHabitsByMeasurement(measurement);
+  const habitCount = habits.length;
+
+  const theme = useTheme();
+  const itemStyles = createItemStyles(theme);
+
+  const typeData = measurementTypeData.find((data) => data.type === measurement.type) || measurementTypeData[0];
+  const hasHabits = habitCount !== 0;
+  return (
+    <TouchableRipple style={itemStyles.container} onPress={() => { onPress(measurement); }}>
+      <>
+        <View style={itemStyles.typeIcon}>
+          <Icon source={typeData.icon} size={28} color={theme.colors.primary} />
+        </View>
+        <View style={itemStyles.content}>
+          <View style={itemStyles.labelContainer}>
+            <Text style={itemStyles.labelActivity} variant='titleMedium'>{measurement.activity}</Text>
+            {measurement.variant ? <Text style={itemStyles.labelDivider} variant='bodyMedium'> : </Text> : null}
+            <Text style={itemStyles.labelVariant} variant='bodyMedium'>{measurement.variant}</Text>
+          </View>
+          <View style={itemStyles.habitCountContainer}>
+            <View style={itemStyles.habitCountIcon}>
+              <Icon source='checkbox-multiple-marked-outline' size={18} color={hasHabits ? theme.colors.primary : theme.colors.outline} />
+            </View>
+            <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, ...(hasHabits ? {} : itemStyles.habitCountTextInactive)}}>
+              {habitCount} Habit{habitCount === 1 ? '' : 's'}
+            </Text>
+          </View>
+        </View>
+        <Menu
+          visible={isMenuVisible}
+          onDismiss={() => setIsMenuVisible(false)}
+          anchor={
+            <IconButton
+            style={itemStyles.menuButton} icon='dots-vertical' size={24}
+            onPress={() => { setIsMenuVisible(true); }}
+            onResponderRelease={(e) => { e.preventDefault(); }}
+            />
+          }
+          anchorPosition='bottom'
+          >
+          <Menu.Item
+            leadingIcon='archive-outline'
+            onPress={() => { onArchive(measurement, !measurement.archived); }}
+            title={measurement.archived ? 'Unarchive' : 'Archive'}
+            />
+          <Menu.Item
+            leadingIcon='delete-outline'
+            onPress={() => { onDelete(measurement); }}
+            title="Delete"
+            />
+        </Menu>
+      </>
+    </TouchableRipple>
+  );
+};
+
+const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
+  item: {
+  },
+  container: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  typeIcon: {
+    marginRight: 8,
+    marginLeft: -6,
+  },
+  content: {
+    flex: 1,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  labelActivity: {
+  },
+  labelDivider: {
+    marginHorizontal: 2,
+  },
+  labelVariant: {
+  },
+  habitCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // paddingHorizontal: 16,
+    borderRadius: 8,
+    // height: 40,
+    // minWidth: 112,
+    // backgroundColor: theme.colors.secondaryContainer,
+  },
+  habitCountIcon: {
+    // marginTop: 11,
+    marginRight: 6,
+  },
+  habitCountText: {
+    flexGrow: 1,
+    color: theme.colors.primary,
+    lineHeight: 24,
+    // marginTop: 8,
+    // textAlign: 'center',
+  },
+  habitCountTextInactive: {
+    color: theme.colors.outline,
+  },
+  menuButton: {
+    marginLeft: 8,
+    marginRight: 0,
+  },
+});
 
 export default Measurements;

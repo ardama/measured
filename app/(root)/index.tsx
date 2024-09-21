@@ -4,7 +4,7 @@ import { measurementTypeData, type Measurement } from '@t/measurements';
 import { Checkbox, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
 import { createRecording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { generateDates } from '@u/dates';
+import { generateDates, SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
 import { addRecording, editRecording, editRecordingData } from '@s/userReducer';
@@ -71,7 +71,7 @@ export default function HomeScreen() {
   const weeklyPointTotal = weeklyPoints.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0);
 
   const weeklyPointTarget = habits.reduce((previous: number, current: Habit) => {
-    return previous + current.points * current.daysPerWeek;
+    return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
 
@@ -91,7 +91,11 @@ export default function HomeScreen() {
   if (dateIndex === dates.length - 1) dateLabel = 'Today';
   else if (dateIndex === dates.length - 2) dateLabel = 'Yesterday';
 
-  const [viewScope, setViewScope] = useState('day');
+  const measurementScopes = ['Day','Week'];
+  const [measurementScope, setMeasurementScope] = useState(0);
+
+  const habitScopes = ['Day','Week'];
+  const [habitScope, setHabitScope] = useState(0);
 
   return (
     <>
@@ -183,25 +187,41 @@ export default function HomeScreen() {
             </View>
             <View style={styles.weekPointsContainer}>
               <Text style={styles.weekPointsTotal}>{weeklyPointTotal}</Text>
-              <View style={styles.weekPointsIcon}>
-                <Icon source='star-four-points' size={16} color={theme.colors.primary} />
-              </View>
               <Text style={styles.weekPointsDivider}> / </Text>
               <Text style={styles.weekPointsTarget}>{weeklyPointTarget}</Text>
             </View>
           </View>
         </View>
         <ScrollView style={styles.content}>
-          <View style={styles.recordingContainer}>
-            <View style={styles.recordingContainerHeader}>
-              <View style={styles.recordingContainerHeaderIcon}>
-                <Icon source='clipboard-edit-outline' size={20} />
-              </View>
-              <Text style={styles.recordingTitle} variant='titleSmall'>Measurements</Text>
+          <View style={styles.recordingContainerHeader}>
+            <View style={styles.recordingContainerHeaderIcon}>
+              <Icon source='clipboard-edit-outline' size={18} />
             </View>
+            <Text style={styles.recordingTitle} variant='titleMedium'>Measurements</Text>
+            <IconButton
+              style={styles.recordingHeaderScopeButton}
+              icon={'chevron-left'}
+              size={18}
+              iconColor={theme.colors.primary}
+              onPress={() => { setMeasurementScope(measurementScope - 1) }}
+              disabled={measurementScope === 0}
+            />
+            <Text variant='titleSmall' style={styles.recordingHeaderScopeText}>
+              {measurementScopes[measurementScope]}
+            </Text>
+            <IconButton
+              style={styles.recordingHeaderScopeButton}
+              icon={'chevron-right'}
+              size={18}
+              iconColor={theme.colors.primary}
+              disabled={measurementScope === measurementScopes.length - 1}
+              onPress={() => { setMeasurementScope(measurementScope + 1); }}
+            />
+          </View>
+          <View style={styles.recordingContainer}>
             {
               recording && (
-                <ScrollView style={styles.recordingScrollview}>
+                <View style={styles.recordingView}>
                     {
                       recording.data.map((data) => {
                         const measurement = measurements.find(({ id }) => id === data.measurementId );
@@ -225,24 +245,43 @@ export default function HomeScreen() {
                               const nextRecordingData = { ...data, value: toggled ? 1 : 0};
                               dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates: nextRecordingData }));                        
                             }}
-                            scope={viewScope}
+                            scope={measurementScopes[measurementScope].toLowerCase()}
                             weeklyData={weeklyMeasurementRecordings.get(data.measurementId) || []}
                           />
                         );
                       })
                     }
-                </ScrollView>
+                </View>
               )
             }
           </View>
-          <View style={styles.recordingContainer}>
-            <View style={styles.recordingContainerHeader}>
-              <View style={styles.recordingContainerHeaderIcon}>
-                <Icon source='checkbox-multiple-outline' size={20} />
-              </View>
-              <Text style={styles.recordingTitle} variant='titleSmall'>Habits</Text>
+          <View style={styles.recordingContainerHeader}>
+            <View style={styles.recordingContainerHeaderIcon}>
+              <Icon source='checkbox-multiple-marked-outline' size={18} />
             </View>
-            <ScrollView style={styles.recordingScrollview}>
+            <Text style={styles.recordingTitle} variant='titleMedium'>Habits</Text>
+            <IconButton
+              style={styles.recordingHeaderScopeButton}
+              icon={'chevron-left'}
+              size={18}
+              iconColor={theme.colors.primary}
+              onPress={() => { setHabitScope(habitScope - 1) }}
+              disabled={habitScope === 0}
+            />
+            <Text variant='titleSmall' style={styles.recordingHeaderScopeText}>
+              {habitScopes[habitScope]}
+            </Text>
+            <IconButton
+              style={styles.recordingHeaderScopeButton}
+              icon={'chevron-right'}
+              size={18}
+              iconColor={theme.colors.primary}
+              disabled={habitScope === habitScopes.length - 1}
+              onPress={() => { setHabitScope(habitScope + 1); }}
+            />
+          </View>
+          <View style={styles.recordingContainer}>
+            <View style={{ ...styles.recordingView, marginBottom: 56 }}>
               {
                 habits.map((habit) => {
                   const data = recording?.data.find(({ measurementId }) => measurementId === habit.measurementId);
@@ -253,38 +292,41 @@ export default function HomeScreen() {
                       key={habit.id}
                       data={data}
                       habit={habit}
-                      scope={viewScope}
+                      scope={habitScopes[habitScope].toLowerCase()}
+                      currentDate={currentDate}
                       weeklyData={(weeklyMeasurementRecordings.get(data.measurementId) || []).slice(0, weekDates.length)}
                     />
                   );
                 })
               }
-            </ScrollView>
+            </View>
           </View>
         </ScrollView>
-        <Surface style={styles.scopeButtonsContainer}>
-          <SegmentedButtons
-            style={styles.scopeButtons}
-            value={viewScope}
-            onValueChange={(value) => setViewScope(value)}
-            buttons={[
-              {
-                value: 'day',
-                label: 'Day',
-                icon: 'calendar-today',
-                style: styles.scopeButton,
-                labelStyle: styles.scopeButtonLabel,
-              },
-              {
-                value: 'week',
-                label: 'Week',
-                icon: 'calendar-week',
-                style: styles.scopeButton,
-                labelStyle: styles.scopeButtonLabel,
-              }
-            ]}
-          />
-        </Surface>
+        {/* <View style={styles.scopeButtonsContainer}>
+          <Surface style={styles.scopeButtonsWrapper}>
+            <SegmentedButtons
+              style={styles.scopeButtons}
+              value={viewScope}
+              onValueChange={(value) => setViewScope(value)}
+              buttons={[
+                {
+                  value: 'day',
+                  label: 'Day',
+                  icon: 'calendar-today',
+                  style: styles.scopeButton,
+                  labelStyle: styles.scopeButtonLabel,
+                },
+                {
+                  value: 'week',
+                  label: 'Week',
+                  icon: 'calendar-week',
+                  style: styles.scopeButton,
+                  labelStyle: styles.scopeButtonLabel,
+                }
+              ]}
+            />
+          </Surface>
+        </View> */}
       </View>
     </>
   );
@@ -305,16 +347,15 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   recordingHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8
   },
   recordingHeaderDate: {
     flex: 1,
-    marginTop: 12,
     paddingLeft: 12,
     color: theme.colors.primary,
   },
   recordingHeaderIcon: {
-    marginTop: 14,
     paddingLeft: 8,
   },
   recordingHeaderButton: {
@@ -330,7 +371,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   weekday: {
     position: 'absolute',
-    top: 30,
+    top: 32,
     width: 32,
     height: 32,
     lineHeight: 32,
@@ -353,11 +394,11 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     height: 12,
     borderRadius: 6,
     flexGrow: 0,
-    marginTop: 12,
+    marginTop: 14,
     marginBottom: 4,
   },
   weekProgressMarker: {
-    top: 20,
+    top: 22,
     position: 'absolute',
     height: 6,
     width: 6,
@@ -373,22 +414,26 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginLeft: 12,
   },
   weekPointsTotal: {
-    width: 30,
-    textAlign: 'right',
+    width: 28,
+    height: 28,
+    lineHeight: 28,
+    backgroundColor: theme.colors.primary,
+    textAlign: 'center',
     fontWeight: 'bold',
-    lineHeight: 24,
-    fontSize: 16,
-    color: theme.colors.primary,
+    color: theme.colors.onPrimary,
+    borderRadius: 100,
+    marginLeft: 6,
+    marginRight: 2,
   },
   weekPointsDivider: {
     marginHorizontal: 1,
-    lineHeight: 24,
+    lineHeight: 28,
     fontSize: 16,
     color: theme.colors.outline,
   },
   weekPointsTarget: {
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 28,
     color: theme.colors.outline,
   },
   weekPointsIcon: {
@@ -397,15 +442,20 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   scopeButtonsContainer: {
     position: 'absolute',
-    top: 174,
-    right: 16,
-
-    width: 200,
+    bottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
     height: 38,
+    width: '100%',
+  },
+  scopeButtonsWrapper: {
+    position: 'absolute',
+
+    width: '40%',
+    minWidth: 300,
     borderRadius: 19,
   },
   scopeButtons: {
-    width: 200,
   },
   scopeButton: {
     borderWidth: 0,
@@ -413,36 +463,43 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   scopeButtonLabel: {    
   },
   content: {
-    paddingHorizontal: 16,
+    // paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 48,
-  },
-  recordingContainer: {
-    marginVertical: 16,
+    // paddingBottom: 72,
   },
   recordingContainerHeader: {
     flexDirection: 'row',
-    marginBottom: 8,
+    height: 56,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 8,
+    backgroundColor: theme.colors.surfaceVariant,
   },
   recordingContainerHeaderIcon: {
-    marginTop: 3,
-    marginRight: 6,
+    marginLeft: 8
   },
   recordingTitle: {
     borderRadius: 16,
-    fontSize: 20,
-    lineHeight: 24,
+    flex: 1,
+    // color: theme.colors.primary,
   },
-  recordingScrollview: {
+  recordingHeaderScopeButton: {
+
+  },
+  recordingHeaderScopeText: {
+    width: 48,
+    textAlign: 'center',
+    color: theme.colors.primary,
+  },
+  recordingContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  recordingView: {
     
   },
   recordingDivider: {
     marginVertical: 24,
-  },
-  viewScopeButton: {
-    position: 'absolute',
-    top: 220,
-    right: 24,
   },
 });
 
@@ -466,7 +523,7 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
       <Text style={measurementStyles.value} variant='titleMedium'>{weeklyData.reduce((acc, curr) => acc + curr, 0)}</Text>
       {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
       {measurement.type === 'bool' && (
-        <View style={{ marginTop: 15, marginRight: 6 }}>
+        <View>
           <Icon source='check' size={18} />
         </View>
       )}
@@ -499,18 +556,14 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
         <View style={measurementStyles.typeIconContainer}>
           <Icon source={typeData.icon} size={24} />
         </View>
-        <View style={measurementStyles.labelContainer}>
-          <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={measurementStyles.labelActivity}>{measurement.activity}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={measurementStyles.labelActivity}>{measurement.activity}</Text>
           {measurement.variant ? (
             <>
               <Text variant='bodyLarge' style={measurementStyles.labelDivider}> : </Text>
               <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={[measurementStyles.labelVariant, { color: theme.colors.outline }]}>{measurement.variant}</Text>
             </>
           ) : null}
-        </View>
-        <View style={measurementStyles.controlContainer}>
           {controlContent}
-        </View>
       </View>
     </>
   );
@@ -519,21 +572,12 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
 const measurementStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    alignItems: 'center',
     height: 48,
-    marginBottom: 4,
   },
   typeIconContainer: {
-    paddingVertical: 12, 
     marginRight: 12,
-  },
-  typeIcon: {
-    
-  },
-  labelContainer: {
-    marginTop: 12,
-    flexDirection: 'row',
-    marginRight: 24,
-    flexShrink: 1,
+    marginLeft: 4,
   },
   labelActivity: {
     flexShrink: 1,
@@ -543,24 +587,15 @@ const measurementStyles = StyleSheet.create({
     flexShrink: 0,
   },
   labelVariant: {
-    flexShrink: 0,
-  },
-  controlContainer: {
-    flexDirection: 'row',
-    flexGrow: 1,
-    flexShrink: 0,
-    paddingVertical: 1,
+    flexShrink: 1,
   },
   value: {
-    flex: 1,
-    textAlign: 'right',
-    marginTop: 11,
+    flexGrow: 1,
     marginRight: 6,
+    textAlign: 'right',
   },
   valueLabel: {
     textAlign: 'right',
-    marginTop: 11,
-    marginRight: 6,
   },
 });
 
@@ -569,9 +604,10 @@ type RecordingDataHabitProps = {
   habit: Habit,
   weeklyData: number[],
   scope: string,
+  currentDate: SimpleDate,
 }
 
-const RecordingDataHabit = ({ data, habit, weeklyData, scope } : RecordingDataHabitProps) : JSX.Element | null => {
+const RecordingDataHabit = ({ data, habit, weeklyData, scope, currentDate } : RecordingDataHabitProps) : JSX.Element | null => {
   const theme = useTheme();
   const habitStyles = createHabitStyles(theme);
   const measurement = useMeasurement(habit.measurementId);
@@ -580,41 +616,72 @@ const RecordingDataHabit = ({ data, habit, weeklyData, scope } : RecordingDataHa
 
   
   let content;
+  // if (scope === 'week' && habit.isWeekly) {
+  //   const value = weeklyData.reduce((acc, curr) => acc + curr, 0);
+  //   const [complete, _] = getHabitCompletion(habit, value || 0);
+
+  //   let color = theme.colors.primary;
+  //   let status = 'indeterminate';
+  //   if (value === undefined) {
+  //     color = theme.colors.outline;
+  //   }
+  //   else if (complete) {
+  //     status = 'checked';
+  //   }
+  
+  //   content = (
+  //     <View style={habitStyles.checkboxContainer}>
+  //       <View
+  //         style={habitStyles.checkbox}>
+  //         <Checkbox.IOS
+  //           status={status as ('unchecked' | 'indeterminate' | 'checked')}
+  //           color={color}
+  //           pointerEvents='none'
+  //         />
+  //       </View>
+  //     </View>
+  //   );
+  // } else
   if (scope === 'week') {
-    content = (<>
+    content = (
       <View style={habitStyles.checkboxContainer}>
         {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
-          const value = weeklyData[index];
+          const value = habit.isWeekly ? weeklyData.reduce((acc, curr) => acc + curr, 0) : weeklyData[index];
           const [complete, __] = getHabitCompletion(habit, value || 0);
 
-          let color = theme.colors.primary;
-          let status = 'unchecked';
-          if (value === undefined) {
-            color = theme.colors.outline;
-          }
-          else if (complete) {
+          let status = 'indeterminate';
+          let color = theme.colors.surfaceVariant;
+          if (habit.isWeekly && index !== currentDate.getDayOfWeek()) {
+            status = 'unchecked';
+          } else if (value === undefined) {
+            status = 'indeterminate';
+          } else if (complete) {
+            color = index === currentDate.getDayOfWeek() ? theme.colors.primary : theme.colors.outlineVariant;
             status = 'checked';
+          } else if (index === currentDate.getDayOfWeek()) {
+            color = theme.colors.primary;
           }
           return (
-            <View style={habitStyles.checkbox}>
-              <Checkbox
+            <View
+              key={index}
+              style={habitStyles.checkbox}>
+              <Checkbox.IOS
                 status={status as ('unchecked' | 'indeterminate' | 'checked')}
                 color={color}
-                uncheckedColor={color}
-                disabled={value === undefined}
+                pointerEvents='none'
               />
             </View>
           );
         })}
       </View>
-    </>);
+    );
   } else {
     const [complete, progress] = getHabitCompletion(habit, data.value);
     content = (<>
       <View style={habitStyles.progressContainer}>
-        <View>
+        <View style={habitStyles.progressBarContainer}>
           <ProgressBar
-            style={habitStyles.progress}
+            style={habitStyles.progressBar}
             progress={progress}
             color={complete ? theme.colors.primary : theme.colors.outlineVariant}
             />
@@ -638,22 +705,22 @@ const RecordingDataHabit = ({ data, habit, weeklyData, scope } : RecordingDataHa
             </View>
           ) : (
             <Text numberOfLines={1} style={habitStyles.progressLabelTarget} variant='bodyMedium'>
-              {formatNumber(habit.daily)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
+              {formatNumber(habit.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
             </Text>
           )}
         </View>
       </View>
       <View style={[habitStyles.points, (complete ? habitStyles.pointsComplete : null)]}>
         <Text style={habitStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
-        <View style={habitStyles.pointsIcon}>
-          <Icon source={`star-four-points`} size={14} color={theme.colors.onPrimary} />
-        </View>
       </View>
     </>);
   }
   return (
     <>
       <View style={habitStyles.container}>
+        <View style={habitStyles.icon}>
+          <Icon source={habit.isWeekly ? 'calendar-sync' : 'sync'} size={24} />
+       </View>
         <View style={habitStyles.labelContainer}>
           <Text variant='titleMedium'>{habit.name}</Text>
           <View style={habitStyles.labelSubtitle}>
@@ -678,27 +745,27 @@ const RecordingDataHabit = ({ data, habit, weeklyData, scope } : RecordingDataHa
 const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     flexDirection: 'row',
-    height: 56,
     justifyContent: 'flex-end',
-    marginBottom: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  icon: {
+    marginRight: 12,
   },
   typeIconContainer: {
-    // height: 64,
-    // paddingVertical: 18, 
-    // marginRight: 12,
   },
   typeIcon: {
     
   },
   labelContainer: {
     flex: 1,
-    marginTop: 6,
   },
   labelSubtitle: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
   labelSubtitleIcon: {
-    marginTop: 1,
     marginRight: 4,
   },
   labelSubtitleActivity: {
@@ -706,7 +773,6 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
     flexShrink: 1,
   },
   labelSubtitleDivider: {
-    marginHorizontal: 0,
     flexGrow: 0,
     flexShrink: 0,
   },
@@ -720,19 +786,19 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'column',
     marginLeft: 8,
   },
-  progress: {
+  progressBarContainer: {
+    paddingVertical: 6,
+  },
+  progressBar: {
     height: 12,
     borderRadius: 6,
-    flexGrow: 0,
-    marginTop: 12,
-    marginBottom: 8,
   },
   progressLabel: {
     flexDirection: 'row',
-    height: 28,
     paddingHorizontal: 4,
     flexWrap: 'nowrap',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   progressLabelCurrent: {
     fontWeight: 'bold',
@@ -752,31 +818,24 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   points: {
     backgroundColor: theme.colors.outlineVariant,
-    width: 44,
+    width: 28,
     height: 28,
     flexDirection: 'row',
-    marginTop: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 12,
-    marginRight: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 100,
   },
   pointsComplete: {
     backgroundColor: theme.colors.primary,
   },
   pointsText: {
-    flex: 1,
-    textAlign: 'center',
     color: theme.colors.onPrimary,
-    marginRight: 2,
   },
   pointsIcon: {
-    marginTop: 3,
   },
   checkboxContainer: {
     flexDirection: 'row',
-    marginTop: 12,
   },
   checkbox: {
   },
@@ -787,38 +846,38 @@ const getHabitCompletion = (habit: Habit, value: number): [boolean, number] => {
   let complete = false;
   switch (habit.operator) {
     case '>':
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value > habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value > habit.target;
       break;
     case '>=':
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value >= habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value >= habit.target;
       break;
     case '<':
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value < habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value < habit.target;
       break;
     case '<=':
-      if (habit.daily === 0 && value === 0) {
+      if (habit.target === 0 && value === 0) {
         progress = 1;
         complete = true;
         break;
       }
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value <= habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value <= habit.target;
       break;
     case '==':
-      if (habit.daily === 0 && value === 0) {
+      if (habit.target === 0 && value === 0) {
         progress = 1;
         complete = true;
         break;
       }
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value === habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value === habit.target;
       break;
     case '!=':
-      progress = Math.min(value / habit.daily, 1.0) || 0;
-      complete = value !== habit.daily;
+      progress = Math.min(value / habit.target, 1.0) || 0;
+      complete = value !== habit.target;
       break;
   }
   return [complete, progress];

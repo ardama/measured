@@ -6,22 +6,24 @@ interface Habit {
   measurementId: string;
   name: string;
   operator: HabitOperator;
-  daily: number;
-  weekly: number | undefined;
+  target: number;
+  isWeekly: boolean;
   daysPerWeek: number;
   points: number;
+  archived: boolean;
 }
 
-const createHabit = (userId: string, measurementId: string, name: string, operator: HabitOperator, daily: number = -1, weekly: number = -1, daysPerWeek: number = 7, points: number = 1): Habit => ({
+const createHabit = (userId: string, measurementId: string, name: string, operator: HabitOperator, target: number = -1, isWeekly: boolean = false, daysPerWeek: number = 7, points: number = 1): Habit => ({
   id: generateId(),
   userId,
   measurementId,
   name,
   operator,
-  daily,
-  weekly,
+  target,
+  isWeekly,
   daysPerWeek,
   points,
+  archived: false,
 });
 
 type HabitOperator = '>=' | '<=' |'>' | '<' | '==' | '!=';

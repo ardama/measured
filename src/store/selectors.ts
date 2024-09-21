@@ -87,3 +87,18 @@ const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState)
     (habits) => habits.filter(({ measurementId }) => measurementId === measurement.id)
   );
 export const useHabitsByMeasurement = (measurement: Measurement): Habit[] => useSelector(selectHabitsByMeasurement(measurement));
+
+const selectHabitsByMeasurements = (): (state: RootState) => Map<string, Habit[]> =>
+  createSelector(
+    selectHabits,
+    (habits) => {
+      const map = new Map();
+      habits.forEach((habit) => {
+        const measurementHabits = map.get(habit.measurementId) || [];
+        measurementHabits.push(habit);
+        map.set(habit.measurementId, measurementHabits);
+      });
+      return map;
+    }
+  );
+export const useHabitsByMeasurements = (): Map<string, Habit[]> => useSelector(selectHabitsByMeasurements());

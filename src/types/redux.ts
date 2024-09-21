@@ -22,10 +22,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "d6b2gsc",
       "name": "Reading",
       "operator": ">=",
-      "daily": 15,
-      "weekly": -1,
+      "target": 15,
+      "isWeekly": false,
       "daysPerWeek": 5,
-      "points": 1
+      "points": 1,
+      "archived": false,
     },
     {
       "id": "nkd0zop",
@@ -33,10 +34,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "zqflysf",
       "name": "Outside 1",
       "operator": ">=",
-      "daily": 15,
-      "weekly": -1,
+      "target": 15,
+      "isWeekly": false,
       "daysPerWeek": 7,
-      "points": 1
+      "points": 1,
+      "archived": false,
     },
     {
       "id": "znlcwpm",
@@ -44,10 +46,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "zqflysf",
       "name": "Outside 2",
       "operator": ">=",
-      "daily": 60,
-      "weekly": -1,
+      "target": 60,
+      "isWeekly": false,
       "daysPerWeek": 4,
-      "points": 1
+      "points": 1,
+      "archived": false,
     },
     {
       "id": "03o71dt",
@@ -55,10 +58,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "26h38r8",
       "name": "Youtube 1",
       "operator": "<=",
-      "daily": 90,
-      "weekly": -1,
+      "target": 90,
+      "isWeekly": false,
       "daysPerWeek": 7,
-      "points": 1
+      "points": 1,
+      "archived": false,
     },
     {
       "id": "t389elo",
@@ -66,10 +70,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "26h38r8",
       "name": "Youtube 2",
       "operator": "==",
-      "daily": 0,
-      "weekly": -1,
+      "target": 0,
+      "isWeekly": false,
       "daysPerWeek": 4,
-      "points": 2
+      "points": 2,
+      "archived": false,
     },
     {
       "id": "1acyx6p",
@@ -77,10 +82,11 @@ const generateTestUser = (): UserState => {
       "measurementId": "evqx1bh",
       "name": "Tech 1",
       "operator": ">=",
-      "daily": 30,
-      "weekly": -1,
+      "target": 30,
+      "isWeekly": false,
       "daysPerWeek": 6,
-      "points": 1
+      "points": 1,
+      "archived": true,
     },
     {
       "id": "n7rijct",
@@ -88,10 +94,23 @@ const generateTestUser = (): UserState => {
       "measurementId": "bdsbn0y",
       "name": "Steps",
       "operator": ">=",
-      "daily": 10000,
-      "weekly": -1,
+      "target": 10000,
+      "isWeekly": false,
       "daysPerWeek": 5,
-      "points": 1
+      "points": 1,
+      "archived": false,
+    },
+    {
+      "id": "n7rijcz",
+      "userId": "k1cit1t",
+      "measurementId": "bdsbn0y",
+      "name": "Steps",
+      "operator": ">=",
+      "target": 50000,
+      "isWeekly": true,
+      "daysPerWeek": 5,
+      "points": 5,
+      "archived": false,
     }
   ];
 

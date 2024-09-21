@@ -21,8 +21,8 @@ export default function HomeScreen() {
   const weekCard = (
     <Surface style={{ ...s.card, ...s.cardPartial, maxWidth: 400 }}>
       <View style={s.cardHeader}>
-        <Text style={{ ...s.cardTitle, color: theme.colors.primary, fontWeight: '500' }} variant='titleLarge'>This{'\n'}week</Text>
-        <View style={{ ...s.pointsPerDay, marginTop: 2}}>
+        <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Week</Text>
+        <View style={{ ...s.pointsPerDay }}>
           <Text style={s.pointsPerDayValue} variant='bodyLarge'>{pointsPerDayWeek}</Text>
           <View style={s.pointsPerDayIcon}>
             <Icon source='star-four-points' size={16} color={theme.colors.primary} />
@@ -31,7 +31,7 @@ export default function HomeScreen() {
         </View>
       </View>
       <View style={s.cardRow}>
-        <Text style={{ ...s.cardSubtitle, marginTop: 2, }}>Last week</Text>
+        <Text style={{ ...s.cardSubtitle }}>Last week</Text>
         <View style={s.pointsPerDaySmall}>
           <Text style={s.pointsPerDayValueSmall} variant='bodyMedium'>{pointsPerDayLastWeek}</Text>
           <View style={s.pointsPerDayIconSmall}>
@@ -46,8 +46,8 @@ export default function HomeScreen() {
   const monthCard = (
     <Surface style={{ ...s.card, ...s.cardPartial, maxWidth: 400 }}>
       <View style={s.cardHeader}>
-        <Text style={{ ...s.cardTitle, color: theme.colors.primary, fontWeight: '500' }} variant='titleLarge'>This{'\n'}month</Text>
-        <View style={{ ...s.pointsPerDay, marginTop: 2}}>
+        <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Month</Text>
+        <View style={{ ...s.pointsPerDay }}>
           <Text style={s.pointsPerDayValue} variant='bodyLarge'>{pointsPerDayMonth}</Text>
           <View style={s.pointsPerDayIcon}>
             <Icon source='star-four-points' size={16} color={theme.colors.primary} />
@@ -56,7 +56,7 @@ export default function HomeScreen() {
         </View>
       </View>
       <View style={s.cardRow}>
-        <Text style={{ ...s.cardSubtitle, marginTop: 2, }}>Last month</Text>
+        <Text style={{ ...s.cardSubtitle }}>Last month</Text>
         <View style={s.pointsPerDaySmall}>
           <Text style={s.pointsPerDayValueSmall} variant='bodyMedium'>{pointsPerDayLastMonth}</Text>
           <View style={s.pointsPerDayIconSmall}>
@@ -141,6 +141,7 @@ export default function HomeScreen() {
       x: x,
       y: averageValues[index],
     }));
+    const filteredAverageData = averageData.filter((data): data is { x : number, y : number} => data.y !== null);
 
     let dotSize = 8;
     if (selectedMeasurementData.length > 400) dotSize = 1;
@@ -177,19 +178,18 @@ export default function HomeScreen() {
     const selectedDateValue = selectedIndex === -1 ? null : selectedMeasurementData[selectedIndex].y;
     const selectedDateValueString = selectedIndex === -1 ? '' : `${selectedDateValue?.toFixed(0)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
       
-    const selectedDateAverage = selectedIndex === -1 ? NaN : averageData[selectedIndex]?.y || NaN;
-    const selectedDateAverageString = isNaN(selectedDateAverage) ? '' : `${selectedDateAverage.toFixed(1)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
+    const selectedDateAverage = selectedIndex === -1 ? null : averageData[selectedIndex]?.y;
+    const selectedDateAverageString = selectedDateAverage == null ? '' : `${selectedDateAverage.toFixed(1)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
     const selectedDateAverageLabel = `${chartTrendlineTitle}: `;
 
     return (
       <Surface style={s.card}>
-        <View style={s.cardHeader}>
+        <View style={{ ...s.cardRow, justifyContent: 'flex-start', gap: 8 }}>
           {chartMeasurementDropdown}
           {chartTrendlineDropdown}
-
         </View>
         <View style={s.cardRow}>
-          {selectedMeasurementData.length && isFocused ? (
+          {isFocused ? (
             <View style={s.chart}>
               <Chart
                 xDomain={{
@@ -209,25 +209,27 @@ export default function HomeScreen() {
                   bottom: 0,
                 }}
               >
-                <Area
-                  data={selectedMeasurementData}
-                  smoothing='cubic-spline'
-                  theme={{
-                    gradient: {
-                      from: {
-                        color: theme.colors.primaryContainer,
-                        opacity: 1
-                      },
-                      to: {
-                        color: theme.colors.primaryContainer,
-                        opacity: 0.0
+                {selectedMeasurementData.length ? (
+                  <Area
+                    data={selectedMeasurementData}
+                    smoothing='cubic-spline'
+                    theme={{
+                      gradient: {
+                        from: {
+                          color: theme.colors.primaryContainer,
+                          opacity: 1
+                        },
+                        to: {
+                          color: theme.colors.primaryContainer,
+                          opacity: 0.0
+                        }
                       }
-                    }
-                  }}
-                />
-                {movingAverageWindow && averageData.length ? (
+                    }}
+                  />
+                ) : null}
+                {selectedMeasurementData.length && movingAverageWindow && filteredAverageData.length ? (
                   <Line
-                    data={averageData.filter((data): data is { x : number, y : number} => data.y !== null)}
+                    data={filteredAverageData}
                     theme={{
                       stroke: {
                         color: theme.colors.primary,
@@ -242,7 +244,7 @@ export default function HomeScreen() {
                     }}
                   />
                 ) : null}
-                {dotSize ? (
+                {selectedMeasurementData.length && dotSize ? (
                   <Line
                   data={selectedMeasurementData}
                   theme={{
@@ -403,18 +405,19 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
   cardTitle: {
     flex: 1,
   },
   cardSubtitle: {
-    fontWeight: '500',
     
   },
   cardRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 0,
   },
   pointsPerDay: {
@@ -423,7 +426,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     height: 40,
     paddingVertical: 8,
     paddingHorizontal: 8,
-    backgroundColor: theme.colors.primaryContainer,
+    backgroundColor: theme.colors.secondaryContainer,
 
     borderRadius: 8,
   },
@@ -500,7 +503,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   chartDurationButton: {
     marginVertical: 8,
-    marginHorizontal: 8,
+    width: 40,
   },
   chartDurationButtonSelected: {
   },
@@ -517,38 +520,43 @@ const MeasurementChartDropdown = ({ label, value, items, onChange
 
 
   return (
-    <Menu
-      style={{ maxWidth: 600 }}
-      contentStyle={{ maxWidth: 600 }}
-      visible={isVisible}
-      onDismiss={() => setIsVisible(false)}
-      anchor={
-        <Pressable onPress={() => { setIsVisible(true); }}>
-          <TextInput
-            label={label}
-            mode='outlined'
-            readOnly
-            value={value}
+    <View style={{ flex: 1 }}>
+      <Menu
+        style={{ maxWidth: 600 }}
+        contentStyle={{ maxWidth: 600 }}
+        visible={isVisible}
+        onDismiss={() => setIsVisible(false)}
+        anchor={
+          <Pressable
+            onPress={() => { setIsVisible(true); }}
+          >
+            <TextInput
+              label={label}
+              style={{}}
+              mode='outlined'
+              readOnly
+              value={value}
             />
-        </Pressable>
-      }
-      anchorPosition='bottom'
-    >
-      {
-        items.map((item) => (
-          <Menu.Item
-            style={{ maxWidth: 600 }}
-            contentStyle={{ maxWidth: 600 }}
-            key={item.title}
-            title={item.title}
-            leadingIcon={item.icon}
-            onPress={() => {
-              onChange(item);
-              setIsVisible(false);
-            }}
-          />
-        ))
-      }
-    </Menu>
+          </Pressable>
+        }
+        anchorPosition='bottom'
+      >
+        {
+          items.map((item) => (
+            <Menu.Item
+              style={{ maxWidth: 600 }}
+              contentStyle={{ maxWidth: 600 }}
+              key={item.title}
+              title={item.title}
+              leadingIcon={item.icon}
+              onPress={() => {
+                onChange(item);
+                setIsVisible(false);
+              }}
+            />
+          ))
+        }
+      </Menu>
+    </View>
   );
 }
