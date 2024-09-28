@@ -143,8 +143,10 @@ export default function HomeScreen() {
     const chartWidth = Dimensions.get('window').width - 64;
     const chartPadding = Math.ceil(Math.max((dotSize + 1) / 2, 2));
 
+    const verticalStep = selectedMeasurement?.step || 1;
     const verticalMin = 0;
-    const verticalMax = Math.max(...selectedMeasurementData.map(({ y }) => y), selectedMeasurement?.step || 1);
+    const verticalMaxRaw = Math.max(...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y || 0), verticalStep);
+    const verticalMax = Math.ceil(verticalMaxRaw / verticalStep) * verticalStep;
     const verticalOffset = (verticalMax - verticalMin) * (chartPadding / chartHeight);
 
     let horizontalMin = Math.min(...selectedMeasurementData.map(({ x }) => x));

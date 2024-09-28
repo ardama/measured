@@ -83,10 +83,12 @@ export default function HomeScreen() {
     weekDailyHabitPointTotals[currentDate.getDayOfWeek()]
     + weekWeeklyHabitPointTotals[currentDate.getDayOfWeek()]
   );
-  const weeklyPointTotal = (
+  const cumulativeWeeklyPointTotal = (
     weekDailyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
     + weekWeeklyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
   );
+
+  const overallWeeklyPointTotal = weekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (weekDailyHabitPointTotals[index] || 0), 0);
 
   const weeklyPointTarget = habits.reduce((previous: number, current: Habit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
@@ -214,28 +216,42 @@ export default function HomeScreen() {
               ))}
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={weeklyPointTotal / weeklyPointTarget}
-                  style={styles.dayProgress}
-                  color={theme.colors.primary}
-                />
-              </View>
-              <View style={styles.progressContainer}>
-                <ProgressBar
-                  progress={(weeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
-                  style={styles.weekProgress}
+                  progress={(overallWeeklyPointTotal) / weeklyPointTarget}
+                  style={styles.baseProgress}
                   color={theme.colors.inversePrimary}
                 />
               </View>
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={(weeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
-                  style={styles.weekProgress}
+                  progress={(overallWeeklyPointTotal) / weeklyPointTarget}
+                  style={styles.overlapProgress}
+                  color={theme.colors.onSurfaceDisabled}
+                />
+              </View>
+              <View style={styles.progressContainer}>
+                <ProgressBar
+                  progress={cumulativeWeeklyPointTotal / weeklyPointTarget}
+                  style={styles.overlapProgress}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <View style={styles.progressContainer}>
+                <ProgressBar
+                  progress={(cumulativeWeeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  style={styles.overlapProgress}
+                  color={theme.colors.inversePrimary}
+                />
+              </View>
+              <View style={styles.progressContainer}>
+                <ProgressBar
+                  progress={(cumulativeWeeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  style={styles.overlapProgress}
                   color={theme.colors.onSurfaceDisabled}
                 />
               </View>
             </View>
             <View style={styles.weekPointsContainer}>
-              <Points style={{ height: 28, minWidth: 38 }} points={weeklyPointTotal} />
+              <Points style={{ height: 28, minWidth: 38 }} points={overallWeeklyPointTotal} />
               <Text style={styles.weekPointsDivider}> / </Text>
               <Text style={styles.weekPointsTarget}>{weeklyPointTarget}</Text>
             </View>
@@ -445,7 +461,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     left: 0,
     width: '100%',
   },
-  weekProgress: {
+  overlapProgress: {
     height: 12,
     borderRadius: 6,
     flexGrow: 0,
@@ -453,7 +469,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginBottom: 4,
     backgroundColor: 'transparent',
   },
-  dayProgress: {
+  baseProgress: {
     height: 12,
     borderRadius: 6,
     flexGrow: 0,
