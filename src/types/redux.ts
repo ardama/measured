@@ -19,98 +19,138 @@ const generateTestUser = (): UserState => {
     {
       "id": "dt2nuwb",
       "userId": "k1cit1t",
-      "measurementId": "d6b2gsc",
       "name": "Reading",
-      "operator": ">=",
-      "target": 15,
       "isWeekly": false,
       "daysPerWeek": 5,
       "points": 1,
       "archived": false,
+      "conditions": [
+        {
+          "measurementId": "d6b2gsc",
+          "operator": ">=",
+          "target": 15,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "nkd0zop",
       "userId": "k1cit1t",
-      "measurementId": "zqflysf",
       "name": "Outside 1",
-      "operator": ">=",
-      "target": 15,
       "isWeekly": false,
       "daysPerWeek": 7,
       "points": 1,
       "archived": false,
+      "conditions": [
+        {
+          "measurementId": "zqflysf",
+          "operator": ">=",
+          "target": 15,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "znlcwpm",
       "userId": "k1cit1t",
-      "measurementId": "zqflysf",
       "name": "Outside 2",
-      "operator": ">=",
-      "target": 60,
       "isWeekly": false,
       "daysPerWeek": 4,
       "points": 1,
       "archived": false,
+      "conditions": [
+        {
+          "measurementId": "zqflysf",
+          "operator": ">=",
+          "target": 60,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "03o71dt",
       "userId": "k1cit1t",
-      "measurementId": "26h38r8",
       "name": "Youtube 1",
-      "operator": "<=",
-      "target": 90,
       "isWeekly": false,
       "daysPerWeek": 7,
       "points": 1,
       "archived": false,
+      "conditions": [
+        {
+          "measurementId": "26h38r8",
+          "operator": "<=",
+          "target": 90,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "t389elo",
       "userId": "k1cit1t",
-      "measurementId": "26h38r8",
       "name": "Youtube 2",
-      "operator": "==",
-      "target": 0,
       "isWeekly": false,
       "daysPerWeek": 4,
       "points": 2,
       "archived": false,
+      "conditions": 
+      [{
+          "measurementId": "26h38r8",
+          "operator": "==",
+          "target": 0,
+      
+          }],
+          "predicate": "AND",
     },
     {
       "id": "1acyx6p",
       "userId": "k1cit1t",
-      "measurementId": "evqx1bh",
       "name": "Tech 1",
-      "operator": ">=",
-      "target": 30,
       "isWeekly": false,
       "daysPerWeek": 6,
       "points": 1,
       "archived": true,
+      "conditions": [
+        {
+          "measurementId": "evqx1bh",
+          "operator": ">=",
+          "target": 30,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "n7rijct",
       "userId": "k1cit1t",
-      "measurementId": "bdsbn0y",
       "name": "Steps",
-      "operator": ">=",
-      "target": 10000,
       "isWeekly": false,
       "daysPerWeek": 5,
       "points": 1,
       "archived": false,
+      "conditions": [{
+
+          "measurementId": "bdsbn0y",
+          "operator": ">=",
+          "target": 10000,
+        }
+      ],
+      "predicate": "AND",
     },
     {
       "id": "n7rijcz",
       "userId": "k1cit1t",
-      "measurementId": "bdsbn0y",
       "name": "Steps",
-      "operator": ">=",
-      "target": 50000,
       "isWeekly": true,
       "daysPerWeek": 5,
       "points": 5,
       "archived": false,
+      "conditions": [{
+
+          "measurementId": "bdsbn0y",
+          "operator": ">=",
+          "target": 50000,
+        }
+      ],
+      "predicate": "AND",
     }
   ];
 

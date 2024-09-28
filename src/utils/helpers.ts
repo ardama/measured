@@ -36,3 +36,7 @@ export const movingAverage = (data: number[], windowSize: number): (number | nul
     return sum / windowSize;
   });
 }
+
+export const capitalize = (s: string) => {
+  return `${s.slice(0, 1).toUpperCase()}${s.slice(1)}`;
+}

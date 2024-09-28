@@ -1,4 +1,5 @@
 import { generateId } from "@/utils/helpers";
+import { Icons } from '@u/constants/Icons';
 
 interface Measurement {
   id: string;
@@ -76,10 +77,10 @@ const generateDefaultEmptyUnit = () => createMeasurementUnit('(no unit)', '', ['
 type MeasurementType = 'duration' | 'time' | 'count' | 'bool';
 
 const measurementTypeData: { type: MeasurementType, icon: string, label: string }[] = [
-  { type: 'duration', label: 'Duration', icon: 'timer-outline' },
-  { type: 'time', label: 'Time', icon: 'clock-outline' },
-  { type: 'count', label: 'Count', icon: 'numeric-1-box-outline' },
-  { type: 'bool', label: 'Yes / No', icon: 'checkbox-outline' },
+  { type: 'duration', label: 'Duration', icon: Icons.measurementTypeDuration },
+  { type: 'time', label: 'Time', icon: Icons.measurementTypeTime },
+  { type: 'count', label: 'Count', icon: Icons.measurementTypeCount },
+  { type: 'bool', label: 'Yes / No', icon: Icons.measurementTypeBool },
 ]
 
 export {

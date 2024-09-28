@@ -1,15 +1,17 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { useHabits, useMeasurement, useMeasurements, useRecordings, useUser } from '@s/selectors';
+import { useHabits, useMeasurement, useMeasurements, useMeasurementsByIds, useRecordings, useUser } from '@s/selectors';
 import { measurementTypeData, type Measurement } from '@t/measurements';
 import { Checkbox, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
-import { createRecording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createRecording, type Recording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { generateDates, SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
 import { addRecording, editRecording, editRecordingData } from '@s/userReducer';
-import type { Habit } from '@t/habits';
-import { formatNumber } from '@u/helpers';
+import { getHabitPredicateIcon, getHabitPredicateLabel, type Habit } from '@t/habits';
+import { capitalize, formatNumber } from '@u/helpers';
+import { Icons } from '@u/constants/Icons';
+import Points from '@c/Points';
 
 
 export default function HomeScreen() {
@@ -57,18 +59,34 @@ export default function HomeScreen() {
     })
   }, [weekStartDateIndex, weekRecordings, weekDates, measurements]);  
 
-  const weeklyPoints = weekRecordings.map((weeklyRecording) => {
-    return habits.reduce((previous: number, current: Habit) => {
-      const data = weeklyRecording?.data.find(({ measurementId }) => measurementId === current.measurementId);
-      if (!data) return previous;
-  
-      const [complete, _] = getHabitCompletion(current, data.value);
+  const dailyHabits = habits.filter((h) => !h.isWeekly)
+  const weeklyHabits = habits.filter((h) => h.isWeekly);
+  const weekDailyHabitPointTotals = weekDates.map((_, index) => {
+    return dailyHabits.reduce((previous: number, current: Habit) => {
+      const [complete, _, __] = getHabitCompletion(current, [recordings[index]]);  
       return previous + (complete ? current.points : 0);
     }, 0);
   });
 
-  const dailyPointTotal = weeklyPoints[currentDate.getDayOfWeek()];
-  const weeklyPointTotal = weeklyPoints.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0);
+  const weekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
+  weeklyHabits.forEach((habit) => {
+    const firstCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
+      const recordings = weekRecordings.slice(0, index + 1);
+      const [complete] = getHabitCompletion(habit, recordings);
+      return complete;
+    }).findIndex((completion) => completion) : -1;
+
+    if (firstCompletionIndex !== -1) weekWeeklyHabitPointTotals[firstCompletionIndex] += habit.points;
+  });
+
+  const dailyPointTotal = (
+    weekDailyHabitPointTotals[currentDate.getDayOfWeek()]
+    + weekWeeklyHabitPointTotals[currentDate.getDayOfWeek()]
+  );
+  const weeklyPointTotal = (
+    weekDailyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+    + weekWeeklyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  );
 
   const weeklyPointTarget = habits.reduce((previous: number, current: Habit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
@@ -91,12 +109,36 @@ export default function HomeScreen() {
   if (dateIndex === dates.length - 1) dateLabel = 'Today';
   else if (dateIndex === dates.length - 2) dateLabel = 'Yesterday';
 
-  const measurementScopes = ['Day','Week'];
+  const measurementScopes = ['Day', 'Week'];
   const [measurementScope, setMeasurementScope] = useState(0);
 
-  const habitScopes = ['Day','Week'];
-  const [habitScope, setHabitScope] = useState(0);
+  const habitScopes = ['Day', 'Week'];
+  const [habitScope, setHabitScope] = useState(1);
 
+  const longPressPreviousTimeout = useRef<null | NodeJS.Timeout>(null);
+  const longPressNextTimeout = useRef<null | NodeJS.Timeout>(null);
+  const weekyJumpCount = 30;
+  const handleLongPressPrevious = (index: number, delay: number = 250, count: number = 1) => {
+    const jump = count > weekyJumpCount ? 1 : 1;
+    let nextDayIndex = index - jump;
+    if (nextDayIndex < 7) {
+      setDates((current) => [...generateDates(14, current.length), ...current]);
+      nextDayIndex += 14;
+    }
+    setDateIndex(nextDayIndex);
+    
+    const nextDelay = count > weekyJumpCount ? 25 : Math.max(delay - 25, 100);
+    longPressPreviousTimeout.current = setTimeout(() => handleLongPressPrevious(nextDayIndex, nextDelay, count + 1), delay);
+  }
+
+  const handleLongPressNext = (index: number, delay: number = 250, count: number = 1) => {
+    const jump = count > weekyJumpCount ? 1 : 1;
+    const nextDayIndex = Math.min(dates.length - 1, index + jump);
+    setDateIndex(nextDayIndex);
+
+    const nextDelay = count > weekyJumpCount ? 25 : Math.max(delay - 25, 100);
+    longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextDayIndex, nextDelay, count + 1), delay);
+  }
   return (
     <>
       <Header title='Home' />
@@ -114,19 +156,6 @@ export default function HomeScreen() {
               </Text>
               <IconButton
                 style={styles.recordingHeaderButton}
-                icon={'chevron-double-left'}
-                onPress={() => {
-                  const nextDayIndex = dateIndex - 7;
-                  if (nextDayIndex < 7) {
-                    setDates([...generateDates(14, dates.length), ...dates]);
-                    setDateIndex(nextDayIndex + 14);
-                  } else {
-                    setDateIndex(nextDayIndex);
-                  }
-                }}
-              />
-              <IconButton
-                style={styles.recordingHeaderButton}
                 icon={'chevron-left'}
                 onPress={() => {
                   if (dateIndex < 7) {
@@ -136,6 +165,13 @@ export default function HomeScreen() {
                     setDateIndex(dateIndex - 1);
                   }
                 }}
+                onLongPress={() => handleLongPressPrevious(dateIndex)}
+                onPressOut={() => {
+                  if (longPressPreviousTimeout.current === null) return;
+                  clearTimeout(longPressPreviousTimeout.current);
+                  longPressPreviousTimeout.current = null;
+                }}
+                delayLongPress={600}
                 />
               <IconButton
                 style={styles.recordingHeaderButton}
@@ -144,14 +180,13 @@ export default function HomeScreen() {
                 onPress={() => {
                   setDateIndex(Math.min(dates.length - 1, dateIndex + 1));
                 }}
-              />
-              <IconButton
-                style={styles.recordingHeaderButton}
-                icon={'chevron-double-right'}
-                disabled={dateIndex >= dates.length - 1}
-                onPress={() => {
-                  setDateIndex(Math.min(dates.length - 1, dateIndex + 7));
+                onLongPress={() => handleLongPressNext(dateIndex)}
+                onPressOut={() => {
+                  if (longPressNextTimeout.current === null) return;
+                  clearTimeout(longPressNextTimeout.current);
+                  longPressNextTimeout.current = null;
                 }}
+                delayLongPress={600}
               />
               <IconButton
                 style={styles.recordingHeaderButton}
@@ -177,16 +212,30 @@ export default function HomeScreen() {
                   {currentDate.getDayOfWeek() === index && <View style={styles.weekProgressMarker} />}
                 </View>
               ))}
-              <View>
+              <View style={styles.progressContainer}>
                 <ProgressBar
                   progress={weeklyPointTotal / weeklyPointTarget}
-                  style={styles.weekdayProgress}
+                  style={styles.dayProgress}
                   color={theme.colors.primary}
+                />
+              </View>
+              <View style={styles.progressContainer}>
+                <ProgressBar
+                  progress={(weeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  style={styles.weekProgress}
+                  color={theme.colors.inversePrimary}
+                />
+              </View>
+              <View style={styles.progressContainer}>
+                <ProgressBar
+                  progress={(weeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  style={styles.weekProgress}
+                  color={theme.colors.onSurfaceDisabled}
                 />
               </View>
             </View>
             <View style={styles.weekPointsContainer}>
-              <Text style={styles.weekPointsTotal}>{weeklyPointTotal}</Text>
+              <Points style={{ height: 28, minWidth: 38 }} points={weeklyPointTotal} />
               <Text style={styles.weekPointsDivider}> / </Text>
               <Text style={styles.weekPointsTarget}>{weeklyPointTarget}</Text>
             </View>
@@ -231,15 +280,16 @@ export default function HomeScreen() {
                             key={data.measurementId}
                             data={data}
                             measurement={measurement}
-                            onPlus={() => {
-                              const value = data.value + measurement.step;
-                              const nextRecordingData = { ...data, value };
-                              dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates: nextRecordingData }));
+                            onPlus={(d, m) => {
+                              const value = d.value + m.step;
+                              console.log('value: ', value);
+                              const nextRecordingData = { ...d, value };
+                              dispatch(editRecordingData({ id: recording.id, measurementId: m.id, updates: nextRecordingData }));
                             }}
-                            onMinus={() => {
-                              const value = Math.max(0, data.value - measurement.step);
-                              const nextRecordingData = { ...data, value };
-                              dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates: nextRecordingData }));                        
+                            onMinus={(d, m) => {
+                              const value = Math.max(0, d.value - m.step);
+                              const nextRecordingData = { ...d, value };
+                              dispatch(editRecordingData({ id: recording.id, measurementId: m.id, updates: nextRecordingData }));                        
                             }}
                             onToggle={(toggled) => {
                               const nextRecordingData = { ...data, value: toggled ? 1 : 0};
@@ -281,20 +331,43 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.recordingContainer}>
-            <View style={{ ...styles.recordingView, marginBottom: 56 }}>
+            <View style={styles.dailyPointTotalContainer}>
+              {habitScopes[habitScope] === 'Week' ? (
+                <>
+                  {/* <Text style={{...styles.dailyPointTotalTitle, flex: 1}} variant='titleMedium'>Daily totals: </Text> */}
+                  {weekWeeklyHabitPointTotals.map((weekly, index) => {
+                    const daily = weekDailyHabitPointTotals[index] || 0;
+                    const total = daily + weekly;
+                    
+                    return (
+                      <View key={index}>
+                        <Points style={styles.dailyPointTotal} points={total} size='small' disabled={index !== currentDate.getDayOfWeek()} />
+                      </View>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <Text style={styles.dailyPointTotalTitle} variant='titleMedium'>Daily total: </Text>
+                  <View>
+                    <Points style={styles.dailyPointTotal} points={dailyPointTotal} size='large' />
+                  </View>
+                </>
+              )}
+            </View>
+            <View style={styles.recordingView}>
               {
                 habits.map((habit) => {
-                  const data = recording?.data.find(({ measurementId }) => measurementId === habit.measurementId);
-                  if (!data) return null;
+                  if (!recording) return null;
 
                   return (
                     <RecordingDataHabit
                       key={habit.id}
-                      data={data}
+                      dayRecording={recording}
                       habit={habit}
                       scope={habitScopes[habitScope].toLowerCase()}
                       currentDate={currentDate}
-                      weeklyData={(weeklyMeasurementRecordings.get(data.measurementId) || []).slice(0, weekDates.length)}
+                      weekRecordings={weekRecordings}
                     />
                   );
                 })
@@ -302,31 +375,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </ScrollView>
-        {/* <View style={styles.scopeButtonsContainer}>
-          <Surface style={styles.scopeButtonsWrapper}>
-            <SegmentedButtons
-              style={styles.scopeButtons}
-              value={viewScope}
-              onValueChange={(value) => setViewScope(value)}
-              buttons={[
-                {
-                  value: 'day',
-                  label: 'Day',
-                  icon: 'calendar-today',
-                  style: styles.scopeButton,
-                  labelStyle: styles.scopeButtonLabel,
-                },
-                {
-                  value: 'week',
-                  label: 'Week',
-                  icon: 'calendar-week',
-                  style: styles.scopeButton,
-                  labelStyle: styles.scopeButtonLabel,
-                }
-              ]}
-            />
-          </Surface>
-        </View> */}
       </View>
     </>
   );
@@ -381,16 +429,31 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   weekdayText: {
     textAlign: 'center',
-    color: theme.colors.outlineVariant,
+    color: theme.colors.onSurfaceDisabled,
   },
   weekdayTextToday: {
     color: theme.colors.primary,
     fontWeight: 'bold',
   },
   weekProgressContainer: {
+    position: 'relative',
     flex: 1,
   },
-  weekdayProgress: {
+  progressContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+  },
+  weekProgress: {
+    height: 12,
+    borderRadius: 6,
+    flexGrow: 0,
+    marginTop: 14,
+    marginBottom: 4,
+    backgroundColor: 'transparent',
+  },
+  dayProgress: {
     height: 12,
     borderRadius: 6,
     flexGrow: 0,
@@ -412,18 +475,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     justifyContent: 'flex-end',
     paddingVertical: 6,
     marginLeft: 12,
-  },
-  weekPointsTotal: {
-    width: 28,
-    height: 28,
-    lineHeight: 28,
-    backgroundColor: theme.colors.primary,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    color: theme.colors.onPrimary,
-    borderRadius: 100,
-    marginLeft: 6,
-    marginRight: 2,
+    alignItems: 'flex-start',
   },
   weekPointsDivider: {
     marginHorizontal: 1,
@@ -469,7 +521,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   recordingContainerHeader: {
     flexDirection: 'row',
-    height: 56,
+    height: 48,
     alignItems: 'center',
     paddingHorizontal: 16,
     gap: 8,
@@ -501,12 +553,30 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   recordingDivider: {
     marginVertical: 24,
   },
+  dailyPointTotalContainer: {
+    marginTop: 8,
+    height: 28,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  dailyPointTotal: {
+    width: 36,
+    justifyContent: 'center',
+  },
+  dailyPointTotalTitle: {
+    // flex: 1,
+    marginRight: 8,
+    color: theme.colors.primary,
+  },
 });
 
 type RecordingDataMeasurementProps = {
   data: RecordingDataMeasurement,
   measurement: Measurement,
-  onPlus: (() => void) | undefined, onMinus: (() => void) | undefined,
+  onPlus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
+  onMinus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
   onToggle: ((toggled: boolean) => void) | undefined,
   weeklyData: number[],
   scope: string,
@@ -516,6 +586,28 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
   const theme = useTheme();
   const typeData = measurementTypeData.find((data) => data.type === measurement.type);
   if (!typeData) return null;
+
+  const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
+  const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
+
+  const dataRef = useRef(data);
+  const measurementRef = useRef(measurement);
+
+  useEffect(() => {
+    dataRef.current = data;
+    measurementRef.current = measurement;
+  }, [data, measurement]);
+
+  const handleLongPressLeft = () => {
+    longPressLeftInterval.current = setInterval(() => {
+      onMinus && onMinus(dataRef.current, measurementRef.current);
+    }, 150);
+  }
+  const handleLongPressRight = () => {
+    longPressRightInterval.current = setInterval(() => {
+      onPlus && onPlus(dataRef.current, measurementRef.current);
+    }, 150);
+  }
 
   let controlContent;
   if (scope === 'week') {
@@ -542,12 +634,39 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
     controlContent = (<>
       <Text style={measurementStyles.value} variant='titleMedium'>{formatNumber(data.value)}</Text>
       {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
-      <IconButton size={18} icon='minus' disabled={!data.value} onPress={() => {
-        onMinus && onMinus();
-      }}/>
-      <IconButton size={18} icon='plus' onPress={() => {
-        onPlus && onPlus();
-      }}/>
+      <IconButton
+        size={18}
+        icon='minus'
+        disabled={!data.value}
+        onPress={() => {
+          onMinus && onMinus(data, measurement);
+        }}
+        onLongPress={() => {
+          handleLongPressLeft();
+        }}
+        onPressOut={() => {
+          if (longPressLeftInterval.current === null) return;
+          clearInterval(longPressLeftInterval.current);
+          longPressLeftInterval.current = null;
+        }}
+        delayLongPress={500}
+      />
+      <IconButton
+        size={18}
+        icon='plus'
+        onPress={() => {
+          onPlus && onPlus(data, measurement);
+        }}
+        onLongPress={() => {
+          handleLongPressRight();
+        }}
+        onPressOut={() => {
+          if (longPressRightInterval.current === null) return;
+          clearInterval(longPressRightInterval.current);
+          longPressRightInterval.current = null;
+        }}
+        delayLongPress={500}
+      />
     </>)
   }
   return (
@@ -600,67 +719,56 @@ const measurementStyles = StyleSheet.create({
 });
 
 type RecordingDataHabitProps = {
-  data: RecordingDataMeasurement,
   habit: Habit,
-  weeklyData: number[],
+  dayRecording: Recording,
+  weekRecordings: (Recording | undefined)[],
   scope: string,
   currentDate: SimpleDate,
 }
 
-const RecordingDataHabit = ({ data, habit, weeklyData, scope, currentDate } : RecordingDataHabitProps) : JSX.Element | null => {
+const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | null => {
+  const { habit, weekRecordings, scope, currentDate } = props;
+
   const theme = useTheme();
   const habitStyles = createHabitStyles(theme);
-  const measurement = useMeasurement(habit.measurementId);
-  const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
-  if (!typeData) return null;
+  const measurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId));
 
-  
   let content;
-  // if (scope === 'week' && habit.isWeekly) {
-  //   const value = weeklyData.reduce((acc, curr) => acc + curr, 0);
-  //   const [complete, _] = getHabitCompletion(habit, value || 0);
-
-  //   let color = theme.colors.primary;
-  //   let status = 'indeterminate';
-  //   if (value === undefined) {
-  //     color = theme.colors.outline;
-  //   }
-  //   else if (complete) {
-  //     status = 'checked';
-  //   }
-  
-  //   content = (
-  //     <View style={habitStyles.checkboxContainer}>
-  //       <View
-  //         style={habitStyles.checkbox}>
-  //         <Checkbox.IOS
-  //           status={status as ('unchecked' | 'indeterminate' | 'checked')}
-  //           color={color}
-  //           pointerEvents='none'
-  //         />
-  //       </View>
-  //     </View>
-  //   );
-  // } else
   if (scope === 'week') {
+    const firstWeeklyCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
+      const recordings = weekRecordings.slice(0, index + 1);
+      const [complete] = getHabitCompletion(habit, recordings);
+      return complete;
+    }).findIndex((completion) => completion) : -1;
+
     content = (
       <View style={habitStyles.checkboxContainer}>
         {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
-          const value = habit.isWeekly ? weeklyData.reduce((acc, curr) => acc + curr, 0) : weeklyData[index];
-          const [complete, __] = getHabitCompletion(habit, value || 0);
-
+          const recordings = habit.isWeekly ? weekRecordings : [weekRecordings[index]];
+          const [complete] = getHabitCompletion(habit, recordings);
+          
+          const isToday = index === currentDate.getDayOfWeek();
+          const isFuture = weekRecordings[index] === undefined
           let status = 'indeterminate';
           let color = theme.colors.surfaceVariant;
-          if (habit.isWeekly && index !== currentDate.getDayOfWeek()) {
+          if (isFuture) {
             status = 'unchecked';
-          } else if (value === undefined) {
-            status = 'indeterminate';
+          } else if (habit.isWeekly && firstWeeklyCompletionIndex !== -1) {
+            if (index === firstWeeklyCompletionIndex) {
+              status = 'checked';
+              color = theme.colors.outlineVariant;
+            } else if (index > firstWeeklyCompletionIndex) {
+              status = 'unchecked';
+            }
           } else if (complete) {
-            color = index === currentDate.getDayOfWeek() ? theme.colors.primary : theme.colors.outlineVariant;
+            color = theme.colors.outlineVariant;
             status = 'checked';
-          } else if (index === currentDate.getDayOfWeek()) {
+          }
+          
+          if (isToday) {
             color = theme.colors.primary;
           }
+        
           return (
             <View
               key={index}
@@ -676,65 +784,130 @@ const RecordingDataHabit = ({ data, habit, weeklyData, scope, currentDate } : Re
       </View>
     );
   } else {
-    const [complete, progress] = getHabitCompletion(habit, data.value);
-    content = (<>
-      <View style={habitStyles.progressContainer}>
-        <View style={habitStyles.progressBarContainer}>
-          <ProgressBar
-            style={habitStyles.progressBar}
-            progress={progress}
-            color={complete ? theme.colors.primary : theme.colors.outlineVariant}
-            />
-        </View>
-        <View style={habitStyles.progressLabel}>
-          {typeData.type === 'bool' ? (
-            <View style={{ marginTop: 2 }}>
-              <Icon source={data.value ? 'check' : 'window-close'} size={16} />
+    const recordings = weekRecordings.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
+    const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, recordings);
+
+    const predicateColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
+    const pointsColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
+  
+    content = (
+      <>
+        <View style={habitStyles.progressContainers}>
+          {habit.conditions.length === 1 ? null : (
+            <View style={habitStyles.multipleConditionContainer}>
+              <View style={habitStyles.predicateContainer}>
+                <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={predicateColor} />
+                <Text style={{ ...habitStyles.predicate, color: predicateColor}} variant='titleSmall'>{getHabitPredicateLabel(habit.predicate)}</Text>
+              </View>
+              <Points points={habit.points} disabled={!complete} />
             </View>
-          ) : (
-            <Text style={habitStyles.progressLabelCurrent} variant='bodyMedium'>
-              {formatNumber(data.value)}
-            </Text>
           )}
-          <Text style={habitStyles.progressLabelDivider} variant='bodyMedium'>
-            {' / '}
-          </Text>
-          {typeData.type === 'bool' ? (
-            <View style={{ marginTop: 2 }}>
-              <Icon source='check' size={16} />
-            </View>
-          ) : (
-            <Text numberOfLines={1} style={habitStyles.progressLabelTarget} variant='bodyMedium'>
-              {formatNumber(habit.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
-            </Text>
-          )}
+          {habit.conditions.map((condition, index) => {
+            const measurement = measurements[index];
+            const conditionCompletion = conditionCompletions[index];
+            const conditionValue = conditionValues[index];
+            const conditionProgress = conditionProgressions[index];
+
+            const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
+            if (!typeData) return null;
+
+            const progressLabelColor = theme.colors.onSurface;
+
+            const progressColor = conditionCompletion ? theme.colors.primary : theme.colors.onSurfaceDisabled;
+            
+            return (
+              <Fragment key={`${condition.measurementId}${condition.target}`}>
+                <View style={habitStyles.progressContainer}>
+                  <View style={habitStyles.progressBarContainer}>
+                    <ProgressBar
+                      style={[habitStyles.progressBar, conditionCompletion ? habitStyles.progressBarComplete : {}]}
+                      progress={conditionProgress}
+                      color={progressColor}
+                    />
+                  </View>
+                  <View style={habitStyles.progressLabel}>
+                    {typeData.type === 'bool' ? (
+                      <Icon
+                        source={conditionValue ? 'check' : 'window-close'}
+                        size={16}
+                      />
+                    ) : (
+                      <Text style={{ ...habitStyles.progressLabelCurrent, color: progressLabelColor }} variant='bodyMedium'>
+                        {formatNumber(conditionValue)}
+                      </Text>
+                    )}
+                    {false ? (
+                      null
+                    ) : (
+                      <Text style={{ ...habitStyles.progressLabelDivider, color: progressLabelColor }} variant='bodyMedium'>
+                        {' / '}
+                      </Text>
+                    )}
+                    {typeData.type === 'bool' ? (
+                      <Icon
+                        source='check'
+                        size={16}
+                      />
+                    ) : (
+                      <Text style={{ ...habitStyles.progressLabelTarget, color: progressLabelColor }} variant='bodyMedium' numberOfLines={1}>
+                        {formatNumber(condition.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
+                      </Text>
+                    )}
+                  </View>
+                  {habit.conditions.length === 1 ? (
+                    <Points style={{ marginLeft: 4 }} points={habit.points} disabled={!complete} />
+                  ) : (
+                    <View style={[habitStyles.completionIcon, conditionCompletion ? habitStyles.completionIconComplete : {}]}>
+                      <Icon
+                        source={conditionCompletion ? 'check' : 'window-close'}
+                        color={conditionCompletion ? theme.colors.onPrimary : theme.colors.onSurfaceDisabled}
+                        size={16}
+                      />
+                    </View>
+                  )}
+                </View>
+              </Fragment>
+            )
+          })}
         </View>
-      </View>
-      <View style={[habitStyles.points, (complete ? habitStyles.pointsComplete : null)]}>
-        <Text style={habitStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
-      </View>
-    </>);
+      </>
+    );
   }
+
   return (
     <>
       <View style={habitStyles.container}>
-        <View style={habitStyles.icon}>
-          <Icon source={habit.isWeekly ? 'calendar-sync' : 'sync'} size={24} />
-       </View>
         <View style={habitStyles.labelContainer}>
-          <Text variant='titleMedium'>{habit.name}</Text>
-          <View style={habitStyles.labelSubtitle}>
-            <View style={habitStyles.labelSubtitleIcon}>
-              <Icon source={typeData.icon} size={18} />
+          <View style={habitStyles.titleContainer}>
+            <View style={habitStyles.icon}>
+              <Icon source={habit.isWeekly ? 'calendar-sync' : 'sync'} size={16} />
             </View>
-            <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleActivity} variant='bodyMedium'>{measurement?.activity}</Text>
-            {measurement?.variant ? (
-              <>
-                <Text style={habitStyles.labelSubtitleDivider} variant='bodyMedium'> : </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleVariant} variant='bodyMedium'>{measurement?.variant}</Text>
-              </>
-            ) : null}
+            <Text variant='titleMedium'>{habit.name}</Text>
           </View>
+          {scope === 'day' ? (
+            <>
+              {habit.conditions.map(({ measurementId, target }, index) => {
+                const measurement = measurements[index];
+                const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
+                if (!typeData) return null;
+    
+                return  (
+                  <View key={`${measurementId}${target}`} style={habitStyles.labelSubtitle}>
+                    <View style={habitStyles.labelSubtitleIcon}>
+                      <Icon source={typeData.icon} size={16} />
+                    </View>
+                    <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleActivity} variant='titleSmall'>{measurement?.activity}</Text>
+                    {measurement?.variant ? (
+                      <>
+                        <Text style={habitStyles.labelSubtitleDivider} variant='bodyMedium'> : </Text>
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleVariant} variant='bodyMedium'>{measurement?.variant}</Text>
+                      </>
+                    ) : null}
+                  </View>
+                )
+              })}
+            </>
+          ) : null}
         </View>
         {content}
       </View>
@@ -746,12 +919,13 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingVertical: 12,
+    paddingTop: 4,
+    paddingBottom: 12,
     alignItems: 'center',
     paddingHorizontal: 4,
   },
   icon: {
-    marginRight: 12,
+    marginRight: 2,
   },
   typeIconContainer: {
   },
@@ -761,9 +935,28 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   labelContainer: {
     flex: 1,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  predicateContainer: {
+    marginRight: 4,
+    flexDirection: 'row',
+    alignItems: 'center',  
+  },
+  predicate: {
+    color: theme.colors.outline,
+    marginLeft: 5,
+  },
   labelSubtitle: {
     flexDirection: 'row',
     alignItems: 'center',
+
+    // backgroundColor: theme.colors.surfaceVariant,
+    paddingLeft: 18,
+    borderRadius: 8,
+    marginTop: 6,
+    paddingVertical: 4,
   },
   labelSubtitleIcon: {
     marginRight: 4,
@@ -780,25 +973,55 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
     color: theme.colors.outline,
     flexShrink: 0,
   },
-  progressContainer: {
-    width: '30%',
+  progressContainers: {
+    height: '100%',
+    width: '40%',
     flexGrow: 0,
     flexDirection: 'column',
     marginLeft: 8,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+  },
+  multipleConditionContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  progressContainer: {
+    width: '100%',
+    flexGrow: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 6,
+    paddingVertical: 3,
   },
   progressBarContainer: {
-    paddingVertical: 6,
+    flex: 1,
+    position: 'relative',
+    flexDirection: 'row',
+    // alignItems: 'flex-start',
   },
   progressBar: {
-    height: 12,
-    borderRadius: 6,
+    height: 7,
+    borderRadius: 200,
+    // borderWidth: 2,
+    // borderColor: 'transparent',
+    // backgroundColor: 'transparent',
+  },
+  progressBarComplete: {
+    borderColor: theme.colors.primary,
   },
   progressLabel: {
+    position: 'absolute',
+    top: 9,
+    right: 38,
+
     flexDirection: 'row',
-    paddingHorizontal: 4,
     flexWrap: 'nowrap',
     justifyContent: 'flex-end',
     alignItems: 'center',
+    height: 22,
   },
   progressLabelCurrent: {
     fontWeight: 'bold',
@@ -816,23 +1039,16 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end'
   },
-  points: {
-    backgroundColor: theme.colors.outlineVariant,
-    width: 28,
-    height: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
+  completionIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 24,
     justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 12,
-    borderRadius: 100,
   },
-  pointsComplete: {
+  completionIconComplete: {
     backgroundColor: theme.colors.primary,
-  },
-  pointsText: {
-    color: theme.colors.onPrimary,
-  },
-  pointsIcon: {
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -841,44 +1057,81 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   },
 });
 
-const getHabitCompletion = (habit: Habit, value: number): [boolean, number] => {
-  let progress = 0;
-  let complete = false;
-  switch (habit.operator) {
-    case '>':
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value > habit.target;
-      break;
-    case '>=':
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value >= habit.target;
-      break;
-    case '<':
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value < habit.target;
-      break;
-    case '<=':
-      if (habit.target === 0 && value === 0) {
-        progress = 1;
-        complete = true;
+const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[]): [boolean, boolean[], number[], number[]] => {
+  let conditionCompletions: boolean[] = [];
+  let conditionValues: number[] = [];
+  let conditionProgressions: number[] = [];
+
+  habit.conditions.forEach((condition) => {
+    let conditionComplete = false;
+    let conditionValue = 0;
+    let conditionProgress = 0;
+
+    if (!recordings.length) {
+      conditionProgressions.push(conditionProgress);
+      conditionCompletions.push(conditionComplete);
+      conditionValues.push(conditionValue);
+      return;
+    };
+
+    const measurementValues = recordings.filter((r) => !!r).map((r) => {
+      const data = r.data.find((d) => d.measurementId === condition.measurementId);
+      return data?.value;
+    }).filter((v) => v !== undefined);
+
+    
+    if (!measurementValues.length) {
+      conditionProgressions.push(conditionProgress);
+      conditionCompletions.push(conditionComplete);
+      conditionValues.push(conditionValue);
+      return;
+    };
+
+    conditionValue = measurementValues.reduce((acc, curr) => acc + curr, 0);
+    
+    switch (condition.operator) {
+      case '>':
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue > condition.target;
         break;
-      }
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value <= habit.target;
-      break;
-    case '==':
-      if (habit.target === 0 && value === 0) {
-        progress = 1;
-        complete = true;
+      case '>=':
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue >= condition.target;
         break;
-      }
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value === habit.target;
-      break;
-    case '!=':
-      progress = Math.min(value / habit.target, 1.0) || 0;
-      complete = value !== habit.target;
-      break;
-  }
-  return [complete, progress];
+      case '<':
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue < condition.target;
+        break;
+      case '<=':
+        if (condition.target === 0 && conditionValue === 0) {
+          conditionProgress = 1;
+          conditionComplete = true;
+          break;
+        }
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue <= condition.target;
+        break;
+      case '==':
+        if (condition.target === 0 && conditionValue === 0) {
+          conditionProgress = 1;
+          conditionComplete = true;
+          break;
+        }
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue === condition.target;
+        break;
+      case '!=':
+        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionComplete = conditionValue !== condition.target;
+        break;
+    }
+
+    conditionProgressions.push(conditionProgress);
+    conditionCompletions.push(conditionComplete);
+    conditionValues.push(conditionValue);
+  });
+
+  const complete = habit.predicate === 'OR' ? !!conditionCompletions.find((c) => c) : conditionCompletions.findIndex((c) => !c) === -1;
+
+  return [complete, conditionCompletions, conditionValues, conditionProgressions];
 }

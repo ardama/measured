@@ -220,6 +220,14 @@ const Measurements = () => {
             />
         <View style={formStyles.buttons}>
           <Button
+            mode="text"
+            style={formStyles.button}
+            labelStyle={formStyles.buttonLabel}
+            onPress={() => handleCancel()}
+          >
+            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
+          </Button>
+          <Button
             mode="contained-tonal"
             style={formStyles.button}
             labelStyle={formStyles.buttonLabel}
@@ -227,14 +235,6 @@ const Measurements = () => {
             disabled={hasErrors()}
           >
             <Text variant='labelLarge' style={formStyles.buttonText}>Save</Text>
-          </Button>
-          <Button
-            mode="contained-tonal"
-            style={formStyles.button}
-            labelStyle={formStyles.buttonLabel}
-            onPress={() => handleCancel()}
-          >
-            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
           </Button>
         </View>
       </>
@@ -428,8 +428,8 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   sectionHeader: {
     paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 0,
+    paddingBottom: 0,
     backgroundColor: theme.colors.elevation.level3,
   },
   sectionHeaderTitle: {
@@ -583,9 +583,13 @@ const MeasurementItem = ({ measurement, onPress, onArchive, onDelete }: {
         </View>
         <View style={itemStyles.content}>
           <View style={itemStyles.labelContainer}>
-            <Text style={itemStyles.labelActivity} variant='titleMedium'>{measurement.activity}</Text>
+            <Text style={itemStyles.labelActivity} variant='titleMedium' numberOfLines={1} ellipsizeMode='tail'>
+              {measurement.activity}
+              </Text>
             {measurement.variant ? <Text style={itemStyles.labelDivider} variant='bodyMedium'> : </Text> : null}
-            <Text style={itemStyles.labelVariant} variant='bodyMedium'>{measurement.variant}</Text>
+            <Text style={itemStyles.labelVariant} variant='bodyMedium' numberOfLines={1} ellipsizeMode='tail'>
+              {measurement.variant}
+              </Text>
           </View>
           <View style={itemStyles.habitCountContainer}>
             <View style={itemStyles.habitCountIcon}>

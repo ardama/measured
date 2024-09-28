@@ -8,6 +8,7 @@ import { useMeasurements, useRecordings } from '@s/selectors';
 import { measurementTypeData } from '@t/measurements';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
+import Points from '@c/Points';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -23,20 +24,14 @@ export default function HomeScreen() {
       <View style={s.cardHeader}>
         <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Week</Text>
         <View style={{ ...s.pointsPerDay }}>
-          <Text style={s.pointsPerDayValue} variant='bodyLarge'>{pointsPerDayWeek}</Text>
-          <View style={s.pointsPerDayIcon}>
-            <Icon source='star-four-points' size={16} color={theme.colors.primary} />
-          </View>
+          <Points points={pointsPerDayWeek} size='large' />
           <Text style={s.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
         </View>
       </View>
       <View style={s.cardRow}>
         <Text style={{ ...s.cardSubtitle }}>Last week</Text>
         <View style={s.pointsPerDaySmall}>
-          <Text style={s.pointsPerDayValueSmall} variant='bodyMedium'>{pointsPerDayLastWeek}</Text>
-          <View style={s.pointsPerDayIconSmall}>
-            <Icon source='star-four-points' size={14} color={theme.colors.primary} />
-          </View>
+        <Points points={pointsPerDayLastWeek} size='small' />
           <Text style={s.pointsPerDayLabelSmall} variant='bodyMedium'> / day</Text>
         </View>
       </View>
@@ -48,20 +43,14 @@ export default function HomeScreen() {
       <View style={s.cardHeader}>
         <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Month</Text>
         <View style={{ ...s.pointsPerDay }}>
-          <Text style={s.pointsPerDayValue} variant='bodyLarge'>{pointsPerDayMonth}</Text>
-          <View style={s.pointsPerDayIcon}>
-            <Icon source='star-four-points' size={16} color={theme.colors.primary} />
-          </View>
+          <Points points={pointsPerDayMonth} size='large' />
           <Text style={s.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
         </View>
       </View>
       <View style={s.cardRow}>
         <Text style={{ ...s.cardSubtitle }}>Last month</Text>
         <View style={s.pointsPerDaySmall}>
-          <Text style={s.pointsPerDayValueSmall} variant='bodyMedium'>{pointsPerDayLastMonth}</Text>
-          <View style={s.pointsPerDayIconSmall}>
-            <Icon source='star-four-points' size={14} color={theme.colors.primary} />
-          </View>
+          <Points points={pointsPerDayLastMonth} size='small' />
           <Text style={s.pointsPerDayLabelSmall} variant='bodyMedium'> / day</Text>
         </View>
       </View>
@@ -442,8 +431,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   pointsPerDaySmall: {
     flexDirection: 'row',
-
-    height: 24,
     paddingHorizontal: 6,
   },
   pointsPerDayValueSmall: {

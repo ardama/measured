@@ -1,27 +1,34 @@
 import { Fragment, useRef, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 
-import { useHabits, useMeasurement, useMeasurements, useUser } from "@/store/selectors";
+import { useHabits, useMeasurement, useMeasurements, useMeasurementsByIds, useUser } from "@/store/selectors";
 import { editHabit, removeHabit, addHabit, addMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
-import { createHabit, habitOperatorData, type Habit, type HabitOperator } from "@/types/habits";
+import { createHabit, getHabitPredicateIcon, getHabitPredicateLabel, habitOperatorData, type Habit, type HabitOperator } from "@/types/habits";
 import { Button, Icon, IconButton, Menu, Surface, Text, TextInput, AnimatedFAB, FAB, useTheme as usePaperTheme, Chip, Divider, useTheme, type MD3Theme, Modal, List, TouchableRipple, SegmentedButtons } from 'react-native-paper';
 import { formatNumber, forWeb } from '@u/helpers';
 import { createMeasurement, measurementTypeData } from '@t/measurements';
 import { EmptyError, NoError, Error } from '@u/constants/Errors';
+import Points from '@c/Points';
+import { Icons } from '@u/constants/Icons';
 
 type EditedHabit = {
   id: string;
   userId: string;
   name: string;
-  measurementId: string;
-  operator: HabitOperator;
-  target: string;
   isWeekly: boolean;
   points: string;
   daysPerWeek: string;
   archived: boolean;
+  conditions: EditedHabitCondition[],
+  predicate: string,
 };
+
+type EditedHabitCondition = {
+  measurementId: string;
+  operator: HabitOperator;
+  target: string;
+}
 
 const Habits = () => {
   const dispatch = useDispatch();
@@ -70,9 +77,12 @@ const Habits = () => {
 
   const getInitialEditedHabit = (habit: Habit) => ({
     ...habit,
-    target: habit.target?.toString(),
     daysPerWeek: habit.daysPerWeek?.toString(),
     points: habit.points?.toString(),
+    conditions: habit.conditions.map((condition) => ({
+      ...condition,
+      target: condition.target?.toString(),
+    })),
   });
 
   const handleAddHabitPress = () => {
@@ -99,15 +109,18 @@ const Habits = () => {
     }, 250);
   }
 
-  const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
-  const [isOperatorMenuVisible, setIsOperatorMenuVisible] = useState(false);
+  const [measurementMenuVisibilities, setMeasurementMenuVisibilities] = useState<boolean[]>([]);
+  const [operatorMenuVisibilities, setOperatorMenuVisibilities] = useState<boolean[]>([]);
   const [isDaysPerWeekMenuVisible, setIsDaysPerWeekMenuVisible] = useState(false);
   const [isPointsMenuVisible, setIsPointsMenuVisible] = useState(false);
   const renderForm = () => {
     const isNew = !!newHabit;
     const formHabit = newHabit || editedHabit || null;
-    const formMeasurement = useMeasurement(formHabit?.measurementId || '');
-    if (formHabit === null || !formMeasurement) return;
+    const formMeasurementIds = formHabit?.conditions.map(({ measurementId }) => measurementId) || [];
+    const formMeasurements = useMeasurementsByIds(formMeasurementIds);
+    
+    if (formHabit === null || !formMeasurements.length) return;
+    const unusedMeasurements = measurements.filter((m) => !formHabit.conditions.find(({ measurementId }) => m.id === measurementId));
 
     const handleFormEdit = (nextHabit: EditedHabit) => {
       if (isNew) setNewHabit(nextHabit);
@@ -120,9 +133,12 @@ const Habits = () => {
       const nextHabit = {
         ...formHabit,
         name: formHabit.name.trim(),
-        target: parseInt(formHabit.target) || 0,
         daysPerWeek: formHabit.daysPerWeek ? parseInt(formHabit.daysPerWeek) : 7,
         points: formHabit.points ? parseInt(formHabit.points) : 1,
+        conditions: formHabit.conditions.map((condition) => ({
+          ...condition,
+          target: parseInt(condition.target) || 0,
+        })),
       };
 
       if (isNew) handleAddHabit(nextHabit);
@@ -147,16 +163,19 @@ const Habits = () => {
     }
   
     const getTargetErrors = () => {
-      if (isBool) return NoError;
-      if (!formHabit.target) return EmptyError;
-      const target = parseFloat(formHabit.target);
-      if (isNaN(target) || !isFinite(target) || target < 0) return Error('Invalid target');
+
+      // if (isBool) return NoError;
+      // if (formHabit.conditions.find(({ target }) => !target)) return EmptyError;
+
+      // if (formHabit.conditions.find((condition) => {
+      //   const target = parseFloat(condition.target);
+      //   return (isNaN(target) || !isFinite(target) || target < 0);
+      // })) {
+      //   return Error('Invalid target');
+      // }
+
       return NoError;
     }
-
-    const isBool = formMeasurement.type === 'bool';
-    const unit = formMeasurement.unit || '';
-    const typeData = measurementTypeData.find((data) => data.type === formMeasurement.type) || measurementTypeData[0];
 
     return (
       <>
@@ -188,143 +207,17 @@ const Habits = () => {
             }
           ]}
         />
-        <TextInput
-          label="Name"
-          mode='outlined'
-          style={formStyles.input}
-          value={formHabit.name || ' '}
-          onChangeText={(text) => {
-            const nextHabit = { ...formHabit, name: text };
-            handleFormEdit(nextHabit);
-          }}
-        />
-        <View style={{ ...formStyles.input }}>
-          <Menu
-            style={{ maxWidth: 600 }}
-            contentStyle={{ maxWidth: 600 }}
-            visible={isMeasurementMenuVisible}
-            onDismiss={() => setIsMeasurementMenuVisible(false)}
-            anchor={
-              <Pressable onPress={() => { setIsMeasurementMenuVisible(true); }}>
-                <TextInput
-                  mode='outlined'
-                  style={formStyles.inputDropdown}
-                  label="Measurement"
-                  readOnly
-                  value={`${formMeasurement.activity}${formMeasurement.variant ? ` : ${formMeasurement.variant}` : ''}`}
-                  />
-              </Pressable>
-            }
-            anchorPosition='bottom'
-          >
-            {
-              measurements.map((measurement) => (
-                <Menu.Item
-                  style={{ maxWidth: 600 }}
-                  contentStyle={{ maxWidth: 600 }}
-                  key={measurement.id}
-                  title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
-                  leadingIcon={(measurementTypeData.find(({ type }) => type === measurement.type) || measurementTypeData[0]).icon}
-                  onPress={() => {
-                    const nextHabit = { ...formHabit, measurementId: measurement.id };
-                    if (measurement.type === 'bool') {
-                      nextHabit.operator = '>';
-                      nextHabit.target = '0';
-                    }
-
-                    handleFormEdit(nextHabit);
-                    setIsMeasurementMenuVisible(false);
-                  }}
-                />
-              ))
-            }
-          </Menu>
-        </View>
-        <View style={{ ...formStyles.formRow, marginBottom: 32 }}>
-          {/* <View style={formStyles.typeIcon}>
-            <Icon source={typeData.icon} size={24} />
-          </View> */}
-          <View style={formStyles.inputPartial}>
-            <Menu
-              visible={isOperatorMenuVisible}
-              onDismiss={() => setIsOperatorMenuVisible(false)}
-              anchor={
-                <Pressable
-                  onPress={() => { setIsOperatorMenuVisible(true); }}
-                  disabled={isBool}
-                >
-                  <TextInput
-                    mode='outlined'
-                    style={formStyles.inputDropdown}
-                    label="Operator"
-                    readOnly
-                    value={isBool ? '--' : formHabit.operator}
-                    disabled={isBool}
-                    />
-                </Pressable>
-              }
-              anchorPosition='bottom'
-              >
-              {
-                habitOperatorData.map(({ operator, icon, label }) => (
-                  <Menu.Item
-                  key={operator}
-                  title={label}
-                  leadingIcon={icon}
-                  onPress={() => {
-                    const nextHabit = { ...formHabit, operator };
-                    handleFormEdit(nextHabit);
-                    setIsOperatorMenuVisible(false);
-                  }}
-                  />
-                ))
-              }
-            </Menu>
-          </View>
-          <TextInput
-            label="Target"
-            mode='outlined'
-            style={{ ...formStyles.input, flex: 2}}
-            error={!!getTargetErrors().hasError}
-            value={isBool ? '--' : formHabit.target?.toString()}
-            onChangeText={(text) => {
-              const nextHabit = { ...formHabit, target: text };
-              handleFormEdit(nextHabit);
-            }}
-            right={<TextInput.Affix text={unit || ''} />}
-            keyboardType="numeric"
-            disabled={isBool}
-          />
-        </View>
         <View style={formStyles.formRow}>
-          {/* <Button
-            style={formStyles.weeklyButton}
-            mode={!formHabit.isWeekly ? 'contained-tonal' : 'text'}
-            compact
-            icon={'sync'}
-            onPress={() => {
-              const nextHabit = { ...formHabit, isWeekly: false };
+          <TextInput
+            label="Name"
+            mode='outlined'
+            style={formStyles.input}
+            value={formHabit.name || ' '}
+            onChangeText={(text) => {
+              const nextHabit = { ...formHabit, name: text };
               handleFormEdit(nextHabit);
             }}
-          >
-            <Text style={formStyles.weeklyButtonText} variant='titleMedium'>
-              Daily
-            </Text>
-          </Button>
-          <Button
-            style={formStyles.weeklyButton}
-            mode={formHabit.isWeekly ? 'contained-tonal' : 'text'}
-            compact
-            icon={'calendar-sync'}
-            onPress={() => {
-              const nextHabit = { ...formHabit, isWeekly: true };
-              handleFormEdit(nextHabit);
-            }}
-          >
-            <Text style={formStyles.weeklyButtonText} variant='titleMedium'>
-              Weekly
-            </Text>
-          </Button> */}
+          />
         </View>
         <View style={formStyles.formRow}>
           <View style={formStyles.inputPartial}>
@@ -336,7 +229,6 @@ const Habits = () => {
                   <TextInput
                     mode='outlined'
                     style={formStyles.inputDropdown}
-                    label="Frequency"
                     readOnly
                     value={formHabit.isWeekly ? '--' : formHabit.daysPerWeek}
                     right={<TextInput.Affix text="/week" />}
@@ -349,20 +241,20 @@ const Habits = () => {
               {
                 [1, 2, 3, 4, 5, 6, 7].map((num) => (
                   <Menu.Item
-                  key={num}
-                  title={num}
-                  onPress={() => {
-                    const nextHabit = { ...formHabit, daysPerWeek: num.toString() };
-                    handleFormEdit(nextHabit);
-                    
-                    setIsDaysPerWeekMenuVisible(false);
-                  }}
+                    key={num}
+                    title={num}
+                    onPress={() => {
+                      const nextHabit = { ...formHabit, daysPerWeek: num.toString() };
+                      handleFormEdit(nextHabit);
+                      
+                      setIsDaysPerWeekMenuVisible(false);
+                    }}
                   />
                 ))
               }
             </Menu>
           </View>
-          <View style={{ ...formStyles.input, flex: 2}}>
+          <View style={formStyles.inputPartial}>
             <Menu
               visible={isPointsMenuVisible}
               onDismiss={() => setIsPointsMenuVisible(false)}
@@ -370,7 +262,6 @@ const Habits = () => {
                 <Pressable onPress={() => { setIsPointsMenuVisible(true); }}>
                   <TextInput
                     style={formStyles.inputDropdown}
-                    label="Points"
                     mode='outlined'
                     readOnly
                     value={formHabit.points}
@@ -397,7 +288,381 @@ const Habits = () => {
             </Menu>
           </View>
         </View>
+
+        <View style={formStyles.conditions}>
+          <Button
+            style={formStyles.addConditionButton}
+            labelStyle={formStyles.addConditionButtonLabel}
+            mode='text'
+            onPress={() => {
+              const nextHabit = { ...formHabit };
+              const m = unusedMeasurements.length ? unusedMeasurements[0] : measurements[0];
+              nextHabit.conditions.push({
+                measurementId: m.id,
+                operator: '>=',
+                target: '0',
+              })
+              handleFormEdit(nextHabit);
+            }}
+          >
+            <Icon source={'plus'} size={14} color={theme.colors.primary} />
+            Add condition
+          </Button>
+          <SegmentedButtons
+            style={formStyles.predicateButtons}
+            value={formHabit.predicate}
+            density='small'
+            onValueChange={(value) => {
+              const nextHabit = { ...formHabit, predicate: value };
+              handleFormEdit(nextHabit);
+            }}
+            buttons={[
+              {
+                value: 'AND',
+                label: 'All',
+                icon: getHabitPredicateIcon('AND'),
+                style: formStyles.predicateButton,
+                labelStyle: formStyles.predicateButtonLabel,
+              },
+              {
+                value: 'OR',
+                label: 'Any',
+                icon: getHabitPredicateIcon('OR'),
+                style: formStyles.predicateButton,
+                labelStyle: formStyles.predicateButtonLabel,
+              }
+            ]}
+          />
+          {formHabit.conditions.map((condition, index) => {
+            const formMeasurement = formMeasurements[index];
+            if (!formMeasurement) return;
+
+            const operatorData = habitOperatorData.find((data) => data.operator === condition.operator) || habitOperatorData[0];
+            const typeData = measurementTypeData.find((data) => data.type === formMeasurement.type) || measurementTypeData[0];
+
+            const isBool = formMeasurement.type === 'bool';
+            const isMeasurementMenuVisible = measurementMenuVisibilities[index];
+            const isOperatorMenuVisible = operatorMenuVisibilities[index];
+
+            return (
+              <View key={index} style={formStyles.condition}>
+                <View style={{ flexShrink: 1 }}>
+                  <Menu
+                    style={{ maxWidth: 600 }}
+                    contentStyle={{ maxWidth: 600 }}
+                    visible={isMeasurementMenuVisible}
+                    onDismiss={() => {
+                      const nextVisibilities = [...measurementMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setMeasurementMenuVisibilities(nextVisibilities);
+                    }}
+                    anchor={
+                      <TouchableRipple
+                        style={formStyles.dropdownButton}
+                        // labelStyle={formStyles.dropdownButtonLabel}
+                        // mode='contained-tonal'
+                        // compact
+                        onPress={() => {
+                          const nextVisibilities = [...measurementMenuVisibilities];
+                          nextVisibilities[index] = true;
+                          setMeasurementMenuVisibilities(nextVisibilities);
+                        }}
+                      >
+                        <>
+                          <Icon source={typeData.icon} size={16} />
+                          <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementActivity}>
+                            {formMeasurement.activity}
+                          </Text>
+                          {formMeasurement.variant ? <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={formStyles.measurementVariant}> : {formMeasurement.variant}</Text> : null}
+                        </>
+                      </TouchableRipple>
+                    }
+                    anchorPosition='bottom'
+                  >
+                    {
+                      measurements.map((measurement) => (
+                        <Menu.Item
+                          style={{ maxWidth: 600 }}
+                          contentStyle={{ maxWidth: 600 }}
+                          key={measurement.id}
+                          title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
+                          leadingIcon={(measurementTypeData.find(({ type }) => type === measurement.type) || measurementTypeData[0]).icon}
+                          onPress={() => {
+                            const nextHabit = { ...formHabit };
+                            nextHabit.conditions[index].measurementId = measurement.id;
+                            if (measurement.type === 'bool') {
+                              nextHabit.conditions[index].operator = '>';
+                              nextHabit.conditions[index].target = '0';
+                            }
+
+                            handleFormEdit(nextHabit);
+                            const nextVisibilities = [...measurementMenuVisibilities];
+                            nextVisibilities[index] = false;
+                            setMeasurementMenuVisibilities(nextVisibilities);
+                          }}
+                        />
+                      ))
+                    }
+                  </Menu>
+                </View>
+                {formMeasurement.type !== 'bool' ? (
+                  <>
+                    <Menu
+                      visible={isOperatorMenuVisible}
+                      onDismiss={() => {
+                        const nextVisibilities = [...operatorMenuVisibilities];
+                        nextVisibilities[index] = false;
+                        setOperatorMenuVisibilities(nextVisibilities);
+                      }}
+                      anchor={
+                        <TouchableRipple
+                          style={formStyles.dropdownButton}
+                          // labelStyle={formStyles.dropdownButtonLabel}
+                          // mode='contained-tonal'
+                          // compact
+                          onPress={() => {
+                            const nextVisibilities = [...operatorMenuVisibilities];
+                            nextVisibilities[index] = true;
+                            setOperatorMenuVisibilities(nextVisibilities);
+                          }}
+                          disabled={isBool}
+                        >
+                          <Text variant='titleSmall'>
+                            {operatorData.operator}
+                          </Text>
+                        </TouchableRipple>
+                      }
+                      anchorPosition='bottom'
+                    >
+                      {
+                        habitOperatorData.map(({ operator, icon, label }) => (
+                          <Menu.Item
+                            key={operator}
+                            title={label}
+                            leadingIcon={icon}
+                            onPress={() => {
+                              const nextHabit = { ...formHabit };
+                              nextHabit.conditions[index].operator = operator;
+                              handleFormEdit(nextHabit);
+                              
+                              const nextVisibilities = [...operatorMenuVisibilities];
+                              nextVisibilities[index] = false;
+                              setOperatorMenuVisibilities(nextVisibilities);
+                            }}
+                          />
+                        ))
+                      }
+                    </Menu>
+                    <TextInput
+                      mode='outlined'
+                      style={formStyles.targetInput}
+                      contentStyle={formStyles.targetInputContent}
+                      dense
+                      placeholder='0'
+                      error={!!getTargetErrors().hasError}
+                      value={isBool ? '--' : condition.target.toString()}
+                      onChangeText={(text) => {
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].target = text;
+                        handleFormEdit(nextHabit);
+                      }}
+                      right={<TextInput.Affix text={formMeasurement.unit || ''} />}
+                      keyboardType="numeric"
+                      disabled={isBool}
+                    />
+                    
+                    {/* <Text variant='bodyMedium' style={formStyles.habitDaily}>{condition.target}</Text>
+                    <Text variant='bodyMedium' style={formStyles.measurementUnit}> {formMeasurement.unit}</Text> */}
+                  </>
+                ) : null}
+                {formHabit.conditions.length > 1 ? (
+                  <IconButton
+                    icon={'delete-outline'}
+                    style={formStyles.deleteButton}
+                    size={20}
+                    onPress={() => {
+                      const nextHabit = { ...formHabit };
+                      nextHabit.conditions.splice(index, 1);
+                      handleFormEdit(nextHabit);
+                    }}
+                  />
+                ) : null}
+              </View>
+            )
+          })}
+        </View>
+        {/* {formHabit.conditions.map((condition, index) => {
+          const formMeasurement = formMeasurements[index];
+          if (!formMeasurement) return;
+
+          const isBool = formMeasurement.type === 'bool';
+          const isMeasurementMenuVisible = measurementMenuVisibilities[index];
+          const isOperatorMenuVisible = operatorMenuVisibilities[index];
+          return (
+            <Fragment key={condition.measurementId}>
+              <View style={{ ...formStyles.input }}>
+                <Menu
+                  style={{ maxWidth: 600 }}
+                  contentStyle={{ maxWidth: 600 }}
+                  visible={isMeasurementMenuVisible}
+                  onDismiss={() => {
+                    const nextVisibilities = [...measurementMenuVisibilities];
+                    nextVisibilities[index] = false;
+                    setMeasurementMenuVisibilities(nextVisibilities);
+                  }}
+                  anchor={
+                    <Pressable
+                      onPress={() => {
+                        const nextVisibilities = [...measurementMenuVisibilities];
+                        nextVisibilities[index] = true;
+                        setMeasurementMenuVisibilities(nextVisibilities);
+                      }}
+                    >
+                      <TextInput
+                        mode='outlined'
+                        style={formStyles.inputDropdown}
+                        label="Measurement"
+                        readOnly
+                        value={`${formMeasurement.activity}${formMeasurement.variant ? ` : ${formMeasurement.variant}` : ''}`}
+                      />
+                    </Pressable>
+                  }
+                  anchorPosition='bottom'
+                >
+                  {
+                    measurements.map((measurement) => (
+                      <Menu.Item
+                        style={{ maxWidth: 600 }}
+                        contentStyle={{ maxWidth: 600 }}
+                        key={measurement.id}
+                        title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
+                        leadingIcon={(measurementTypeData.find(({ type }) => type === measurement.type) || measurementTypeData[0]).icon}
+                        onPress={() => {
+                          const nextHabit = { ...formHabit };
+                          nextHabit.conditions[index].measurementId = measurement.id;
+                          if (measurement.type === 'bool') {
+                            nextHabit.conditions[index].operator = '>';
+                            nextHabit.conditions[index].target = '0';
+                          }
+
+                          handleFormEdit(nextHabit);
+                          const nextVisibilities = [...measurementMenuVisibilities];
+                          nextVisibilities[index] = false;
+                          setMeasurementMenuVisibilities(nextVisibilities);
+                        }}
+                      />
+                    ))
+                  }
+                </Menu>
+              </View>
+              <View style={{ ...formStyles.formRow, marginBottom: 32 }}>
+                <View style={formStyles.inputPartial}>
+                  <Menu
+                    visible={isOperatorMenuVisible}
+                    onDismiss={() => {
+                      const nextVisibilities = [...operatorMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setOperatorMenuVisibilities(nextVisibilities);
+                    }}
+                    anchor={
+                      <Pressable
+                        onPress={() => {
+                          const nextVisibilities = [...operatorMenuVisibilities];
+                          nextVisibilities[index] = true;
+                          setOperatorMenuVisibilities(nextVisibilities);
+                        }}
+                        disabled={isBool}
+                      >
+                        <TextInput
+                          mode='outlined'
+                          style={formStyles.inputDropdown}
+                          label="Operator"
+                          readOnly
+                          value={isBool ? '--' : condition.operator}
+                          disabled={isBool}
+                        />
+                      </Pressable>
+                    }
+                    anchorPosition='bottom'
+                  >
+                    {
+                      habitOperatorData.map(({ operator, icon, label }) => (
+                        <Menu.Item
+                        key={operator}
+                        title={label}
+                        leadingIcon={icon}
+                        onPress={() => {
+                          const nextHabit = { ...formHabit };
+                          nextHabit.conditions[index].operator = operator;
+                          handleFormEdit(nextHabit);
+                          
+                          const nextVisibilities = [...operatorMenuVisibilities];
+                          nextVisibilities[index] = false;
+                          setOperatorMenuVisibilities(nextVisibilities);
+                        }}
+                        />
+                      ))
+                    }
+                  </Menu>
+                </View>
+                <TextInput
+                  label="Target"
+                  mode='outlined'
+                  style={{ ...formStyles.input, flex: 2}}
+                  error={!!getTargetErrors().hasError}
+                  value={isBool ? '--' : condition.target.toString()}
+                  onChangeText={(text) => {
+                    const nextHabit = { ...formHabit };
+                    nextHabit.conditions[index].target = text;
+                    handleFormEdit(nextHabit);
+                  }}
+                  right={<TextInput.Affix text={formMeasurement.unit || ''} />}
+                  keyboardType="numeric"
+                  disabled={isBool}
+                />
+              </View>
+            </Fragment>
+          );
+        })} */}
+        {/* <View style={formStyles.formRow}>
+          <Button
+            style={formStyles.weeklyButton}
+            mode={!formHabit.isWeekly ? 'contained-tonal' : 'text'}
+            compact
+            icon={'sync'}
+            onPress={() => {
+              const nextHabit = { ...formHabit, isWeekly: false };
+              handleFormEdit(nextHabit);
+            }}
+          >
+            <Text style={formStyles.weeklyButtonText} variant='titleMedium'>
+              Daily
+            </Text>
+          </Button>
+          <Button
+            style={formStyles.weeklyButton}
+            mode={formHabit.isWeekly ? 'contained-tonal' : 'text'}
+            compact
+            icon={'calendar-sync'}
+            onPress={() => {
+              const nextHabit = { ...formHabit, isWeekly: true };
+              handleFormEdit(nextHabit);
+            }}
+          >
+            <Text style={formStyles.weeklyButtonText} variant='titleMedium'>
+              Weekly
+            </Text>
+          </Button>
+        </View> */}
         <View style={formStyles.buttons}>
+          <Button
+            mode="text"
+            style={formStyles.button}
+            labelStyle={formStyles.buttonLabel}
+            onPress={() => handleCancel()}
+          >
+            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
+          </Button>
           <Button
             mode="contained-tonal"
             style={formStyles.button}
@@ -406,14 +671,6 @@ const Habits = () => {
             disabled={hasErrors()}
           >
             <Text variant='labelLarge' style={formStyles.buttonText}>Save</Text>
-          </Button>
-          <Button
-            mode="contained-tonal"
-            style={formStyles.button}
-            labelStyle={formStyles.buttonLabel}
-            onPress={() => handleCancel()}
-          >
-            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
           </Button>
         </View>
       </>
@@ -609,8 +866,8 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   sectionHeader: {
     paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 0,
+    paddingBottom: 0,
     backgroundColor: theme.colors.elevation.level3,
   },
   sectionHeaderTitle: {
@@ -682,9 +939,10 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
+    marginBottom: 12,
   },
   input: {
-    marginBottom: 16,
+    flex: 1,
     // backgroundColor: theme.colors.elevation.level3,
   },
   inputPartial: {
@@ -735,6 +993,70 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   buttonText: {
     color: theme.colors.primary,
   },
+
+
+  conditions: {
+    marginTop: 4,
+    gap: 12
+    // marginBottom: 12,
+  },
+  condition: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  dropdownButton: {
+    backgroundColor: theme.colors.surfaceVariant,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    borderRadius: 4,
+    flexShrink: 1,
+  },
+  dropdownButtonLabel: {
+    marginVertical: 10,
+    marginHorizontal: 12,
+    borderRadius: 4,
+    flexShrink: 1,
+  },
+  measurementActivity: {
+    marginLeft: 4,
+    flexShrink: 2,
+  },
+  measurementVariant: {
+    color: theme.colors.outline,
+    flexShrink: 1,
+  },
+  targetInput: {
+    flex: 1,
+    minWidth: 120,
+    padding: 0,
+    height: 40,
+  },
+  targetInputContent: {
+    margin: 0,
+    padding: 0,
+  },
+  addConditionButton: {
+    marginTop: 8,
+  },
+  addConditionButtonLabel: {
+  },
+  predicateButtons: {
+    
+  },
+  predicateButton: {
+    
+  },
+  predicateButtonLabel: {
+    
+  },
+  deleteButton: {
+    margin: 0,
+  },
 })
 
 const HabitItem = ({ habit, onPress, onArchive, onDelete }: {
@@ -744,16 +1066,14 @@ const HabitItem = ({ habit, onPress, onArchive, onDelete }: {
   onDelete: (habit: Habit) => void;
 }): JSX.Element | null => {
 
-const measurement = useMeasurement(habit.measurementId);
+const measurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId ));
 
 const theme = useTheme();
 const itemStyles = createItemStyles(theme);
 
 const [isMenuVisible, setIsMenuVisible] = useState(false);
 
-const operatorData = habitOperatorData.find((data) => data.operator === habit.operator) || habitOperatorData[0];
-const typeData = measurementTypeData.find((data) => data.type === measurement?.type) || measurementTypeData[0];
-return measurement ? (
+return measurements.length ? (
   <TouchableRipple style={itemStyles.container} onPress={() => onPress(habit)}>
     <>
       <View style={itemStyles.content}>
@@ -768,6 +1088,12 @@ return measurement ? (
             </>
             )} */}
         </View>
+        {habit.conditions.length > 1 ? (
+            <View style={itemStyles.predicateContainer}>
+              <Icon source={getHabitPredicateIcon(habit.predicate)} size={12} color={theme.colors.outline} />
+              <Text variant='titleSmall' ellipsizeMode='tail' numberOfLines={1} style={itemStyles.predicate}>{getHabitPredicateLabel(habit.predicate)}</Text>
+            </View>
+          ) : null}
         {/* <View style={itemStyles.daysPerWeek}>
           <Icon source={`numeric-${habit.daysPerWeek}`} size={30} />
           </View>
@@ -780,53 +1106,65 @@ return measurement ? (
           <Icon source={`star-four-points`} size={16} color={theme.colors.onPrimary} />
           </View>
           </View> */}
-        <View style={itemStyles.description}>
-          <View style={itemStyles.measurement}>
-            <Icon source={typeData.icon} size={16} />
-            <Text numberOfLines={1} variant='titleSmall' style={itemStyles.measurementActivity}> {measurement.activity}</Text>
-            {measurement.variant ? <Text numberOfLines={1} variant='bodyMedium' style={itemStyles.measurementVariant}> : {measurement.variant}</Text> : null}
-          </View>
-          {measurement.type !== 'bool' && (
-            <>
-              <Text variant='bodyMedium' style={itemStyles.habitOperator}> {operatorData.label.toLowerCase()} </Text>
-              <Text variant='bodyMedium' style={itemStyles.habitDaily}>{formatNumber(habit.target)}</Text>
-              <Text variant='bodyMedium' style={itemStyles.measurementUnit}> {measurement.unit}</Text>
-              <Text variant='bodyMedium' style={itemStyles.habitScope}> / </Text>
-              <Text variant='bodyMedium' style={itemStyles.habitScope}>{habit.isWeekly ? 'week' : 'day'} </Text>
-              <Icon source={habit.isWeekly ? 'calendar-sync' : 'sync'} size={16} />
-              </>
-          )}
+        {habit.conditions.map((condition, index) => {
+          const measurement = measurements[index];
+          if (!measurement) return null;
+
+          const operatorData = habitOperatorData.find((data) => data.operator === condition.operator) || habitOperatorData[0];
+          const typeData = measurementTypeData.find((data) => data.type === measurement.type) || measurementTypeData[0];
+
+          return (
+            <View key={index} style={itemStyles.description}>
+              <View style={itemStyles.measurement}>
+                <Icon source={typeData.icon} size={16} />
+                <Text numberOfLines={1} ellipsizeMode='tail' variant='titleSmall' style={itemStyles.measurementActivity}>
+                  {measurement.activity}
+                </Text>
+                {measurement.variant ? <Text numberOfLines={1} ellipsizeMode='tail' variant='bodyMedium' style={itemStyles.measurementVariant}> : {measurement.variant}</Text> : null}
+              </View>
+              {measurement.type !== 'bool' && (
+                <>
+                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitOperator}> {operatorData.label.toLowerCase()} </Text>
+                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitDaily}>{formatNumber(condition.target)}</Text>
+                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.measurementUnit}> {measurement.unit}</Text>
+                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitScope}> / </Text>
+                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitScope}>{habit.isWeekly ? 'week' : 'day'} </Text>
+                  <Icon source={habit.isWeekly ? 'calendar-sync' : 'sync'} size={16} />
+                  </>
+              )}
+            </View>
+          )
+        })}
+      </View>
+      <View style={habit.conditions.length === 1 ? itemStyles.rightContainerCentered : itemStyles.rightContainer}>
+        <View style={itemStyles.rightContainerInner}>
+          <Points points={habit.points * (habit.isWeekly ? 1 : habit.daysPerWeek)} />
+          <Text>/ week</Text>
+          <Menu
+            visible={isMenuVisible}
+            onDismiss={() => setIsMenuVisible(false)}
+            anchor={
+              <IconButton
+                style={{ margin: 0 }} icon='dots-vertical' size={24}
+                onPress={() => { setIsMenuVisible(true); }}
+                onResponderRelease={(e) => { e.preventDefault(); }}
+              />
+            }
+            anchorPosition='bottom'
+          >
+            <Menu.Item
+              leadingIcon='archive-outline'
+              onPress={() => { onArchive(habit, !habit.archived); }}
+              title={habit.archived ? 'Unarchive' : 'Archive'}
+            />
+            <Menu.Item
+              leadingIcon='delete-outline'
+              onPress={() => { onDelete(habit); }}
+              title="Delete"
+            />
+          </Menu>
         </View>
       </View>
-      <View style={itemStyles.points}>
-        {/* <View style={itemStyles.pointsIcon}>
-          <Icon source={'dots-triangle'} size={28} color={theme.colors.primary} />
-        </View> */}
-        <Text variant='titleSmall' style={itemStyles.pointsValue}>{habit.points * (habit.isWeekly ? 1 : habit.daysPerWeek)}</Text>
-      </View>
-      <Menu
-          visible={isMenuVisible}
-          onDismiss={() => setIsMenuVisible(false)}
-          anchor={
-            <IconButton
-              style={{ margin: 0 }} icon='dots-vertical' size={24}
-              onPress={() => { setIsMenuVisible(true); }}
-              onResponderRelease={(e) => { e.preventDefault(); }}
-            />
-          }
-          anchorPosition='bottom'
-        >
-          <Menu.Item
-            leadingIcon='archive-outline'
-            onPress={() => { onArchive(habit, !habit.archived); }}
-            title={habit.archived ? 'Unarchive' : 'Archive'}
-          />
-          <Menu.Item
-            leadingIcon='delete-outline'
-            onPress={() => { onDelete(habit); }}
-            title="Delete"
-          />
-        </Menu>
     </>
   </TouchableRipple>
 ) : null;
@@ -843,9 +1181,6 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
   },
   leftIcon: {
     marginRight: 8,
@@ -859,33 +1194,40 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     flexShrink: 0,
     alignItems: 'center',
     width: '100%',
-    marginBottom: 6,
   },
   name: {
   },
-  pointsValue: {
-    fontWeight: 'bold',
-    color: theme.colors.onPrimary,  
-  },
-  points: {
-    width: 28,
-    height: 28,
+  predicateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 100,
-    backgroundColor: theme.colors.primary,
+    // marginLeft: 4,
   },
-  // pointsIcon: {
-  //   position: 'absolute',
-  //   right: -13,
-  //   top: 4,
-  // },
+  predicate: {
+    color: theme.colors.outline,
+    marginLeft: 4,
+  },
+  rightContainer: {
+    height: '100%',
+  },
+  rightContainerCentered: {
+    height: '100%',
+    justifyContent: 'center',
+  },
+  rightContainerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    gap: 4,
+  },
   description: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 6,
+    flexWrap: 'nowrap',
+    gap: 4,
   },
   measurement: {
+    flexShrink: 1,
     backgroundColor: theme.colors.surfaceVariant,
     paddingHorizontal: 6,
     paddingVertical: 3,
@@ -904,15 +1246,19 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     color: theme.colors.outline,
   },
   habitOperator: {
+    flexShrink: 0,
     marginLeft: 2,
   },
   habitDaily: {
+    flexShrink: 0,
     fontWeight: 'bold',
   },
   measurementUnit: {
+    flexShrink: 0,
     fontWeight: 'bold',
   },
   habitScope: {
+    flexShrink: 0,
     fontWeight: 'bold',
   },
 });
