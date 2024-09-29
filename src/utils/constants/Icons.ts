@@ -16,5 +16,11 @@ export const Icons = {
   measurementTypeTime: 'clock-outline',
   measurementTypeCount: 'numeric-1-box-outline',
   measurementTypeBool: 'checkbox-outline',
+  measurementTypeCombo: 'plus-minus-variant',
+
+  measurementOperatorAdd: 'plus-box',
+  measurementOperatorSubtract: 'minus-box',
+  measurementOperatorMultiply: 'close-box',
+  measurementOperatorDivide: 'division-box',
 
 }

@@ -44,21 +44,61 @@ export class SimpleDate {
     return `${monthName} ${dayWithSuffix}`;
   }
 
+  toFormattedMonthYear() {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const monthsAbbr = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    const currentYear = SimpleDate.today().year;
+    if (this.year !== currentYear) {
+      return `${monthsAbbr[this.month - 1]} '${this.year.toString().slice(2)}`;
+    }
+
+    return `${months[this.month - 1]}`;
+  }
+
   getDaysInMonth() {
     // Ensure the month is between 1 and 12
     if (this.month < 1 || this.month > 12) {
       return 30;
     }
   
-    // Array of days in each month
-    const daysInMonth = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  
-    // Check for leap year and adjust February
-    if (this.month === 2 && this.isLeapYear()) {
-      return 29;
+    return SimpleDate.getDaysInMonth(this.month, this.year);
+  }
+
+  getMonthsAgo(months: number = 1) {
+    let month = this.month;
+    let year = this.year;
+
+    while (months > 0) {
+      month--;
+
+      if (month === 0) {
+        month = 12;
+        year--;
+      }
+
+      months--;
     }
-  
-    return daysInMonth[this.month];
+
+    while (months < 0) {
+      month++;
+
+      if (month === 13) {
+        month = 1;
+        year++;
+      }
+
+      months++;
+    }
+
+    return new SimpleDate(year, month, Math.max(this.day, SimpleDate.getDaysInMonth(month, year)));
   }
 
   getDaysInPreviousMonth() {
@@ -86,11 +126,11 @@ export class SimpleDate {
     return date.getDay();
   }
   
-  isLeapYear() {
+  static isLeapYear(year: number) {
     // Leap year is divisible by 4
     // But if it's divisible by 100, it's not a leap year
     // Unless it's also divisible by 400, then it is a leap year
-    return (this.year % 4 === 0 && this.year % 100 !== 0) || (this.year % 400 === 0);
+    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
   }
 
   static fromString(dateString: string) {
@@ -110,6 +150,16 @@ export class SimpleDate {
     const offset = now.getTimezoneOffset();
     now.setMinutes(now.getMinutes() - offset);
     return SimpleDate.fromDate(now);
+  }
+
+  static getDaysInMonth(month: number, year: number) {
+    const days = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    if (month === 2 && SimpleDate.isLeapYear(year)) {
+      return 29;
+    }
+
+    return days[month];
   }
 }
 

@@ -8,9 +8,10 @@ type PointsProps = {
   size?: 'small' | 'medium' | 'large',
   disabled?: boolean,
   style?: StyleProp<ViewStyle>,
+  decimals?: number
 }
 
-const Points = ({ points, size = 'medium', disabled = false, style }: PointsProps) : JSX.Element => {
+const Points = ({ points, size = 'medium', disabled = false, style, decimals = 0 }: PointsProps) : JSX.Element => {
   const theme = useTheme();
   const styles = createStyles(theme, size);
 
@@ -24,9 +25,10 @@ const Points = ({ points, size = 'medium', disabled = false, style }: PointsProp
 
   const color = disabled ? theme.colors.onSurfaceDisabled : theme.colors.primary;
 
+  const pointsString = isNaN(points) ? '--' : points.toFixed(decimals);
   return (
     <View style={[styles.container, style]}>
-      <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color }}>{points}</Text>
+      <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color }}>{pointsString}</Text>
       <Icon source={Icons.points} size={iconSize} color={color} />
     </View>
   )

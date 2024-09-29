@@ -151,6 +151,22 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+    },
+    {
+      "id": "n7rij2z",
+      "userId": "k1cit1t",
+      "name": "Bedtime",
+      "isWeekly": false,
+      "daysPerWeek": 5,
+      "points": 1,
+      "archived": false,
+      "conditions": [{
+          "measurementId": "evq21bh",
+          "operator": "<=",
+          "target": 24.5,
+        }
+      ],
+      "predicate": "AND",
     }
   ];
 
@@ -163,8 +179,8 @@ const generateTestUser = (): UserState => {
       "type": "duration",
       "unit": "min",
       "step": 15,
+      "defaultValue": 0,
       "archived": false,
-      "recordings": []
     },
     {
       "id": "zqflysf",
@@ -174,8 +190,8 @@ const generateTestUser = (): UserState => {
       "type": "duration",
       "unit": "min",
       "step": 15,
+      "defaultValue": 0,
       "archived": false,
-      "recordings": []
     },
     {
       "id": "26h38r8",
@@ -185,8 +201,8 @@ const generateTestUser = (): UserState => {
       "type": "duration",
       "unit": "min",
       "step": 15,
+      "defaultValue": 0,
       "archived": false,
-      "recordings": []
     },
     {
       "id": "evqx1bh",
@@ -196,8 +212,19 @@ const generateTestUser = (): UserState => {
       "type": "duration",
       "unit": "min",
       "step": 15,
+      "defaultValue": 0,
       "archived": false,
-      "recordings": []
+    },
+    {
+      "id": "evq21bh",
+      "userId": "k1cit1t",
+      "activity": "Sleep",
+      "variant": "Bedtime",
+      "type": "time",
+      "unit": "",
+      "step": 0.5,
+      "defaultValue": 23,
+      "archived": false,
     },
     {
       "id": "bdsbn0y",
@@ -207,8 +234,19 @@ const generateTestUser = (): UserState => {
       "type": "count",
       "unit": "steps",
       "step": 1000,
+      "defaultValue": 0,
       "archived": false,
-      "recordings": []
+    },
+    {
+      "id": "b1sbn0y",
+      "userId": "k1cit1t",
+      "activity": "Hygeine",
+      "variant": "Wash face",
+      "type": "bool",
+      "unit": "",
+      "step": 1,
+      "defaultValue": 0,
+      "archived": false,
     }
   ];
 

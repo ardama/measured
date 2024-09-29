@@ -9,8 +9,11 @@ interface Measurement {
   variant: string;
   unit: string;
   step: number;
+  defaultValue: number;
   archived: boolean;
-  recordings: string[];
+  comboLeftId?: string,
+  comboRightId?: string,
+  comboOperator?: MeasurementOperator,
 }
 
 const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: string, step: number): Measurement => ({
@@ -21,8 +24,8 @@ const createMeasurement = (userId: string, activity: string, variant: string, ty
   type,
   unit,
   step,
+  defaultValue: 0,
   archived: false,
-  recordings: [],
 });
 
 interface MeasurementUnit {
@@ -74,14 +77,56 @@ const generateDefaultMeasurementUnits = () => [
 
 const generateDefaultEmptyUnit = () => createMeasurementUnit('(no unit)', '', ['duration', 'time', 'count', 'bool'], true, false);
 
-type MeasurementType = 'duration' | 'time' | 'count' | 'bool';
+type MeasurementType = 'duration' | 'time' | 'count' | 'bool' | 'combo';
 
-const measurementTypeData: { type: MeasurementType, icon: string, label: string }[] = [
-  { type: 'duration', label: 'Duration', icon: Icons.measurementTypeDuration },
-  { type: 'time', label: 'Time', icon: Icons.measurementTypeTime },
-  { type: 'count', label: 'Count', icon: Icons.measurementTypeCount },
-  { type: 'bool', label: 'Yes / No', icon: Icons.measurementTypeBool },
-]
+const measurementTypes: MeasurementType[] = ['duration', 'time', 'count', 'bool', 'combo'];
+
+type MeasurementTypeData = { icon: string, label: string };
+const measurementTypeData: {
+  duration: MeasurementTypeData,
+  time: MeasurementTypeData,
+  count: MeasurementTypeData,
+  bool: MeasurementTypeData,
+  combo: MeasurementTypeData,
+} = {
+  duration: { label: 'Duration', icon: Icons.measurementTypeDuration },
+  time: { label: 'Time', icon: Icons.measurementTypeTime },
+  count: { label: 'Count', icon: Icons.measurementTypeCount },
+  bool: { label: 'Yes / No', icon: Icons.measurementTypeBool },
+  combo: { label: 'Combo', icon: Icons.measurementTypeCombo },
+};
+
+const getMeasurementTypeData = (type: (MeasurementType | undefined)): MeasurementTypeData => {
+  return measurementTypeData[type || 'count'];
+}
+
+const getMeasurementTypeLabel = (type: (MeasurementType | undefined)): string => {
+  return measurementTypeData[type || 'count'].label;
+}
+
+const getMeasurementTypeIcon = (type: (MeasurementType | undefined)): string => {
+  return measurementTypeData[type || 'count'].icon;
+}
+
+type MeasurementOperator = '+' | '-' | '*' | '/';
+const measurementOperators: MeasurementOperator[] = ['+', '-', '*', '/'];
+
+type MeasurementOperatorData = { icon: string, label: string };
+const measurementOperatorData: {
+  ['+']: MeasurementOperatorData,
+  ['-']: MeasurementOperatorData,
+  ['*']: MeasurementOperatorData,
+  ['/']: MeasurementOperatorData,
+} = {
+  '+': { label: 'Plus', icon: Icons.measurementOperatorAdd },
+  '-': { label: 'Minus', icon: Icons.measurementOperatorSubtract },
+  '*': { label: 'Times', icon: Icons.measurementOperatorMultiply },
+  '/': { label: 'Over', icon: Icons.measurementOperatorDivide },
+};
+
+const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined)): MeasurementOperatorData => {
+  return measurementOperatorData[operator || '+'];
+}
 
 export {
   type Measurement,
@@ -95,5 +140,12 @@ export {
   defaultMeasurementUnits,
   
   type MeasurementType,
-  measurementTypeData,
+  measurementTypes,
+  getMeasurementTypeData,
+  getMeasurementTypeLabel,
+  getMeasurementTypeIcon,
+
+  type MeasurementOperator,
+  measurementOperators,
+  getMeasurementOperatorData,
 };

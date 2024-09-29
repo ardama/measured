@@ -1,16 +1,15 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { useHabits, useMeasurement, useMeasurements, useMeasurementsByIds, useRecordings, useUser } from '@s/selectors';
-import { measurementTypeData, type Measurement } from '@t/measurements';
-import { Checkbox, Icon, IconButton, ProgressBar, SegmentedButtons, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
+import { useHabits, useMeasurements, useMeasurementsByIds, useRecordings, useUser } from '@s/selectors';
+import { getMeasurementTypeData, type Measurement } from '@t/measurements';
+import { Checkbox, Icon, IconButton, ProgressBar, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
 import { createRecording, type Recording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { generateDates, SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
 import { addRecording, editRecording, editRecordingData } from '@s/userReducer';
-import { getHabitPredicateIcon, getHabitPredicateLabel, type Habit } from '@t/habits';
-import { capitalize, formatNumber } from '@u/helpers';
-import { Icons } from '@u/constants/Icons';
+import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type Habit } from '@t/habits';
+import { formatNumber, formatTime } from '@u/helpers';
 import Points from '@c/Points';
 
 
@@ -39,7 +38,7 @@ export default function HomeScreen() {
 
       const newRecordingData: RecordingDataMeasurement[] = user.measurements.map((m) => ({
         measurementId: m.id,
-        value: 0,
+        value: m.defaultValue,
       }));
   
       if (weekRecording) {
@@ -94,14 +93,13 @@ export default function HomeScreen() {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
-
   const proratedWeeklyTarget = weeklyPointTarget * weekDates.length / 7; 
   const dailyPointTarget = weeklyPointTarget / 7;
 
-  const weeklyMeasurementRecordings = new Map<string, number[]>();
+  const weeklyMeasurementRecordings = new Map<string, (number | null)[]>();
   weekRecordings.forEach((weeklyRecording, index) => {
     weeklyRecording?.data.forEach(({ measurementId, value }) => {
-      const current = weeklyMeasurementRecordings.get(measurementId) || [0, 0, 0, 0, 0, 0, 0];
+      const current = weeklyMeasurementRecordings.get(measurementId) || [null, null, null, null, null, null, null];
       current[index] = value;
       weeklyMeasurementRecordings.set(measurementId, current);
     })
@@ -594,14 +592,17 @@ type RecordingDataMeasurementProps = {
   onPlus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
   onMinus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
   onToggle: ((toggled: boolean) => void) | undefined,
-  weeklyData: number[],
+  weeklyData: (number | null)[],
   scope: string,
 }
 
 const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle, weeklyData, scope } : RecordingDataMeasurementProps) : JSX.Element | null  => {
   const theme = useTheme();
-  const typeData = measurementTypeData.find((data) => data.type === measurement.type);
+  const typeData = getMeasurementTypeData(measurement.type);
   if (!typeData) return null;
+
+  const isBool = measurement.type === 'bool';
+  const isTime = measurement.type === 'time';
 
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
   const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
@@ -627,16 +628,20 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
 
   let controlContent;
   if (scope === 'week') {
+    const sum = weeklyData.reduce((acc: number, curr) => acc + (curr || 0), 0);
+    const count = weeklyData.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
+    const value = isTime ? formatTime(sum / count) : formatNumber(sum);
+    const unit = isTime ? '(average)' : measurement.unit;
     controlContent = (<>
-      <Text style={measurementStyles.value} variant='titleMedium'>{weeklyData.reduce((acc, curr) => acc + curr, 0)}</Text>
-      {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
-      {measurement.type === 'bool' && (
-        <View>
+      <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
+      {unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text>}
+      {isBool && (
+        <View style={measurementStyles.valueLabel}>
           <Icon source='check' size={18} />
         </View>
       )}
     </>);
-  } else if (measurement.type === 'bool') {
+  } else if (isBool) {
     controlContent = (<>
       <Text style={measurementStyles.value} variant='titleMedium'> </Text>
       <IconButton size={18} mode={!data.value ? 'contained' : undefined} icon='window-close' onPress={() => {
@@ -647,8 +652,9 @@ const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle
       }}/>
     </>);
   } else {
+    let value = isTime ? formatTime(data.value) : formatNumber(data.value);
     controlContent = (<>
-      <Text style={measurementStyles.value} variant='titleMedium'>{formatNumber(data.value)}</Text>
+      <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
       {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
       <IconButton
         size={18}
@@ -726,10 +732,10 @@ const measurementStyles = StyleSheet.create({
   },
   value: {
     flexGrow: 1,
-    marginRight: 6,
     textAlign: 'right',
   },
   valueLabel: {
+    marginLeft: 6,
     textAlign: 'right',
   },
 });
@@ -758,7 +764,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     }).findIndex((completion) => completion) : -1;
 
     content = (
-      <View style={habitStyles.checkboxContainer}>
+      <View style={habitStyles.checkboxes}>
         {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
           const recordings = habit.isWeekly ? weekRecordings : [weekRecordings[index]];
           const [complete] = getHabitCompletion(habit, recordings);
@@ -788,11 +794,12 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           return (
             <View
               key={index}
-              style={habitStyles.checkbox}>
+              style={habitStyles.checkboxContainer}>
               <Checkbox.IOS
                 status={status as ('unchecked' | 'indeterminate' | 'checked')}
                 color={color}
                 pointerEvents='none'
+                style={habitStyles.checkbox}
               />
             </View>
           );
@@ -804,7 +811,6 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, recordings);
 
     const predicateColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
-    const pointsColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
   
     content = (
       <>
@@ -823,12 +829,11 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             const conditionCompletion = conditionCompletions[index];
             const conditionValue = conditionValues[index];
             const conditionProgress = conditionProgressions[index];
-
-            const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
-            if (!typeData) return null;
+            
+            if (!measurement) return null;
+            const isBool = measurement.type === 'bool';
 
             const progressLabelColor = theme.colors.onSurface;
-
             const progressColor = conditionCompletion ? theme.colors.primary : theme.colors.onSurfaceDisabled;
             
             return (
@@ -842,7 +847,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                     />
                   </View>
                   <View style={habitStyles.progressLabel}>
-                    {typeData.type === 'bool' ? (
+                    {isBool ? (
                       <Icon
                         source={conditionValue ? 'check' : 'window-close'}
                         size={16}
@@ -859,7 +864,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                         {' / '}
                       </Text>
                     )}
-                    {typeData.type === 'bool' ? (
+                    {measurement.type === 'bool' ? (
                       <Icon
                         source='check'
                         size={16}
@@ -904,16 +909,16 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             <>
               {habit.conditions.map(({ measurementId, target }, index) => {
                 const measurement = measurements[index];
-                const typeData = measurementTypeData.find((data) => data.type === measurement?.type);
-                if (!typeData) return null;
-    
+                if (!measurement) return;
+
+                const typeData = getMeasurementTypeData(measurement.type);    
                 return  (
                   <View key={`${measurementId}${target}`} style={habitStyles.labelSubtitle}>
                     <View style={habitStyles.labelSubtitleIcon}>
                       <Icon source={typeData.icon} size={16} />
                     </View>
                     <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleActivity} variant='titleSmall'>{measurement?.activity}</Text>
-                    {measurement?.variant ? (
+                    {measurement.variant ? (
                       <>
                         <Text style={habitStyles.labelSubtitleDivider} variant='bodyMedium'> : </Text>
                         <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleVariant} variant='bodyMedium'>{measurement?.variant}</Text>
@@ -1066,88 +1071,12 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   completionIconComplete: {
     backgroundColor: theme.colors.primary,
   },
-  checkboxContainer: {
+  checkboxes: {
     flexDirection: 'row',
   },
+  checkboxContainer: {
+  },
   checkbox: {
+    padding: 0,
   },
 });
-
-const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[]): [boolean, boolean[], number[], number[]] => {
-  let conditionCompletions: boolean[] = [];
-  let conditionValues: number[] = [];
-  let conditionProgressions: number[] = [];
-
-  habit.conditions.forEach((condition) => {
-    let conditionComplete = false;
-    let conditionValue = 0;
-    let conditionProgress = 0;
-
-    if (!recordings.length) {
-      conditionProgressions.push(conditionProgress);
-      conditionCompletions.push(conditionComplete);
-      conditionValues.push(conditionValue);
-      return;
-    };
-
-    const measurementValues = recordings.filter((r) => !!r).map((r) => {
-      const data = r.data.find((d) => d.measurementId === condition.measurementId);
-      return data?.value;
-    }).filter((v) => v !== undefined);
-
-    
-    if (!measurementValues.length) {
-      conditionProgressions.push(conditionProgress);
-      conditionCompletions.push(conditionComplete);
-      conditionValues.push(conditionValue);
-      return;
-    };
-
-    conditionValue = measurementValues.reduce((acc, curr) => acc + curr, 0);
-    
-    switch (condition.operator) {
-      case '>':
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue > condition.target;
-        break;
-      case '>=':
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue >= condition.target;
-        break;
-      case '<':
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue < condition.target;
-        break;
-      case '<=':
-        if (condition.target === 0 && conditionValue === 0) {
-          conditionProgress = 1;
-          conditionComplete = true;
-          break;
-        }
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue <= condition.target;
-        break;
-      case '==':
-        if (condition.target === 0 && conditionValue === 0) {
-          conditionProgress = 1;
-          conditionComplete = true;
-          break;
-        }
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue === condition.target;
-        break;
-      case '!=':
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
-        conditionComplete = conditionValue !== condition.target;
-        break;
-    }
-
-    conditionProgressions.push(conditionProgress);
-    conditionCompletions.push(conditionComplete);
-    conditionValues.push(conditionValue);
-  });
-
-  const complete = habit.predicate === 'OR' ? !!conditionCompletions.find((c) => c) : conditionCompletions.findIndex((c) => !c) === -1;
-
-  return [complete, conditionCompletions, conditionValues, conditionProgressions];
-}

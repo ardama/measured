@@ -1,61 +1,22 @@
 import Header from '@c/Header';
 import { useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
-import { Button, Icon, Menu, Surface, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, IconButton, Menu, Surface, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
 import { movingAverage } from '@u/helpers';
-import { useMeasurements, useRecordings } from '@s/selectors';
-import { measurementTypeData } from '@t/measurements';
+import { useHabits, useMeasurements, useRecordings } from '@s/selectors';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
+import Heatmap from '@c/Heatmap';
+import { getHabitCompletion } from '@t/habits';
+import { getMeasurementTypeData } from '@t/measurements';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const s = createStyles(theme);
 
-  const pointsPerDayWeek = 4.2;
-  const pointsPerDayLastWeek = 6.3;
-  const pointsPerDayMonth = 4.1;
-  const pointsPerDayLastMonth = 5.9;
-
-  const weekCard = (
-    <Surface style={{ ...s.card, ...s.cardPartial, maxWidth: 400 }}>
-      <View style={s.cardHeader}>
-        <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Week</Text>
-        <View style={{ ...s.pointsPerDay }}>
-          <Points points={pointsPerDayWeek} size='large' />
-          <Text style={s.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
-        </View>
-      </View>
-      <View style={s.cardRow}>
-        <Text style={{ ...s.cardSubtitle }}>Last week</Text>
-        <View style={s.pointsPerDaySmall}>
-        <Points points={pointsPerDayLastWeek} size='small' />
-          <Text style={s.pointsPerDayLabelSmall} variant='bodyMedium'> / day</Text>
-        </View>
-      </View>
-    </Surface>
-  );
-
-  const monthCard = (
-    <Surface style={{ ...s.card, ...s.cardPartial, maxWidth: 400 }}>
-      <View style={s.cardHeader}>
-        <Text style={{ ...s.cardTitle, color: theme.colors.primary }} variant='titleLarge'>Month</Text>
-        <View style={{ ...s.pointsPerDay }}>
-          <Points points={pointsPerDayMonth} size='large' />
-          <Text style={s.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
-        </View>
-      </View>
-      <View style={s.cardRow}>
-        <Text style={{ ...s.cardSubtitle }}>Last month</Text>
-        <View style={s.pointsPerDaySmall}>
-          <Points points={pointsPerDayLastMonth} size='small' />
-          <Text style={s.pointsPerDayLabelSmall} variant='bodyMedium'> / day</Text>
-        </View>
-      </View>
-    </Surface>
-  );
+  const recordings = useRecordings();
   
   const chartDurationItems = [
     { title: '1W', value: '7' },
@@ -70,7 +31,7 @@ export default function HomeScreen() {
   
   const measurements = useMeasurements();
   const chartMeasurementItems = measurements.map(({ id, activity, variant, type }) => {
-    const typeData = measurementTypeData.find((data) => data.type === type);
+    const typeData = getMeasurementTypeData(type);
     return {
       title: `${activity}${variant ? ` : ${variant}` : ''}`,
       value: id,
@@ -109,7 +70,6 @@ export default function HomeScreen() {
     />
   );
 
-  const recordings = useRecordings();
   const isFocused = useIsFocused();
   const renderMeasurementChartCard = (): JSX.Element | null => {
     const measurementRecordingValues = recordings.map(({ data }) => {
@@ -140,7 +100,7 @@ export default function HomeScreen() {
     else if (selectedMeasurementData.length > 20) dotSize = 6;
 
     const chartHeight = 300;
-    const chartWidth = Dimensions.get('window').width - 64;
+    const chartWidth = Dimensions.get('window').width - 72;
     const chartPadding = Math.ceil(Math.max((dotSize + 1) / 2, 2));
 
     const verticalStep = selectedMeasurement?.step || 1;
@@ -357,8 +317,7 @@ export default function HomeScreen() {
       <Header title='Analytics' />
       <View style={s.container}>
         <View style={s.cards}>
-          {weekCard}
-          {monthCard}
+          <MonthSummaryCard />
           {renderMeasurementChartCard()}
         </View>
       </View>
@@ -381,7 +340,8 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingVertical: 16,
   },
   card: {
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderRadius: 12,
 
     flex: 1,
@@ -397,7 +357,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   cardTitle: {
     flex: 1,
@@ -410,40 +370,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 0,
-  },
-  pointsPerDay: {
-    flexDirection: 'row',
-
-    height: 40,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    backgroundColor: theme.colors.secondaryContainer,
-
-    borderRadius: 8,
-  },
-  pointsPerDayValue: {
-
-  },
-  pointsPerDayIcon: {
-    marginTop: 4,
-    marginLeft: 4
-  },
-  pointsPerDayLabel: {
-
-  },
-  pointsPerDaySmall: {
-    flexDirection: 'row',
-    paddingHorizontal: 6,
-  },
-  pointsPerDayValueSmall: {
-
-  },
-  pointsPerDayIconSmall: {
-    marginTop: 3,
-    marginLeft: 2
-  },
-  pointsPerDayLabelSmall: {
-
   },
   chart: {
     paddingVertical: 24,
@@ -549,3 +475,101 @@ const MeasurementChartDropdown = ({ label, value, items, onChange
     </View>
   );
 }
+
+type MonthSummaryCardProps = {
+
+};
+
+const MonthSummaryCard = (props: MonthSummaryCardProps) : JSX.Element => {
+  const theme = useTheme();
+  
+  const dateToday = SimpleDate.fromDate(new Date());
+  const [date, setDate] = useState(new SimpleDate(dateToday.year, dateToday.month, 1));
+
+  const month = date.month;
+  const year = date.year;
+
+  const recordings = useRecordings();
+  const habits = useHabits();
+  const dailyHabits = habits.filter(({ isWeekly }) => !isWeekly);
+
+  const monthRecordings = recordings.filter((recording) => {
+    const date = SimpleDate.fromString(recording.date);
+    return date.month === month && date.year === year;
+  });
+
+  const monthDailyPoints = monthRecordings.map((recording) => {
+    return dailyHabits.reduce((dailyPoints, habit) => {
+      const [complete] = getHabitCompletion(habit, [recording]);
+      return dailyPoints + (complete ? habit.points : 0);
+    }, 0);
+  });
+  const monthTotalDailyPoints = monthDailyPoints.reduce((sum, curr) => sum + curr, 0);
+  
+  const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4].map(() => {
+    return [0, 1, 2, 3, 4, 5, 6].map(() => null);
+  });
+
+  monthRecordings.forEach((recording, index) => {
+    const points = monthDailyPoints[index];
+
+    const date = SimpleDate.fromString(recording.date);
+    const column = date.getDayOfWeek();
+    const mod = (date.day - 1) % 7;
+    const floor = Math.floor((date.day - 1) / 7);
+    const row = floor + (mod < column ? 1 : 0);
+
+    monthHeatmapData[row][column] = points;
+  });
+
+  const pointsPerDayMonth = monthTotalDailyPoints / monthDailyPoints.length;
+
+  const cardStyles = createStyles(theme);
+  const styles = createMonthSummaryStyles(theme);
+
+  return (
+    <Surface style={[cardStyles.card]}>
+      <View style={cardStyles.cardHeader}>
+        <Text style={[cardStyles.cardTitle, styles.title]} variant='titleLarge'>{date.toFormattedMonthYear()}</Text>
+        <IconButton
+          style={styles.dateSelectionButton}
+          icon={'chevron-left'}
+          size={20}
+          onPress={() => {
+            setDate(date.getMonthsAgo(1));
+          }}
+        />
+        <IconButton
+          style={styles.dateSelectionButton}
+          icon={'chevron-right'}
+          size={22}
+          onPress={() => {
+            setDate(date.getMonthsAgo(-1));
+          }}
+          disabled={dateToday.year === date.year && dateToday.month === date.month}
+        />
+      </View>
+      <View style={styles.pointsPerDay}>
+        <Points points={pointsPerDayMonth} size='large' decimals={1} />
+        <Text style={styles.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
+      </View>
+      <Heatmap data={monthHeatmapData} />
+    </Surface>
+  )
+};
+
+const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
+  title: {
+  },
+  dateSelectionButton: {
+    marginVertical: 0,
+  },
+  pointsPerDay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  pointsPerDayLabel: {
+
+  },
+});
