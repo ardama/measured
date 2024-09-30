@@ -123,7 +123,6 @@ const CombinedDarkTheme = {
     ...MD3DarkTheme.colors,
     ...DarkTheme.colors,
     ...CustomDarkTheme.colors,
-    tertiary: '#00ff00',
   },
 };
 

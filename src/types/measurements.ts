@@ -1,4 +1,5 @@
 import { generateId } from "@/utils/helpers";
+import type { Recording } from '@t/recording';
 import { Icons } from '@u/constants/Icons';
 
 interface Measurement {
@@ -10,13 +11,14 @@ interface Measurement {
   unit: string;
   step: number;
   defaultValue: number;
+  priority: number,
   archived: boolean;
   comboLeftId?: string,
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
 }
 
-const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: string, step: number): Measurement => ({
+const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
   id: generateId(),
   userId,
   activity,
@@ -25,6 +27,7 @@ const createMeasurement = (userId: string, activity: string, variant: string, ty
   unit,
   step,
   defaultValue: 0,
+  priority,
   archived: false,
 });
 
@@ -128,6 +131,27 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
   return measurementOperatorData[operator || '+'];
 }
 
+const getMeasurementRecordingValue = (measurementId: (string | undefined), measurements: Measurement[], recording: Recording): number => {
+  const measurement = measurements.find(({ id }) => id === measurementId);
+  if (!measurement) return 0;
+
+  const isCombo = measurement.type === 'combo';
+  if (isCombo) {
+    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, measurements, recording);
+    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, measurements, recording);
+    switch (measurement.comboOperator) {
+      case '+': return leftValue + rightValue;
+      case '-': return leftValue - rightValue;
+      case '*': return leftValue * rightValue;
+      case '/': return leftValue / rightValue;
+    }
+    return 0;
+  }
+
+  const data = recording.data.find(({ measurementId }) => measurementId === measurement.id);
+  return data?.value || 0;
+}
+
 export {
   type Measurement,
   createMeasurement,
@@ -148,4 +172,6 @@ export {
   type MeasurementOperator,
   measurementOperators,
   getMeasurementOperatorData,
+
+  getMeasurementRecordingValue,
 };

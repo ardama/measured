@@ -9,8 +9,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
-import { getHabitCompletion } from '@t/habits';
-import { getMeasurementTypeData } from '@t/measurements';
+import { getHabitCompletion, type Habit } from '@t/habits';
+import { getMeasurementRecordingValue, getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -31,11 +31,10 @@ export default function HomeScreen() {
   
   const measurements = useMeasurements();
   const chartMeasurementItems = measurements.map(({ id, activity, variant, type }) => {
-    const typeData = getMeasurementTypeData(type);
     return {
       title: `${activity}${variant ? ` : ${variant}` : ''}`,
       value: id,
-      icon: typeData?.icon,
+      icon: getMeasurementTypeIcon(type),
     }
   });
   const [chartMeasurementTitle, setChartMeasurementTitle] = useState(chartMeasurementItems[0]?.title);
@@ -72,9 +71,8 @@ export default function HomeScreen() {
 
   const isFocused = useIsFocused();
   const renderMeasurementChartCard = (): JSX.Element | null => {
-    const measurementRecordingValues = recordings.map(({ data }) => {
-      const measurementRecording = data.find(({ measurementId }) => measurementId === chartMeasurementValue);
-      return measurementRecording?.value || 0;
+    const measurementRecordingValues = recordings.map((recording) => {
+      return getMeasurementRecordingValue(selectedMeasurement?.id, measurements, recording);
     });
     const firstDataIndex = measurementRecordingValues.findIndex((value) => !!value);
     const selectedMeasurementStartIndex = firstDataIndex >= 0 ? Math.max(measurementRecordingValues.length - chartDuration, firstDataIndex, 0) : measurementRecordingValues.length;
@@ -184,7 +182,8 @@ export default function HomeScreen() {
                     theme={{
                       stroke: {
                         color: theme.colors.primary,
-                        width: Math.max(Math.min(4, dotSize), 2),
+                        width: Math.max(Math.min(3, dotSize), 2),
+                        dashArray:[15,4],
                       },
                       scatter: {
                         default: {
@@ -314,7 +313,7 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Header title='Analytics' />
+      <Header title='History' />
       <View style={s.container}>
         <View style={s.cards}>
           <MonthSummaryCard />
@@ -480,7 +479,7 @@ type MonthSummaryCardProps = {
 
 };
 
-const MonthSummaryCard = (props: MonthSummaryCardProps) : JSX.Element => {
+const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const theme = useTheme();
   
   const dateToday = SimpleDate.fromDate(new Date());
@@ -491,7 +490,11 @@ const MonthSummaryCard = (props: MonthSummaryCardProps) : JSX.Element => {
 
   const recordings = useRecordings();
   const habits = useHabits();
+  const measurements = useMeasurements();
   const dailyHabits = habits.filter(({ isWeekly }) => !isWeekly);
+  const dailyPointTarget = dailyHabits.reduce((previous: number, current: Habit) => {
+    return previous + current.points * current.daysPerWeek;
+  }, 0) / 7;
 
   const monthRecordings = recordings.filter((recording) => {
     const date = SimpleDate.fromString(recording.date);
@@ -500,7 +503,7 @@ const MonthSummaryCard = (props: MonthSummaryCardProps) : JSX.Element => {
 
   const monthDailyPoints = monthRecordings.map((recording) => {
     return dailyHabits.reduce((dailyPoints, habit) => {
-      const [complete] = getHabitCompletion(habit, [recording]);
+      const [complete] = getHabitCompletion(habit, [recording], measurements);
       return dailyPoints + (complete ? habit.points : 0);
     }, 0);
   });
@@ -553,7 +556,7 @@ const MonthSummaryCard = (props: MonthSummaryCardProps) : JSX.Element => {
         <Points points={pointsPerDayMonth} size='large' decimals={1} />
         <Text style={styles.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
       </View>
-      <Heatmap data={monthHeatmapData} />
+      <Heatmap data={monthHeatmapData} target={dailyPointTarget} />
     </Surface>
   )
 };

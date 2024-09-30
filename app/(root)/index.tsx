@@ -1,8 +1,8 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
 import { useHabits, useMeasurements, useMeasurementsByIds, useRecordings, useUser } from '@s/selectors';
-import { getMeasurementTypeData, type Measurement } from '@t/measurements';
+import { getMeasurementRecordingValue, getMeasurementTypeData, type Measurement } from '@t/measurements';
 import { Checkbox, Icon, IconButton, ProgressBar, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
-import { createRecording, type Recording, type RecordingData as RecordingDataMeasurement } from '@t/recording';
+import { createRecording, type Recording, type RecordingData } from '@t/recording';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { generateDates, SimpleDate } from '@u/dates';
 import Header from '@c/Header';
@@ -36,7 +36,7 @@ export default function HomeScreen() {
 
       if (weekRecording && weekDateIndex !== dates.length - 1) return;
 
-      const newRecordingData: RecordingDataMeasurement[] = user.measurements.map((m) => ({
+      const newRecordingData: RecordingData[] = measurements.map((m) => ({
         measurementId: m.id,
         value: m.defaultValue,
       }));
@@ -62,7 +62,7 @@ export default function HomeScreen() {
   const weeklyHabits = habits.filter((h) => h.isWeekly);
   const weekDailyHabitPointTotals = weekDates.map((_, index) => {
     return dailyHabits.reduce((previous: number, current: Habit) => {
-      const [complete, _, __] = getHabitCompletion(current, [recordings[index]]);  
+      const [complete, _, __] = getHabitCompletion(current, [recordings[index]], measurements);  
       return previous + (complete ? current.points : 0);
     }, 0);
   });
@@ -71,7 +71,7 @@ export default function HomeScreen() {
   weeklyHabits.forEach((habit) => {
     const firstCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
       const recordings = weekRecordings.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, recordings);
+      const [complete] = getHabitCompletion(habit, recordings, measurements);
       return complete;
     }).findIndex((completion) => completion) : -1;
 
@@ -96,12 +96,13 @@ export default function HomeScreen() {
   const proratedWeeklyTarget = weeklyPointTarget * weekDates.length / 7; 
   const dailyPointTarget = weeklyPointTarget / 7;
 
-  const weeklyMeasurementRecordings = new Map<string, (number | null)[]>();
+  const weeklyMeasurementValues = new Map<string, (number | null)[]>();
   weekRecordings.forEach((weeklyRecording, index) => {
-    weeklyRecording?.data.forEach(({ measurementId, value }) => {
-      const current = weeklyMeasurementRecordings.get(measurementId) || [null, null, null, null, null, null, null];
+    weeklyRecording?.data.forEach(({ measurementId }) => {
+      const current = weeklyMeasurementValues.get(measurementId) || [null, null, null, null, null, null, null];
+      const value = getMeasurementRecordingValue(measurementId, measurements, weeklyRecording);
       current[index] = value;
-      weeklyMeasurementRecordings.set(measurementId, current);
+      weeklyMeasurementValues.set(measurementId, current);
     })
   })
 
@@ -117,9 +118,9 @@ export default function HomeScreen() {
 
   const longPressPreviousTimeout = useRef<null | NodeJS.Timeout>(null);
   const longPressNextTimeout = useRef<null | NodeJS.Timeout>(null);
-  const weekyJumpCount = 30;
+  const weeklyJumpCount = 30;
   const handleLongPressPrevious = (index: number, delay: number = 250, count: number = 1) => {
-    const jump = count > weekyJumpCount ? 1 : 1;
+    const jump = count > weeklyJumpCount ? 1 : 1;
     let nextDayIndex = index - jump;
     if (nextDayIndex < 7) {
       setDates((current) => [...generateDates(14, current.length), ...current]);
@@ -127,21 +128,21 @@ export default function HomeScreen() {
     }
     setDateIndex(nextDayIndex);
     
-    const nextDelay = count > weekyJumpCount ? 25 : Math.max(delay - 25, 100);
+    const nextDelay = count > weeklyJumpCount ? 25 : Math.max(delay - 25, 100);
     longPressPreviousTimeout.current = setTimeout(() => handleLongPressPrevious(nextDayIndex, nextDelay, count + 1), delay);
   }
 
   const handleLongPressNext = (index: number, delay: number = 250, count: number = 1) => {
-    const jump = count > weekyJumpCount ? 1 : 1;
+    const jump = count > weeklyJumpCount ? 1 : 1;
     const nextDayIndex = Math.min(dates.length - 1, index + jump);
     setDateIndex(nextDayIndex);
 
-    const nextDelay = count > weekyJumpCount ? 25 : Math.max(delay - 25, 100);
+    const nextDelay = count > weeklyJumpCount ? 25 : Math.max(delay - 25, 100);
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextDayIndex, nextDelay, count + 1), delay);
   }
   return (
     <>
-      <Header title='Home' />
+      <Header title='Overview' />
       <View style={styles.container}>
         <View style={styles.headerSection}>
           <Surface style={styles.recordingHeaderContainer}>
@@ -282,42 +283,45 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.recordingContainer}>
-            {
-              recording && (
-                <View style={styles.recordingView}>
-                    {
-                      recording.data.map((data) => {
-                        const measurement = measurements.find(({ id }) => id === data.measurementId );
-                        if (!measurement) return null;
-                        return (
-                          <RecordingDataMeasurement
-                            key={data.measurementId}
-                            data={data}
-                            measurement={measurement}
-                            onPlus={(d, m) => {
-                              const value = d.value + m.step;
-                              console.log('value: ', value);
-                              const nextRecordingData = { ...d, value };
-                              dispatch(editRecordingData({ id: recording.id, measurementId: m.id, updates: nextRecordingData }));
-                            }}
-                            onMinus={(d, m) => {
-                              const value = Math.max(0, d.value - m.step);
-                              const nextRecordingData = { ...d, value };
-                              dispatch(editRecordingData({ id: recording.id, measurementId: m.id, updates: nextRecordingData }));                        
-                            }}
-                            onToggle={(toggled) => {
-                              const nextRecordingData = { ...data, value: toggled ? 1 : 0};
-                              dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates: nextRecordingData }));                        
-                            }}
-                            scope={measurementScopes[measurementScope].toLowerCase()}
-                            weeklyData={weeklyMeasurementRecordings.get(data.measurementId) || []}
-                          />
-                        );
-                      })
-                    }
-                </View>
-              )
-            }
+            {recording && (
+              <View style={styles.recordingView}>
+                {
+                  recording.data
+                  .filter((d) => measurements.find(({ id }) => id === d.measurementId )?.archived !== true)
+                  .toSorted((a, b) => {
+                    const aPriority = measurements.find(({ id }) => id === a.measurementId )?.priority || 0;
+                    const bPriority = measurements.find(({ id }) => id === b.measurementId )?.priority || 0;
+                    return aPriority - bPriority;
+                  }).map((data) => {
+                    const measurement = measurements.find(({ id }) => id === data.measurementId );
+                    if (!measurement) return null;
+                    return (
+                      <RecordingMeasurementItem
+                        key={data.measurementId}
+                        measurement={measurement}
+                        currentDate={currentDate}
+                        weekMeasurementValues={weeklyMeasurementValues}
+                        scope={measurementScopes[measurementScope].toLowerCase()}
+                        onPlus={(value, measurement) => {
+                          const nextValue = value + measurement.step;
+                          const updates = { value: nextValue };
+                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));
+                        }}
+                        onMinus={(value, measurement) => {
+                          const nextValue = Math.max(0, value - measurement.step);
+                          const updates = { value: nextValue };
+                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));                        
+                        }}
+                        onToggle={(toggled) => {
+                          const updates = { value: toggled ? 1 : 0};
+                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));                        
+                        }}
+                      />
+                    );
+                  })
+                }
+              </View>
+            )}
           </View>
           <View style={styles.recordingContainerHeader}>
             <View style={styles.recordingContainerHeaderIcon}>
@@ -371,7 +375,10 @@ export default function HomeScreen() {
             </View>
             <View style={styles.recordingView}>
               {
-                habits.map((habit) => {
+                habits
+                .filter((h) => h.archived !== true)
+                .toSorted((a, b) => (a.priority || 0) - (b.priority || 0))
+                .map((habit) => {
                   if (!recording) return null;
 
                   return (
@@ -586,110 +593,124 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
 });
 
-type RecordingDataMeasurementProps = {
-  data: RecordingDataMeasurement,
+type RecordingMeasurementItemProps = {
   measurement: Measurement,
-  onPlus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
-  onMinus: ((data: RecordingDataMeasurement, measurement: Measurement) => void) | undefined,
-  onToggle: ((toggled: boolean) => void) | undefined,
-  weeklyData: (number | null)[],
+  currentDate: SimpleDate,
+  weekMeasurementValues: Map<string, (number | null)[]>,
   scope: string,
+  onPlus: ((currentValue: number, measurement: Measurement) => void) | undefined,
+  onMinus: ((currentValue: number, measurement: Measurement) => void) | undefined,
+  onToggle: ((toggled: boolean) => void) | undefined,
 }
 
-const RecordingDataMeasurement = ({ data, measurement, onPlus, onMinus, onToggle, weeklyData, scope } : RecordingDataMeasurementProps) : JSX.Element | null  => {
+const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementValues, scope, onPlus, onMinus, onToggle } : RecordingMeasurementItemProps) : JSX.Element | null  => {
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
   if (!typeData) return null;
-
+  
   const isBool = measurement.type === 'bool';
   const isTime = measurement.type === 'time';
-
+  const isCombo = measurement.type === 'combo';
+  
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
   const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
 
-  const dataRef = useRef(data);
+  const weeklyValues = weekMeasurementValues.get(measurement.id) || [];
+  const value = weeklyValues[currentDate.getDayOfWeek()] || 0;
+
+  const valueRef = useRef(value);
   const measurementRef = useRef(measurement);
 
   useEffect(() => {
-    dataRef.current = data;
+    valueRef.current = value;
     measurementRef.current = measurement;
-  }, [data, measurement]);
+  }, [value, measurement]);
 
   const handleLongPressLeft = () => {
     longPressLeftInterval.current = setInterval(() => {
-      onMinus && onMinus(dataRef.current, measurementRef.current);
-    }, 150);
+      onMinus && onMinus(valueRef.current, measurementRef.current);
+    }, 125);
   }
   const handleLongPressRight = () => {
     longPressRightInterval.current = setInterval(() => {
-      onPlus && onPlus(dataRef.current, measurementRef.current);
-    }, 150);
+      onPlus && onPlus(valueRef.current, measurementRef.current);
+    }, 125);
   }
 
   let controlContent;
   if (scope === 'week') {
-    const sum = weeklyData.reduce((acc: number, curr) => acc + (curr || 0), 0);
-    const count = weeklyData.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
+    const sum = weeklyValues.reduce((acc: number, curr) => acc + (curr || 0), 0);
+    const count = weeklyValues.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
     const value = isTime ? formatTime(sum / count) : formatNumber(sum);
     const unit = isTime ? '(average)' : measurement.unit;
-    controlContent = (<>
-      <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
-      {unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text>}
-      {isBool && (
-        <View style={measurementStyles.valueLabel}>
-          <Icon source='check' size={18} />
-        </View>
-      )}
-    </>);
+    controlContent = (
+      <View style={[measurementStyles.content, { marginRight: 16 }]}>
+        <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
+        {unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text>}
+        {isBool && (
+          <View style={measurementStyles.valueLabel}>
+            <Icon source='check' size={18} />
+          </View>
+        )}
+      </View>
+    );
   } else if (isBool) {
-    controlContent = (<>
-      <Text style={measurementStyles.value} variant='titleMedium'> </Text>
-      <IconButton size={18} mode={!data.value ? 'contained' : undefined} icon='window-close' onPress={() => {
-        onToggle && onToggle(false);
-      }}/>
-      <IconButton size={18} mode={data.value ? 'contained' : undefined} icon='check' onPress={() => {
-        onToggle && onToggle(true);
-      }}/>
-    </>);
+    controlContent = (
+      <View style={measurementStyles.content}>
+        <Text style={measurementStyles.value} variant='titleMedium'> </Text>
+        <IconButton size={18} mode={!value ? 'contained' : undefined} icon='window-close' onPress={() => {
+          onToggle && onToggle(false);
+        }}/>
+        <IconButton size={18} mode={value ? 'contained' : undefined} icon='check' onPress={() => {
+          onToggle && onToggle(true);
+        }}/>
+      </View>
+    );
   } else {
-    let value = isTime ? formatTime(data.value) : formatNumber(data.value);
-    controlContent = (<>
-      <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
-      {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
-      <IconButton
-        size={18}
-        icon='minus'
-        disabled={!data.value}
-        onPress={() => {
-          onMinus && onMinus(data, measurement);
-        }}
-        onLongPress={() => {
-          handleLongPressLeft();
-        }}
-        onPressOut={() => {
-          if (longPressLeftInterval.current === null) return;
-          clearInterval(longPressLeftInterval.current);
-          longPressLeftInterval.current = null;
-        }}
-        delayLongPress={500}
-      />
-      <IconButton
-        size={18}
-        icon='plus'
-        onPress={() => {
-          onPlus && onPlus(data, measurement);
-        }}
-        onLongPress={() => {
-          handleLongPressRight();
-        }}
-        onPressOut={() => {
-          if (longPressRightInterval.current === null) return;
-          clearInterval(longPressRightInterval.current);
-          longPressRightInterval.current = null;
-        }}
-        delayLongPress={500}
-      />
-    </>)
+    let valueString = isTime ? formatTime(value) : formatNumber(value);
+    controlContent = (
+      <View style={measurementStyles.content}>
+        <Text style={measurementStyles.value} variant='titleMedium'>{valueString}</Text>
+        {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
+        {isCombo ? <View style={{marginRight: 16}} /> : (
+          <>
+            <IconButton
+              size={18}
+              icon='minus'
+              disabled={!value}
+              onPress={() => {
+                onMinus && onMinus(value, measurement);
+              }}
+              onLongPress={() => {
+                handleLongPressLeft();
+              }}
+              onPressOut={() => {
+                if (longPressLeftInterval.current === null) return;
+                clearInterval(longPressLeftInterval.current);
+                longPressLeftInterval.current = null;
+              }}
+              delayLongPress={250}
+            />
+            <IconButton
+              size={18}
+              icon='plus'
+              onPress={() => {
+                onPlus && onPlus(value, measurement);
+              }}
+              onLongPress={() => {
+                handleLongPressRight();
+              }}
+              onPressOut={() => {
+                if (longPressRightInterval.current === null) return;
+                clearInterval(longPressRightInterval.current);
+                longPressRightInterval.current = null;
+              }}
+              delayLongPress={250}
+            />
+          </>
+        )}
+      </View>
+    )
   }
   return (
     <>
@@ -730,6 +751,11 @@ const measurementStyles = StyleSheet.create({
   labelVariant: {
     flexShrink: 1,
   },
+  content: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   value: {
     flexGrow: 1,
     textAlign: 'right',
@@ -753,13 +779,14 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
   const theme = useTheme();
   const habitStyles = createHabitStyles(theme);
-  const measurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId));
+  const habitMeasurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId));
+  const measurements = useMeasurements();
 
   let content;
   if (scope === 'week') {
     const firstWeeklyCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
       const recordings = weekRecordings.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, recordings);
+      const [complete] = getHabitCompletion(habit, recordings, measurements);
       return complete;
     }).findIndex((completion) => completion) : -1;
 
@@ -767,7 +794,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       <View style={habitStyles.checkboxes}>
         {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
           const recordings = habit.isWeekly ? weekRecordings : [weekRecordings[index]];
-          const [complete] = getHabitCompletion(habit, recordings);
+          const [complete] = getHabitCompletion(habit, recordings, measurements);
           
           const isToday = index === currentDate.getDayOfWeek();
           const isFuture = weekRecordings[index] === undefined
@@ -808,7 +835,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     );
   } else {
     const recordings = weekRecordings.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
-    const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, recordings);
+    const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, recordings, measurements);
 
     const predicateColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
   
@@ -825,13 +852,14 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             </View>
           )}
           {habit.conditions.map((condition, index) => {
-            const measurement = measurements[index];
+            const measurement = habitMeasurements[index];
             const conditionCompletion = conditionCompletions[index];
             const conditionValue = conditionValues[index];
             const conditionProgress = conditionProgressions[index];
             
             if (!measurement) return null;
             const isBool = measurement.type === 'bool';
+            const isTime = measurement.type === 'time';
 
             const progressLabelColor = theme.colors.onSurface;
             const progressColor = conditionCompletion ? theme.colors.primary : theme.colors.onSurfaceDisabled;
@@ -854,7 +882,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                       />
                     ) : (
                       <Text style={{ ...habitStyles.progressLabelCurrent, color: progressLabelColor }} variant='bodyMedium'>
-                        {formatNumber(conditionValue)}
+                        {isTime ? formatTime(conditionValue) : formatNumber(conditionValue)}
                       </Text>
                     )}
                     {false ? (
@@ -871,7 +899,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                       />
                     ) : (
                       <Text style={{ ...habitStyles.progressLabelTarget, color: progressLabelColor }} variant='bodyMedium' numberOfLines={1}>
-                        {formatNumber(condition.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
+                        {isTime ? formatTime(condition.target) : formatNumber(condition.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
                       </Text>
                     )}
                   </View>
@@ -908,7 +936,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           {scope === 'day' ? (
             <>
               {habit.conditions.map(({ measurementId, target }, index) => {
-                const measurement = measurements[index];
+                const measurement = habitMeasurements[index];
                 if (!measurement) return;
 
                 const typeData = getMeasurementTypeData(measurement.type);    
@@ -996,7 +1024,7 @@ const createHabitStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   progressContainers: {
     height: '100%',
-    width: '40%',
+    width: '50%',
     flexGrow: 0,
     flexDirection: 'column',
     marginLeft: 8,

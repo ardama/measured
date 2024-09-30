@@ -1,13 +1,16 @@
 import { Fragment, useRef, useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Dimensions } from "react-native";
+import { View, StyleSheet, ScrollView, Animated } from "react-native";
 
-import { useMeasurements, useUser, useMeasurementUnits, useAllMeasurementUnitsByMeasurementType, useMeasurementUnitsByMeasurementType, useHabitsByMeasurement, useHabitsByMeasurements } from "@/store/selectors";
+import { useMeasurements, useUser, useHabitsByMeasurement, useHabitsByMeasurements, useMeasurementsByMeasurements } from "@/store/selectors";
 import { addMeasurement, removeMeasurement, editMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
-import { type Measurement, createMeasurement, createMeasurementUnit, getMeasurementTypeData, type MeasurementType, generateDefaultEmptyUnit, defaultMeasurementUnits, measurementTypes, type MeasurementOperator, getMeasurementOperatorData, measurementOperators, getMeasurementTypeIcon } from "@/types/measurements";
-import { Button, Icon, IconButton, Menu, SegmentedButtons, Surface, Text, TextInput, AnimatedFAB, FAB, HelperText, Chip, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple } from 'react-native-paper';
-import { formatTime, forWeb } from '@u/helpers';
+import { type Measurement, createMeasurement, getMeasurementTypeData, type MeasurementType, measurementTypes, type MeasurementOperator, getMeasurementOperatorData, measurementOperators, getMeasurementTypeIcon } from "@/types/measurements";
+import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple } from 'react-native-paper';
+import { formatTime } from '@u/helpers';
 import { EmptyError, Error, NoError } from '@u/constants/Errors';
+import { Icons } from '@u/constants/Icons';
+import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
+import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
 
 type EditedMeasurement = {
   step: string;
@@ -19,6 +22,7 @@ type EditedMeasurement = {
   unit: string;
   archived: boolean;
   defaultValue: string,
+  priority: number,
   comboLeftId?: string,
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
@@ -26,6 +30,7 @@ type EditedMeasurement = {
 
 const Measurements = () => {
   const dispatch = useDispatch();
+  const dispatchMultiple = useDispatchMultiple();
   const measurements = useMeasurements();
   const user = useUser();
 
@@ -35,6 +40,9 @@ const Measurements = () => {
   const [showForm, setShowForm] = useState(false);
   const [newMeasurement, setNewMeasurement] = useState<EditedMeasurement | null>(null);
   const [editedMeasurement, setEditedMeasurement] = useState<EditedMeasurement | null>(null);
+
+  const [isReordering, setIsReordering] = useState(false);
+  const [movingMeasurement, setMovingMeasurement] = useState(-1);
 
   const [isComboLeftMenuVisible, setIsComboLeftMenuVisible] = useState(false);
   const [isComboRightMenuVisible, setIsComboRightMenuVisible] = useState(false);
@@ -74,7 +82,8 @@ const Measurements = () => {
   
   const handleAddMeasurementPress = () => {
     setShowForm(true);
-    setNewMeasurement(getInitialEditedMeasurement(createMeasurement(user.id, 'New activity', 'New variant', 'duration', 'min', 15)));
+    const lastMeasurement = measurements[measurements.length - 1];
+    setNewMeasurement(getInitialEditedMeasurement(createMeasurement(user.id, 'New activity', 'New variant', 'duration', 'min', 15, lastMeasurement.priority + 1)));
   }
   const handleMeasurementPress = (measurement: Measurement) => {
     setShowForm(true);
@@ -87,6 +96,36 @@ const Measurements = () => {
       setNewMeasurement(null);
       setEditedMeasurement(null);
     }, 250);
+  }
+
+  const handleReorderMeasurement = (startIndex: number, shift: number): void => {
+    const measurement = measurements[startIndex];
+    if (!measurement) return;
+
+    const nextPriorities: number[] = [];
+    measurements.forEach((m, i) => {
+      if (i === 0) nextPriorities[i] = m.priority;
+      else nextPriorities[i] = Math.max(m.priority, nextPriorities[i - 1] + 1)
+    });
+
+    const index = measurements.findIndex(({ id }) => id === measurement.id);
+    if (index < 0) return;
+
+    const nextIndex = index + shift;
+    if (nextIndex < 0 || nextIndex >= measurements.length) return;
+
+    const temp = nextPriorities[index];
+    nextPriorities[index] = nextPriorities[nextIndex];
+    nextPriorities[nextIndex] = temp;
+
+    const actions = measurements.map((m, i) => {
+      const priority = nextPriorities[i];
+      if (m.priority === priority) return null;
+      return editMeasurement({ id: m.id, updates: { priority}})
+    }).filter((a) => a !== null);
+
+    setMovingMeasurement(nextIndex);
+    dispatchMultiple(actions);
   }
 
   const renderForm = () => {
@@ -113,9 +152,9 @@ const Measurements = () => {
       const step = isBool ? 1 : isCombo ? 0 : parseFloat(formMeasurement.step);
       const unit = isBool ? '' : isTime ? '' : formMeasurement.unit;
       const defaultValue = isBool ? 0 : parseFloat(formMeasurement.defaultValue);
-      const comboLeftId = isCombo ? formMeasurement.comboLeftId : null;
-      const comboRightId = isCombo ? formMeasurement.comboRightId : null;
-      const comboOperator = isCombo ? formMeasurement.comboOperator : null;
+      const comboLeftId = isCombo ? formMeasurement.comboLeftId : undefined;
+      const comboRightId = isCombo ? formMeasurement.comboRightId : undefined;
+      const comboOperator = isCombo ? formMeasurement.comboOperator : undefined;
       const nextMeasurement = {
         ...formMeasurement,
         activity: formMeasurement.activity.trim(),
@@ -123,6 +162,9 @@ const Measurements = () => {
         unit,
         step,
         defaultValue,
+        comboLeftId,
+        comboRightId,
+        comboOperator,
       };
   
       if (isNew) handleAddMeasurement(nextMeasurement);
@@ -413,164 +455,269 @@ const Measurements = () => {
     );
   }
 
-  const habitsByMeasurement = useHabitsByMeasurements();
-  const activeMeasurements = measurements.filter(({id, archived }) => !archived && habitsByMeasurement.get(id));
-  const inactiveMeasurements = measurements.filter(({ id, archived }) => !archived && !habitsByMeasurement.get(id));
+  const habitsByMeasurements = useHabitsByMeasurements();
+  const measurementsByMeasurements = useMeasurementsByMeasurements();
+  const activeMeasurements = measurements.filter(({archived }) => !archived);
+  // const inactiveMeasurements = measurements.filter(({ id, archived }) => !archived && !(habitsByMeasurements.get(id) || measurementsByMeasurements.get(id)));
   const archivedMeasurements = measurements.filter(({ archived }) => archived);
 
   const [showActiveOverride, setShowActiveOverride] = useState(0);
   const showActiveMeasurements = showActiveOverride !== -1;
-  const [showInactiveOverride, setShowInactiveOverride] = useState(0);
-  const showInactiveMeasurements = showInactiveOverride === 1 || !!(showInactiveOverride === 0 && inactiveMeasurements.length);
+  // const [showInactiveOverride, setShowInactiveOverride] = useState(0);
+  // const showInactiveMeasurements = showInactiveOverride === 1 || !!(showInactiveOverride === 0 && inactiveMeasurements.length);
   const [showArchivedOverride, setShowArchivedOverride] = useState(0);
   const showArchivedMeasurements = showArchivedOverride === 1;
 
   const listStyles = createListStyles(theme);
+  const moveUpButtonSlide = useAnimatedSlideIn({ slideDistance: 120 });
+  const moveDownButtonSlide = useAnimatedSlideIn({ slideDistance: 64 });
+
   return (
     <View style={listStyles.container}>
       <ScrollView ref={scrollViewRef} style={listStyles.scrollContainer} scrollEventThrottle={64}>
         <View style={listStyles.measurementsContainer}>
-          <List.Accordion
-            title={
-              <View style={listStyles.sectionHeaderTitle}>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='pencil-outline' size={18} color={theme.colors.primary} />
-                </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveMeasurements ? '' : ` (${activeMeasurements.length})`}`}</Text>
-              </View>
-            }
-            expanded={showActiveMeasurements}
-            onPress={() => setShowActiveOverride(showActiveMeasurements ? -1 : 1)}
-            style={listStyles.sectionHeader}
-            right={() => (
-              <View style={listStyles.sectionHeaderIcon}>
-                <Icon source={showActiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-              </View>
-            )}
-          >
-            {showActiveMeasurements ? (
-              <>
-                {activeMeasurements.length ? (
-                  activeMeasurements.map((measurement) => (
+          {isReordering ? (
+              <List.Accordion
+                title={
+                  <View style={listStyles.sectionHeaderTitle}>
+                    <View style={listStyles.sectionHeaderTitleIcon}>
+                      <Icon source='pencil-outline' size={18} color={theme.colors.primary} />
+                    </View>
+                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`All${showActiveMeasurements ? '' : ` (${measurements.length})`}`}</Text>
+                  </View>
+                }
+                expanded={showActiveMeasurements}
+                onPress={() => setShowActiveOverride(showActiveMeasurements ? -1 : 1)}
+                style={listStyles.sectionHeader}
+                right={() => (
+                  <View style={listStyles.sectionHeaderIcon}>
+                    <Icon source={showActiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+                  </View>
+                )}
+              >
+                {measurements.length ? (
+                  measurements.map((measurement, index) => (
                     <Fragment key={measurement.id}>
                       <Divider style={listStyles.divider} />
                       <MeasurementItem
                         measurement={measurement}
-                        onPress={handleMeasurementPress}
+                        habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
+                        comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                        onPress={() => setMovingMeasurement(index)}
                         onArchive={handleArchiveMeasurement}
                         onDelete={handleDeleteMeasurement}
+                        selected={movingMeasurement === index}
                       />
                     </Fragment>
                   ))
                 ) : (
                   <View style={listStyles.noData}>
                     <View style={listStyles.noDataIcon}>
-                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
                     </View>
-                    <Text style={listStyles.noDataText} variant='bodyLarge'>No active measurements</Text>
+                    <Text style={listStyles.noDataText} variant='bodyLarge'>No measurements</Text>
                   </View>
                 )}
-              </>
-            ) : null}
-          </List.Accordion>
-          <List.Accordion
-            title={
-              <View style={listStyles.sectionHeaderTitle}>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='pencil-off-outline' size={18} color={theme.colors.primary} />
-                </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Inactive${showInactiveMeasurements ? '' : ` (${inactiveMeasurements.length})`}`}</Text>
-              </View>
-            }
-            expanded={showInactiveMeasurements}
-            onPress={() => setShowInactiveOverride(showInactiveMeasurements ? -1 : 1)}
-            style={listStyles.sectionHeader}
-            right={() => (
-              <View style={listStyles.sectionHeaderIcon}>
-                <Icon source={showInactiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-              </View>
-            )}
-            >
-            {showInactiveMeasurements ? (
+              </List.Accordion>
+            ) : (
               <>
-                {inactiveMeasurements.length ? (
-                  inactiveMeasurements.map((measurement) => (
-                    <Fragment key={measurement.id}>
-                      <Divider style={listStyles.divider} />
-                      <MeasurementItem
-                        measurement={measurement}
-                        onPress={handleMeasurementPress}
-                        onArchive={handleArchiveMeasurement}
-                        onDelete={handleDeleteMeasurement}
-                      />
-                    </Fragment>
-                  ))
-                ) : (
-                  <View style={listStyles.noData}>
-                    <View style={listStyles.noDataIcon}>
-                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                <List.Accordion
+                  title={
+                    <View style={listStyles.sectionHeaderTitle}>
+                      <View style={listStyles.sectionHeaderTitleIcon}>
+                        <Icon source='pencil-outline' size={18} color={theme.colors.primary} />
+                      </View>
+                      <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveMeasurements ? '' : ` (${activeMeasurements.length})`}`}</Text>
                     </View>
-                    <Text style={listStyles.noDataText} variant='bodyLarge'>No inactive measurements</Text>
-                  </View>
-                )}
-              </>
-            ) : null}
-          </List.Accordion>
-          <List.Accordion
-            title={
-              <View style={listStyles.sectionHeaderTitle}>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='archive-outline' size={18} color={theme.colors.primary} />
-                </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedMeasurements ? '' : ` (${archivedMeasurements.length})`}`}</Text>
-              </View>
-            }
-            expanded={showArchivedMeasurements}
-            onPress={() => setShowArchivedOverride(showArchivedMeasurements ? -1 : 1)}
-            style={listStyles.sectionHeader}
-            right={() => (
-              <View style={listStyles.sectionHeaderIcon}>
-                <Icon source={showArchivedMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-              </View>
-            )}
-          >
-            {showArchivedMeasurements ? (
-              <>
-                {archivedMeasurements.length ? (
-                  archivedMeasurements.map((measurement) => (
-                    <Fragment key={measurement.id}>
-                      <Divider style={listStyles.divider} />
-                      <MeasurementItem
-                        measurement={measurement}
-                        onPress={handleMeasurementPress}
-                        onArchive={handleArchiveMeasurement}
-                        onDelete={handleDeleteMeasurement}
-                      />
-                    </Fragment>
-                  ))
-                ) : (
-                  <View style={listStyles.noData}>
-                    <View style={listStyles.noDataIcon}>
-                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+                  }
+                  expanded={showActiveMeasurements}
+                  onPress={() => setShowActiveOverride(showActiveMeasurements ? -1 : 1)}
+                  style={listStyles.sectionHeader}
+                  right={() => (
+                    <View style={listStyles.sectionHeaderIcon}>
+                      <Icon source={showActiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
                     </View>
-                    <Text style={listStyles.noDataText} variant='bodyLarge'>No archived measurements</Text>
-                  </View>
-                )}
+                  )}
+                >
+                  {showActiveMeasurements ? (
+                    <>
+                      {activeMeasurements.length ? (
+                        activeMeasurements.map((measurement) => (
+                          <Fragment key={measurement.id}>
+                            <Divider style={listStyles.divider} />
+                            <MeasurementItem
+                              measurement={measurement}
+                              onPress={handleMeasurementPress}
+                              onArchive={handleArchiveMeasurement}
+                              onDelete={handleDeleteMeasurement}
+                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
+                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                            />
+                          </Fragment>
+                        ))
+                      ) : (
+                        <View style={listStyles.noData}>
+                          <View style={listStyles.noDataIcon}>
+                            <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                          </View>
+                          <Text style={listStyles.noDataText} variant='bodyLarge'>No active measurements</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : null}
+                </List.Accordion>
+                {/* <List.Accordion
+                  title={
+                    <View style={listStyles.sectionHeaderTitle}>
+                      <View style={listStyles.sectionHeaderTitleIcon}>
+                        <Icon source='pencil-off-outline' size={18} color={theme.colors.primary} />
+                      </View>
+                      <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Unused${showInactiveMeasurements ? '' : ` (${inactiveMeasurements.length})`}`}</Text>
+                    </View>
+                  }
+                  expanded={showInactiveMeasurements}
+                  onPress={() => setShowInactiveOverride(showInactiveMeasurements ? -1 : 1)}
+                  style={listStyles.sectionHeader}
+                  right={() => (
+                    <View style={listStyles.sectionHeaderIcon}>
+                      <Icon source={showInactiveMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+                    </View>
+                  )}
+                  >
+                  {showInactiveMeasurements ? (
+                    <>
+                      {inactiveMeasurements.length ? (
+                        inactiveMeasurements.map((measurement) => (
+                          <Fragment key={measurement.id}>
+                            <Divider style={listStyles.divider} />
+                            <MeasurementItem
+                              measurement={measurement}
+                              onPress={handleMeasurementPress}
+                              onArchive={handleArchiveMeasurement}
+                              onDelete={handleDeleteMeasurement}
+                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
+                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                            />
+                          </Fragment>
+                        ))
+                      ) : (
+                        <View style={listStyles.noData}>
+                          <View style={listStyles.noDataIcon}>
+                            <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                          </View>
+                          <Text style={listStyles.noDataText} variant='bodyLarge'>No inactive measurements</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : null}
+                </List.Accordion> */}
+                <List.Accordion
+                  title={
+                    <View style={listStyles.sectionHeaderTitle}>
+                      <View style={listStyles.sectionHeaderTitleIcon}>
+                        <Icon source='archive-outline' size={18} color={theme.colors.primary} />
+                      </View>
+                      <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedMeasurements ? '' : ` (${archivedMeasurements.length})`}`}</Text>
+                    </View>
+                  }
+                  expanded={showArchivedMeasurements}
+                  onPress={() => setShowArchivedOverride(showArchivedMeasurements ? -1 : 1)}
+                  style={listStyles.sectionHeader}
+                  right={() => (
+                    <View style={listStyles.sectionHeaderIcon}>
+                      <Icon source={showArchivedMeasurements ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
+                    </View>
+                  )}
+                >
+                  {showArchivedMeasurements ? (
+                    <>
+                      {archivedMeasurements.length ? (
+                        archivedMeasurements.map((measurement) => (
+                          <Fragment key={measurement.id}>
+                            <Divider style={listStyles.divider} />
+                            <MeasurementItem
+                              measurement={measurement}
+                              onPress={handleMeasurementPress}
+                              onArchive={handleArchiveMeasurement}
+                              onDelete={handleDeleteMeasurement}
+                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
+                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                            />
+                          </Fragment>
+                        ))
+                      ) : (
+                        <View style={listStyles.noData}>
+                          <View style={listStyles.noDataIcon}>
+                            <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                          </View>
+                          <Text style={listStyles.noDataText} variant='bodyLarge'>No archived measurements</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : null}
+                </List.Accordion>
               </>
-            ) : null}
-          </List.Accordion>
+            )
+          }
         </View>
       </ScrollView>
       <View style={listStyles.createButtonContainer}>
         <Button
           style={listStyles.createButton}
           onPress={() => handleAddMeasurementPress()}
-          icon='clipboard-edit-outline'
+          icon={Icons.measurement}
           mode='elevated'
           buttonColor={theme.colors.secondaryContainer}
           contentStyle={{ height: 56}}
         >
           <Text variant='labelLarge' style={listStyles.createButtonText}>Create measurement</Text>  
+        </Button>
+        {moveUpButtonSlide.isVisible && (
+          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonUp, moveUpButtonSlide.slideStyle]}>
+            <IconButton
+              style={[listStyles.reorderIconButton]}
+              icon={Icons.moveUp}
+              iconColor={theme.colors.onPrimary}
+              onPress={(e) => {
+                handleReorderMeasurement(movingMeasurement, -1);
+                e.stopPropagation();
+              }}
+              />
+          </Animated.View>
+        )}
+        {moveDownButtonSlide.isVisible && (
+          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonDown, moveDownButtonSlide.slideStyle]}>
+            <IconButton
+              style={[listStyles.reorderIconButton]}
+              icon={Icons.moveDown}
+              iconColor={theme.colors.onPrimary}
+              onPress={(e) => {
+                handleReorderMeasurement(movingMeasurement, 1);
+                e.stopPropagation();
+              }}
+            />
+          </Animated.View>
+        )}
+        <Button
+          style={listStyles.reorderButton}
+          onPress={() => {
+            setIsReordering(!isReordering);
+            if (isReordering) {
+              moveUpButtonSlide.hide();
+              moveDownButtonSlide.hide();
+            } else {
+              moveUpButtonSlide.show();
+              moveDownButtonSlide.show();
+              setMovingMeasurement(measurements.length ? 0 : -1);
+            }
+          }}
+          mode='elevated'
+          buttonColor={isReordering ? theme.colors.primary : theme.colors.secondaryContainer}
+          contentStyle={{ height: 56 }}
+        >
+          <View style={{ marginHorizontal: -4 }}>
+            <Icon source={isReordering ? Icons.close : Icons.move} size={24} color={isReordering ? theme.colors.onPrimary : theme.colors.primary} />
+          </View>
         </Button>
       </View>
       <Modal
@@ -626,18 +773,49 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   createButtonContainer: {
     position: 'absolute',
     bottom: 0,
+    flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
     padding: 16,
+    gap: 16,
   },
   createButton: {
     borderRadius: 12,
-    width: '100%',
+    flex: 1,
     maxWidth: 600,
+    shadowRadius: 5,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
   },
   createButtonText: {
     color: theme.colors.primary,
     fontSize: 16,
+  },
+  reorderButton: {
+    borderRadius: 12,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 6,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  reorderIconButtonContainer: {
+    opacity: 1,
+    position: 'absolute',
+    right: 22,
+  },
+  reorderIconButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 16,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 6,
+    shadowOpacity: .3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  reorderIconButtonUp: {
+    bottom: 132,
+  },
+  reorderIconButtonDown: {
+    bottom: 80,
   },
   noData: {
     flexDirection: 'row',
@@ -748,28 +926,42 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   },
 });
 
-const MeasurementItem = ({ measurement, onPress, onArchive, onDelete }: {
+type MeasurementItemProps = {
   measurement: Measurement;
-  onPress: (measurement: Measurement) => void;
-  onArchive: (measurement: Measurement, archived: boolean) => void;
-  onDelete: (measurement: Measurement) => void;
-}): JSX.Element => {
+  habitCount: number,
+  comboCount: number,
+  selected?: boolean,
+  onPress: (measurement: Measurement) => void,
+  onArchive: (measurement: Measurement, archived: boolean) => void,
+  onDelete: (measurement: Measurement) => void,
+};
+
+const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
+  const { measurement,
+    habitCount,
+    comboCount,
+    selected,
+    onPress,
+    onArchive,
+    onDelete,
+  } = props;
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-
-  const habits = useHabitsByMeasurement(measurement);
-  const habitCount = habits.length;
 
   const theme = useTheme();
   const itemStyles = createItemStyles(theme);
 
   const typeData = getMeasurementTypeData(measurement.type);
   const hasHabits = habitCount !== 0;
+  const hasCombos = comboCount !== 0;
+  const isInactive = !hasHabits && !hasCombos;
+
+  const color = isInactive ? theme.colors.outline : theme.colors.primary;
   return (
-    <TouchableRipple style={itemStyles.container} onPress={() => { onPress(measurement); }}>
+    <TouchableRipple style={[itemStyles.container, selected ? itemStyles.selectedContainer : {}]} onPress={() => { onPress(measurement); }}>
       <>
         <View style={itemStyles.typeIcon}>
-          <Icon source={typeData.icon} size={28} color={theme.colors.primary} />
+          <Icon source={typeData.icon} size={28} color={color} />
         </View>
         <View style={itemStyles.content}>
           <View style={itemStyles.labelContainer}>
@@ -777,17 +969,41 @@ const MeasurementItem = ({ measurement, onPress, onArchive, onDelete }: {
               {measurement.activity}
               </Text>
             {measurement.variant ? <Text style={itemStyles.labelDivider} variant='bodyMedium'> : </Text> : null}
-            <Text style={itemStyles.labelVariant} variant='bodyMedium' numberOfLines={1} ellipsizeMode='tail'>
+            <Text style={itemStyles.labelVariant} variant='bodyLarge' numberOfLines={1} ellipsizeMode='tail'>
               {measurement.variant}
               </Text>
           </View>
           <View style={itemStyles.habitCountContainer}>
-            <View style={itemStyles.habitCountIcon}>
-              <Icon source='checkbox-multiple-marked-outline' size={18} color={hasHabits ? theme.colors.primary : theme.colors.outline} />
-            </View>
-            <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, ...(hasHabits ? {} : itemStyles.habitCountTextInactive)}}>
-              {habitCount} Habit{habitCount === 1 ? '' : 's'}
-            </Text>
+            {isInactive ? (
+              <>
+                <View style={itemStyles.habitCountIcon}>
+                  <Icon source={Icons.warning} size={18} color={color} />
+                </View>
+                <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
+                  Unused
+                </Text>
+              </>
+            ) : null}
+            {hasHabits ? (
+              <>
+                <View style={itemStyles.habitCountIcon}>
+                  <Icon source={Icons.habitMultiple} size={18} color={color} />
+                </View>
+                <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
+                  {habitCount} Habit{habitCount === 1 ? '' : 's'}
+                </Text>
+              </>
+            ) : null}
+            {hasCombos ? (
+              <>
+                <View style={itemStyles.habitCountIcon}>
+                  <Icon source={Icons.measurementMultiple} size={18} color={color} />
+                </View>
+                <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
+                  {comboCount} Combo{comboCount === 1 ? '' : 's'}
+                </Text>
+              </>
+            ) : null}
           </View>
         </View>
         <Menu
@@ -795,9 +1011,9 @@ const MeasurementItem = ({ measurement, onPress, onArchive, onDelete }: {
           onDismiss={() => setIsMenuVisible(false)}
           anchor={
             <IconButton
-            style={itemStyles.menuButton} icon='dots-vertical' size={24}
-            onPress={() => { setIsMenuVisible(true); }}
-            onResponderRelease={(e) => { e.preventDefault(); }}
+              style={itemStyles.menuButton} icon='dots-vertical' size={24}
+              onPress={() => { setIsMenuVisible(true); }}
+              onResponderRelease={(e) => { e.preventDefault(); }}
             />
           }
           anchorPosition='bottom'
@@ -827,6 +1043,15 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  selectedContainer: {
+    shadowColor: theme.colors.shadow,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+    paddingLeft: 20,
   },
   typeIcon: {
     marginRight: 8,
@@ -860,14 +1085,9 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     marginRight: 6,
   },
   habitCountText: {
-    flexGrow: 1,
     color: theme.colors.primary,
     lineHeight: 24,
-    // marginTop: 8,
-    // textAlign: 'center',
-  },
-  habitCountTextInactive: {
-    color: theme.colors.outline,
+    marginRight: 12,
   },
   menuButton: {
     marginLeft: 8,

@@ -11,6 +11,12 @@ export const Icons = {
   operatorLt: 'code-less-than',
   operatorEq: 'code-equal',
   operatorNot: 'code-not-equal',
+  
+  habit: 'checkbox-marked-outline',
+  habitMultiple: 'checkbox-multiple-marked-outline',
+  
+  measurement: 'clipboard-edit-outline',
+  measurementMultiple: 'clipboard-multiple-outline',
 
   measurementTypeDuration: 'timer-outline',
   measurementTypeTime: 'clock-outline',
@@ -23,4 +29,11 @@ export const Icons = {
   measurementOperatorMultiply: 'close-box',
   measurementOperatorDivide: 'division-box',
 
+  warning: 'alert-circle-outline',
+
+  move: 'unfold-more-horizontal',
+  moveUp: 'chevron-up',
+  moveDown: 'chevron-down',
+
+  close: 'window-close',
 }

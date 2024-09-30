@@ -1,5 +1,5 @@
 import { generateId } from "@/utils/helpers";
-import type { MeasurementType } from '@t/measurements';
+import { getMeasurementRecordingValue, type Measurement, type MeasurementType } from '@t/measurements';
 import type { Recording } from '@t/recording';
 import { Icons } from '@u/constants/Icons';
 
@@ -13,9 +13,10 @@ interface Habit {
   archived: boolean;
   conditions: HabitCondition[];
   predicate: HabitPredicate;
+  priority: number,
 }
 
-const createHabit = (userId: string, measurementId: string, name: string, operator: HabitOperator, target: number = -1, isWeekly: boolean = false, daysPerWeek: number = 7, points: number = 1): Habit => ({
+const createHabit = (userId: string, measurementId: string, name: string, operator: HabitOperator, priority: number, target: number = -1, isWeekly: boolean = false, daysPerWeek: number = 7, points: number = 1): Habit => ({
   id: generateId(),
   userId,
   name,
@@ -29,6 +30,7 @@ const createHabit = (userId: string, measurementId: string, name: string, operat
     target,
   }],
   predicate: 'AND',
+  priority,
 });
 
 interface HabitCondition {
@@ -80,7 +82,7 @@ const getHabitPredicateLabel = (predicate: string) => predicate === 'OR' ? 'Any'
 const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.predicateOr : Icons.predicateAnd;
 
 
-const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[]): [boolean, boolean[], number[], number[]] => {
+const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[], measurements: Measurement[]): [boolean, boolean[], number[], number[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: number[] = [];
   let conditionProgressions: number[] = [];
@@ -89,17 +91,16 @@ const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[])
     let conditionComplete = false;
     let conditionValue = 0;
     let conditionProgress = 0;
-
+    
     if (!recordings.length) {
       conditionProgressions.push(conditionProgress);
       conditionCompletions.push(conditionComplete);
       conditionValues.push(conditionValue);
       return;
     };
-
+    
     const measurementValues = recordings.filter((r) => !!r).map((r) => {
-      const data = r.data.find((d) => d.measurementId === condition.measurementId);
-      return data?.value;
+      return getMeasurementRecordingValue(condition.measurementId, measurements, r);
     }).filter((v) => v !== undefined);
 
     

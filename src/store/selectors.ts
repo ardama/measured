@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import type { Habit } from '@t/habits';
-import { measurementTypeData, type Measurement, type MeasurementType, type MeasurementUnit } from '@t/measurements';
+import { measurementTypes, type Measurement, type MeasurementType, type MeasurementUnit } from '@t/measurements';
 import type { Recording } from '@t/recording';
 import type { AppState, RootState } from '@t/redux';
 import type { User } from '@t/users';
@@ -15,7 +15,9 @@ export const useDarkMode = (): boolean => useSelector(selectDarkMode);
 const selectUser = (state: RootState): User => state.user;
 export const useUser = (): User => useSelector(selectUser);
 
-const selectMeasurements = (state: RootState): Measurement[] => state.user.measurements;
+// -----------------------------------------
+// Measurement selectors -------------------
+const selectMeasurements = (state: RootState): Measurement[] => state.user.measurements.toSorted((a, b) => a.priority - b.priority);
 export const useMeasurements = (): Measurement[] => useSelector(selectMeasurements);
 
 const selectMeasurementCount = createSelector(
@@ -38,41 +40,41 @@ const selectMeasurementsByIds = (ids: string[]): (state: RootState) => (Measurem
   );
 export const useMeasurementsByIds = (ids: string[]): (Measurement | undefined)[] => useSelector(selectMeasurementsByIds(ids));
 
-const selectMeasurementsByMeasurementUnit = (measurementUnit: MeasurementUnit): (state: RootState) => Measurement[] =>
+const selectMeasurementsByMeasurements = (): (state: RootState) => Map<string, Measurement[]> =>
   createSelector(
     selectMeasurements,
-    (measurements) => measurements.filter(({ unit }) => measurementUnit.abbreviation === unit)
-  );
-export const useMeasurementsByMeasurementUnit = (measurementUnit: MeasurementUnit): Measurement[] => useSelector(selectMeasurementsByMeasurementUnit(measurementUnit));
+    (measurements) => {
+      const map = new Map();
+      measurements.forEach((measurement) => {
+        const { comboLeftId, comboRightId, type } = measurement;
+        if (type !== 'combo') return;
 
-const selectMeasurementUnits = (state: RootState): MeasurementUnit[] => state.user.measurementUnits;
-export const useMeasurementUnits = (): MeasurementUnit[] => useSelector(selectMeasurementUnits);
-
-const selectMeasurementUnitsByMeasurementType = (type: MeasurementType): (state: RootState) => MeasurementUnit[] | undefined =>
-  createSelector(
-    selectMeasurementUnits,
-    (units) => units.filter(({ types }) => types.includes(type))
-  );
-export const useMeasurementUnitsByMeasurementType = (type: MeasurementType) : MeasurementUnit[] | undefined => useSelector(selectMeasurementUnitsByMeasurementType(type));
-
-const selectAllMeasurementUnitsByMeasurementType = (): (state: RootState) => Map<MeasurementType, MeasurementUnit[]> => 
-  createSelector(
-    selectMeasurementUnits,
-    (units) => {
-      const map: Map<MeasurementType, MeasurementUnit[]> = new Map();
-      measurementTypeData.forEach(({ type }) => {
-        map.set(type, units.filter(({ types }) => types.includes(type)));
-      })
-
+        if (comboLeftId) {
+          const measurementMeasurements = map.get(comboLeftId) || [];
+          measurementMeasurements.push(measurement);
+          map.set(comboLeftId, measurementMeasurements);
+        }
+        if (comboRightId) {
+          const measurementMeasurements = map.get(comboRightId) || [];
+          measurementMeasurements.push(measurement);
+          map.set(comboRightId, measurementMeasurements);
+        }
+      });
       return map;
     }
   );
-export const useAllMeasurementUnitsByMeasurementType = () : Map<MeasurementType, MeasurementUnit[]> => useSelector(selectAllMeasurementUnitsByMeasurementType());
+export const useMeasurementsByMeasurements = (): Map<string, Measurement[]> => useSelector(selectMeasurementsByMeasurements());
 
+
+// -----------------------------------------
+// Recording selectors -------------------
 const selectRecordings = (state: RootState): Recording[] => state.user.recordings;
 export const useRecordings = (): Recording[] => useSelector(selectRecordings);
 
-const selectHabits = (state: RootState): Habit[] => state.user.habits;
+
+// -----------------------------------------
+// Habit selectors -------------------
+const selectHabits = (state: RootState): Habit[] => state.user.habits.toSorted((a, b) => a.priority - b.priority);
 export const useHabits = (): Habit[] => useSelector(selectHabits);
 
 const selectHabitCount = createSelector(
@@ -113,3 +115,37 @@ const selectHabitsByMeasurements = (): (state: RootState) => Map<string, Habit[]
     }
   );
 export const useHabitsByMeasurements = (): Map<string, Habit[]> => useSelector(selectHabitsByMeasurements());
+
+
+// -----------------------------------------
+// Measurement Unit selectors -------------------
+// const selectMeasurementsByMeasurementUnit = (measurementUnit: MeasurementUnit): (state: RootState) => Measurement[] =>
+//   createSelector(
+//     selectMeasurements,
+//     (measurements) => measurements.filter(({ unit }) => measurementUnit.abbreviation === unit)
+//   );
+// export const useMeasurementsByMeasurementUnit = (measurementUnit: MeasurementUnit): Measurement[] => useSelector(selectMeasurementsByMeasurementUnit(measurementUnit));
+
+// const selectMeasurementUnits = (state: RootState): MeasurementUnit[] => state.user.measurementUnits;
+// export const useMeasurementUnits = (): MeasurementUnit[] => useSelector(selectMeasurementUnits);
+
+// const selectMeasurementUnitsByMeasurementType = (type: MeasurementType): (state: RootState) => MeasurementUnit[] | undefined =>
+//   createSelector(
+//     selectMeasurementUnits,
+//     (units) => units.filter(({ types }) => types.includes(type))
+//   );
+// export const useMeasurementUnitsByMeasurementType = (type: MeasurementType) : MeasurementUnit[] | undefined => useSelector(selectMeasurementUnitsByMeasurementType(type));
+
+// const selectAllMeasurementUnitsByMeasurementType = (): (state: RootState) => Map<MeasurementType, MeasurementUnit[]> => 
+//   createSelector(
+//     selectMeasurementUnits,
+//     (units) => {
+//       const map: Map<MeasurementType, MeasurementUnit[]> = new Map();
+//       measurementTypes.forEach((type) => {
+//         map.set(type, units.filter(({ types }) => types.includes(type)));
+//       })
+
+//       return map;
+//     }
+//   );
+// export const useAllMeasurementUnitsByMeasurementType = () : Map<MeasurementType, MeasurementUnit[]> => useSelector(selectAllMeasurementUnitsByMeasurementType());

@@ -32,6 +32,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 1,
     },
     {
       "id": "nkd0zop",
@@ -49,6 +50,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 2,
     },
     {
       "id": "znlcwpm",
@@ -66,6 +68,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 3,
     },
     {
       "id": "03o71dt",
@@ -83,6 +86,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 3,
     },
     {
       "id": "t389elo",
@@ -99,7 +103,8 @@ const generateTestUser = (): UserState => {
           "target": 0,
       
           }],
-          "predicate": "AND",
+      "predicate": "AND",
+      "priority": 5,
     },
     {
       "id": "1acyx6p",
@@ -117,6 +122,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 6,
     },
     {
       "id": "n7rijct",
@@ -134,6 +140,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 7,
     },
     {
       "id": "n7rijcz",
@@ -151,6 +158,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 8,
     },
     {
       "id": "n7rij2z",
@@ -167,6 +175,7 @@ const generateTestUser = (): UserState => {
         }
       ],
       "predicate": "AND",
+      "priority": 0,
     }
   ];
 
@@ -175,11 +184,12 @@ const generateTestUser = (): UserState => {
       "id": "d6b2gsc",
       "userId": "k1cit1t",
       "activity": "Read",
-      "variant": "Nonfiction",
+      "variant": "Tech",
       "type": "duration",
       "unit": "min",
       "step": 15,
       "defaultValue": 0,
+      "priority": 1,
       "archived": false,
     },
     {
@@ -191,6 +201,7 @@ const generateTestUser = (): UserState => {
       "unit": "min",
       "step": 15,
       "defaultValue": 0,
+      "priority": 10,
       "archived": false,
     },
     {
@@ -202,6 +213,19 @@ const generateTestUser = (): UserState => {
       "unit": "min",
       "step": 15,
       "defaultValue": 0,
+      "priority": 5,
+      "archived": false,
+    },
+    {
+      "id": "26218r8",
+      "userId": "k1cit1t",
+      "activity": "Gaming",
+      "variant": "Playing",
+      "type": "duration",
+      "unit": "min",
+      "step": 30,
+      "defaultValue": 0,
+      "priority": 4,
       "archived": false,
     },
     {
@@ -213,6 +237,7 @@ const generateTestUser = (): UserState => {
       "unit": "min",
       "step": 15,
       "defaultValue": 0,
+      "priority": 2,
       "archived": false,
     },
     {
@@ -224,6 +249,19 @@ const generateTestUser = (): UserState => {
       "unit": "",
       "step": 0.5,
       "defaultValue": 23,
+      "priority": 8,
+      "archived": false,
+    },
+    {
+      "id": "evq21dh",
+      "userId": "k1cit1t",
+      "activity": "Sleep",
+      "variant": "Wakeup",
+      "type": "time",
+      "unit": "",
+      "step": 0.5,
+      "defaultValue": 10,
+      "priority": 7,
       "archived": false,
     },
     {
@@ -235,7 +273,38 @@ const generateTestUser = (): UserState => {
       "unit": "steps",
       "step": 1000,
       "defaultValue": 0,
+      "priority": 9,
       "archived": false,
+    },
+    {
+      "id": "aasbn0y",
+      "userId": "k1cit1t",
+      "activity": "Learning",
+      "variant": "Tech",
+      "type": "combo",
+      "unit": "min",
+      "step": 0,
+      "defaultValue": 0,
+      "priority": 3,
+      "archived": false,
+      "comboLeftId": "d6b2gsc",
+      "comboRightId": "evqx1bh",
+      "comboOperator": '+',
+    },
+    {
+      "id": "gdsbn0y",
+      "userId": "k1cit1t",
+      "activity": "Gaming",
+      "variant": "",
+      "type": "combo",
+      "unit": "min",
+      "step": 0,
+      "defaultValue": 0,
+      "priority": 7,
+      "archived": false,
+      "comboLeftId": "26h38r8",
+      "comboRightId": "26218r8",
+      "comboOperator": '+',
     },
     {
       "id": "b1sbn0y",
@@ -246,6 +315,7 @@ const generateTestUser = (): UserState => {
       "unit": "",
       "step": 1,
       "defaultValue": 0,
+      "priority": 11,
       "archived": false,
     }
   ];

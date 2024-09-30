@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import { createAppState, type AppState } from '@type/redux';
 
 const initialState: AppState = createAppState();

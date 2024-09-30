@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Animated } from "react-native";
 
 import { useHabits, useMeasurements, useMeasurementsByIds, useUser } from "@/store/selectors";
 import { editHabit, removeHabit, addHabit, addMeasurement } from "@/store/userReducer";
@@ -10,6 +10,9 @@ import { formatNumber, formatTime } from '@u/helpers';
 import { createMeasurement, getMeasurementTypeData } from '@t/measurements';
 import { EmptyError, NoError } from '@u/constants/Errors';
 import Points from '@c/Points';
+import { Icons } from '@u/constants/Icons';
+import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
+import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
 
 type EditedHabit = {
   id: string;
@@ -21,6 +24,7 @@ type EditedHabit = {
   archived: boolean;
   conditions: EditedHabitCondition[],
   predicate: string,
+  priority: number,
 };
 
 type EditedHabitCondition = {
@@ -31,6 +35,7 @@ type EditedHabitCondition = {
 
 const Habits = () => {
   const dispatch = useDispatch();
+  const dispatchMultiple = useDispatchMultiple();
   const habits = useHabits();
   const user = useUser();
   const measurements = useMeasurements();
@@ -41,6 +46,9 @@ const Habits = () => {
   const [showForm, setShowForm] = useState(false);
   const [newHabit, setNewHabit] = useState<EditedHabit | null>(null);
   const [editedHabit, setEditedHabit] = useState<EditedHabit | null>(null);
+  
+  const [isReordering, setIsReordering] = useState(false);
+  const [movingHabit, setMovingHabit] = useState(-1);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -81,12 +89,12 @@ const Habits = () => {
   const handleAddHabitPress = () => {
     let measurement = measurements.length ? measurements[0] : null;
     if (!measurement) {
-      measurement = createMeasurement(user.id, 'New measurement', 'New variant', 'duration', 'min', 15);
+      measurement = createMeasurement(user.id, 'New measurement', 'New variant', 'duration', 'min', 15, measurements[measurements.length - 1].priority + 1);
       dispatch(addMeasurement(measurement));
     }
     
     setShowForm(true);
-    setNewHabit(getInitialEditedHabit(createHabit(user.id, measurement.id, 'New habit', '>', 0)));
+    setNewHabit(getInitialEditedHabit(createHabit(user.id, measurement.id, 'New habit', '>', habits[habits.length - 1].priority + 1, 0)));
   }
 
   const handleHabitPress = (habit: Habit) => {
@@ -100,6 +108,36 @@ const Habits = () => {
       setNewHabit(null);
       setEditedHabit(null);
     }, 250);
+  }
+
+  const handleReorderHabit = (startIndex: number, shift: number): void => {
+    const habit = habits[startIndex];
+    if (!habit) return;
+
+    const nextPriorities: number[] = [];
+    habits.forEach((h, i) => {
+      if (i === 0) nextPriorities[i] = h.priority;
+      else nextPriorities[i] = Math.max(h.priority, nextPriorities[i - 1] + 1)
+    });
+
+    const index = habits.findIndex(({ id }) => id === habit.id);
+    if (index < 0) return;
+
+    const nextIndex = index + shift;
+    if (nextIndex < 0 || nextIndex >= habits.length) return;
+
+    const temp = nextPriorities[index];
+    nextPriorities[index] = nextPriorities[nextIndex];
+    nextPriorities[nextIndex] = temp;
+
+    const actions = habits.map((h, i) => {
+      const priority = nextPriorities[i];
+      if (h.priority === priority) return null;
+      return editHabit({ id: h.id, updates: { priority}})
+    }).filter((a) => a !== null);
+
+    setMovingHabit(nextIndex);
+    dispatchMultiple(actions);
   }
 
   const [measurementMenuVisibilities, setMeasurementMenuVisibilities] = useState<boolean[]>([]);
@@ -506,7 +544,7 @@ const Habits = () => {
     );
   }
 
-  const activeHabits = habits.filter(({ archived, isWeekly: weekly }) => !archived);
+  const activeHabits = habits.filter(({ archived }) => !archived);
   const archivedHabits = habits.filter(({ archived }) => archived);
 
   const [showActiveOverride, setShowActiveOverride] = useState(0);
@@ -515,111 +553,214 @@ const Habits = () => {
   const showArchivedHabits = showArchivedOverride === 1;
 
   const listStyles = createListStyles(theme);
+  const moveUpButtonSlide = useAnimatedSlideIn({ slideDistance: 120 });
+  const moveDownButtonSlide = useAnimatedSlideIn({ slideDistance: 64 });
+
   return (
     <View style={listStyles.container}>
       <ScrollView ref={scrollViewRef} style={listStyles.scrollContainer}>
         <View style={listStyles.habitsContainer}>
-          <List.Accordion
-            title={
-              <>
-              <View style={listStyles.sectionHeaderTitle}>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='sync' size={18} color={theme.colors.primary} />
+          {isReordering ? (
+            <List.Accordion
+              title={
+                <>
+                <View style={listStyles.sectionHeaderTitle}>
+                  <View style={listStyles.sectionHeaderTitleIcon}>
+                    <Icon source='sync' size={18} color={theme.colors.primary} />
+                  </View>
+                  <Text style={listStyles.sectionHeaderText} variant='titleMedium'> / </Text>
+                  <View style={listStyles.sectionHeaderTitleIcon}>
+                    <Icon source='calendar-sync' size={18} color={theme.colors.primary} />
+                  </View>
+                  <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`All${showActiveHabits ? '' : ` (${habits.length})`}`}</Text>
                 </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'> / </Text>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='calendar-sync' size={18} color={theme.colors.primary} />
+                </>
+              }
+              expanded={showActiveHabits}
+              onPress={() => setShowActiveOverride(showActiveHabits ? -1 : 1)}
+              style={listStyles.sectionHeader}
+              right={() => (
+                <View style={listStyles.sectionHeaderIcon}>
+                  <Icon source={showActiveHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
                 </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveHabits ? '' : ` (${activeHabits.length})`}`}</Text>
-              </View>
-              </>
-            }
-            expanded={showActiveHabits}
-            onPress={() => setShowActiveOverride(showActiveHabits ? -1 : 1)}
-            style={listStyles.sectionHeader}
-            right={() => (
-              <View style={listStyles.sectionHeaderIcon}>
-                <Icon source={showActiveHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-              </View>
-            )}
+              )}
             >
-            {showActiveHabits ? (
-              <>
-                {activeHabits.length ? (
-                  activeHabits.map((habit) => (
-                    <HabitItem
-                      key={habit.id}
-                      habit={habit}
-                      onPress={handleHabitPress}
-                      onArchive={handleArchiveHabit}
-                      onDelete={handleDeleteHabit}
-                    />
-                  ))
-                ) : (
-                  <View style={listStyles.noData}>
-                    <View style={listStyles.noDataIcon}>
-                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+              {showActiveHabits ? (
+                <>
+                  {habits.length ? (
+                    habits.map((habit, index) => (
+                      <HabitItem
+                        key={habit.id}
+                        habit={habit}
+                        onPress={() => setMovingHabit(index)}
+                        onArchive={handleArchiveHabit}
+                        onDelete={handleDeleteHabit}
+                        selected={movingHabit === index}
+                      />
+                    ))
+                  ) : (
+                    <View style={listStyles.noData}>
+                      <View style={listStyles.noDataIcon}>
+                        <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                      </View>
+                      <Text style={listStyles.noDataText} variant='bodyLarge'>No active habits</Text>
                     </View>
-                    <Text style={listStyles.noDataText} variant='bodyLarge'>No active habits</Text>
+                  )}
+                </>
+              ) : null}
+            </List.Accordion>
+          ) : (
+            <>
+              <List.Accordion
+                title={
+                  <>
+                  <View style={listStyles.sectionHeaderTitle}>
+                    <View style={listStyles.sectionHeaderTitleIcon}>
+                      <Icon source='sync' size={18} color={theme.colors.primary} />
+                    </View>
+                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'> / </Text>
+                    <View style={listStyles.sectionHeaderTitleIcon}>
+                      <Icon source='calendar-sync' size={18} color={theme.colors.primary} />
+                    </View>
+                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveHabits ? '' : ` (${activeHabits.length})`}`}</Text>
+                  </View>
+                  </>
+                }
+                expanded={showActiveHabits}
+                onPress={() => setShowActiveOverride(showActiveHabits ? -1 : 1)}
+                style={listStyles.sectionHeader}
+                right={() => (
+                  <View style={listStyles.sectionHeaderIcon}>
+                    <Icon source={showActiveHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
                   </View>
                 )}
-              </>
-            ) : null}
-          </List.Accordion>
-          <List.Accordion
-            title={
-              <View style={listStyles.sectionHeaderTitle}>
-                <View style={listStyles.sectionHeaderTitleIcon}>
-                  <Icon source='archive-outline' size={18} color={theme.colors.primary} />
-                </View>
-                <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedHabits ? '' : ` (${archivedHabits.length})`}`}</Text>
-              </View>
-            }
-            expanded={showArchivedHabits}
-            onPress={() => setShowArchivedOverride(showArchivedHabits ? -1 : 1)}
-            style={listStyles.sectionHeader}
-            titleStyle={listStyles.sectionHeaderText}
-            right={() => (
-              <View style={listStyles.sectionHeaderIcon}>
-                <Icon source={showArchivedHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-              </View>
-            )}
-            >
-            {showArchivedHabits ? (
-              <>
-                {archivedHabits.length ? (
-                  archivedHabits.map((habit) => (
-                    <HabitItem
-                      key={habit.id}
-                      habit={habit}
-                      onPress={handleHabitPress}
-                      onArchive={handleArchiveHabit}
-                      onDelete={handleDeleteHabit}
-                    />
-                  ))
-                ) : (
-                  <View style={listStyles.noData}>
-                    <View style={listStyles.noDataIcon}>
-                      <Icon source='alert-circle-outline' size={16} color={theme.colors.outline} />
+              >
+                {showActiveHabits ? (
+                  <>
+                    {activeHabits.length ? (
+                      activeHabits.map((habit) => (
+                        <HabitItem
+                          key={habit.id}
+                          habit={habit}
+                          onPress={handleHabitPress}
+                          onArchive={handleArchiveHabit}
+                          onDelete={handleDeleteHabit}
+                        />
+                      ))
+                    ) : (
+                      <View style={listStyles.noData}>
+                        <View style={listStyles.noDataIcon}>
+                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                        </View>
+                        <Text style={listStyles.noDataText} variant='bodyLarge'>No active habits</Text>
+                      </View>
+                    )}
+                  </>
+                ) : null}
+              </List.Accordion>
+              <List.Accordion
+                title={
+                  <View style={listStyles.sectionHeaderTitle}>
+                    <View style={listStyles.sectionHeaderTitleIcon}>
+                      <Icon source='archive-outline' size={18} color={theme.colors.primary} />
                     </View>
-                    <Text style={listStyles.noDataText} variant='bodyLarge'>No archived habits</Text>
+                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedHabits ? '' : ` (${archivedHabits.length})`}`}</Text>
+                  </View>
+                }
+                expanded={showArchivedHabits}
+                onPress={() => setShowArchivedOverride(showArchivedHabits ? -1 : 1)}
+                style={listStyles.sectionHeader}
+                titleStyle={listStyles.sectionHeaderText}
+                right={() => (
+                  <View style={listStyles.sectionHeaderIcon}>
+                    <Icon source={showArchivedHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
                   </View>
                 )}
-              </>
-            ) : null}
-          </List.Accordion>
+                >
+                {showArchivedHabits ? (
+                  <>
+                    {archivedHabits.length ? (
+                      archivedHabits.map((habit) => (
+                        <HabitItem
+                          key={habit.id}
+                          habit={habit}
+                          onPress={handleHabitPress}
+                          onArchive={handleArchiveHabit}
+                          onDelete={handleDeleteHabit}
+                        />
+                      ))
+                    ) : (
+                      <View style={listStyles.noData}>
+                        <View style={listStyles.noDataIcon}>
+                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                        </View>
+                        <Text style={listStyles.noDataText} variant='bodyLarge'>No archived habits</Text>
+                      </View>
+                    )}
+                  </>
+                ) : null}
+              </List.Accordion>
+            </>
+          )}
         </View>
       </ScrollView>
       <View style={listStyles.createButtonContainer}>
         <Button
           style={listStyles.createButton}
           onPress={() => handleAddHabitPress()}
-          icon='checkbox-marked-outline'
+          icon={Icons.habit}
           mode='elevated'
           buttonColor={theme.colors.secondaryContainer}
           contentStyle={{ height: 56}}
         >
           <Text variant='labelLarge' style={listStyles.createButtonText}>Create habit</Text>  
+        </Button>
+        {moveUpButtonSlide.isVisible && (
+          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonUp, moveUpButtonSlide.slideStyle]}>
+            <IconButton
+              style={[listStyles.reorderIconButton]}
+              icon={Icons.moveUp}
+              iconColor={theme.colors.onPrimary}
+              onPress={(e) => {
+                handleReorderHabit(movingHabit, -1);
+                e.stopPropagation();
+              }}
+              />
+          </Animated.View>
+        )}
+        {moveDownButtonSlide.isVisible && (
+          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonDown, moveDownButtonSlide.slideStyle]}>
+            <IconButton
+              style={[listStyles.reorderIconButton]}
+              icon={Icons.moveDown}
+              iconColor={theme.colors.onPrimary}
+              onPress={(e) => {
+                handleReorderHabit(movingHabit, 1);
+                e.stopPropagation();
+              }}
+            />
+          </Animated.View>
+        )}
+        <Button
+          style={listStyles.reorderButton}
+          onPress={() => {
+            setIsReordering(!isReordering);
+            if (isReordering) {
+              moveUpButtonSlide.hide();
+              moveDownButtonSlide.hide();
+            } else {
+              moveUpButtonSlide.show();
+              moveDownButtonSlide.show();
+              setMovingHabit(measurements.length ? 0 : -1);
+            }
+          }}
+          mode='elevated'
+          buttonColor={isReordering ? theme.colors.primary : theme.colors.secondaryContainer}
+          contentStyle={{ height: 56 }}
+        >
+          <View style={{ marginHorizontal: -4 }}>
+            <Icon source={isReordering ? Icons.close : Icons.move} size={24} color={isReordering ? theme.colors.onPrimary : theme.colors.primary} />
+          </View>
         </Button>
       </View>
       <Modal
@@ -670,18 +811,49 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   createButtonContainer: {
     position: 'absolute',
     bottom: 0,
+    flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
     padding: 16,
+    gap: 16,
   },
   createButton: {
     borderRadius: 12,
-    width: '100%',
+    flex: 1,
     maxWidth: 600,
+    shadowRadius: 5,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
   },
   createButtonText: {
     color: theme.colors.primary,
     fontSize: 16,
+  },
+  reorderButton: {
+    borderRadius: 12,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 6,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  reorderIconButtonContainer: {
+    opacity: 1,
+    position: 'absolute',
+    right: 22,
+  },
+  reorderIconButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 16,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 6,
+    shadowOpacity: .3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  reorderIconButtonUp: {
+    bottom: 132,
+  },
+  reorderIconButtonDown: {
+    bottom: 80,
   },
   noData: {
     flexDirection: 'row',
@@ -835,12 +1007,15 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   },
 })
 
-const HabitItem = ({ habit, onPress, onArchive, onDelete }: {
+type HabitItemProps = {
   habit: Habit;
+  selected?: boolean,
   onPress: (habit: Habit) => void;
   onArchive: (habit: Habit, archived: boolean) => void;
   onDelete: (habit: Habit) => void;
-}): JSX.Element | null => {
+};
+
+const HabitItem = ({ habit, selected, onPress, onArchive, onDelete }: HabitItemProps): JSX.Element | null => {
 
 const measurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId ));
 
@@ -850,7 +1025,7 @@ const itemStyles = createItemStyles(theme);
 const [isMenuVisible, setIsMenuVisible] = useState(false);
 
 return measurements.length ? (
-  <TouchableRipple style={itemStyles.container} onPress={() => onPress(habit)}>
+  <TouchableRipple style={[itemStyles.container, selected ? itemStyles.selectedContainer : {}]} onPress={() => onPress(habit)}>
     <>
       <View style={itemStyles.content}>
         <View style={itemStyles.header}>
@@ -970,6 +1145,15 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 16,
     gap: 6,
+  },
+  selectedContainer: {
+    shadowColor: theme.colors.shadow,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+    paddingLeft: 20,
   },
   content: {
     flex: 1,
