@@ -1,6 +1,6 @@
 import { generateId } from "@/utils/helpers";
-import { generateDefaultMeasurementUnits } from '@t/measurements';
 import type { User } from '@t/users';
+import Status from '@u/constants/Status';
 
 interface RootState {
   app: AppState;
@@ -15,10 +15,12 @@ type UserState = User & {
 
 const generateTestUser = (): UserState => {
   const userState = createUserState();
-  userState.habits = [
+  userState.habitUpdates = [
     {
       "id": "dt2nuwb",
+      "habitId": "dt2nuwb",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Reading",
       "isWeekly": false,
       "daysPerWeek": 5,
@@ -36,7 +38,9 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "nkd0zop",
+      "habitId": "nkd0zop",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Outside 1",
       "isWeekly": false,
       "daysPerWeek": 7,
@@ -54,7 +58,9 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "znlcwpm",
+      "habitId": "znlcwpm",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Outside 2",
       "isWeekly": false,
       "daysPerWeek": 4,
@@ -72,7 +78,9 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "03o71dt",
+      "habitId": "03o71dt",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Youtube 1",
       "isWeekly": false,
       "daysPerWeek": 7,
@@ -90,25 +98,29 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "t389elo",
+      "habitId": "t389elo",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Youtube 2",
       "isWeekly": false,
       "daysPerWeek": 4,
       "points": 2,
       "archived": false,
-      "conditions": 
-      [{
+      "conditions": [
+        {
           "measurementId": "26h38r8",
           "operator": "==",
           "target": 0,
-      
-          }],
+        }
+      ],
       "predicate": "AND",
       "priority": 5,
     },
     {
       "id": "1acyx6p",
+      "habitId": "1acyx6p",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Tech 1",
       "isWeekly": false,
       "daysPerWeek": 6,
@@ -126,14 +138,16 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "n7rijct",
+      "habitId": "n7rijct",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Steps",
       "isWeekly": false,
       "daysPerWeek": 5,
       "points": 1,
       "archived": false,
-      "conditions": [{
-
+      "conditions": [
+        {
           "measurementId": "bdsbn0y",
           "operator": ">=",
           "target": 10000,
@@ -144,14 +158,16 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "n7rijcz",
+      "habitId": "n7rijcz",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Steps",
       "isWeekly": true,
       "daysPerWeek": 5,
       "points": 5,
       "archived": false,
-      "conditions": [{
-
+      "conditions": [
+        {
           "measurementId": "bdsbn0y",
           "operator": ">=",
           "target": 50000,
@@ -162,13 +178,16 @@ const generateTestUser = (): UserState => {
     },
     {
       "id": "n7rij2z",
+      "habitId": "n7rij2z",
       "userId": "k1cit1t",
+      "date": "2024-01-01",
       "name": "Bedtime",
       "isWeekly": false,
       "daysPerWeek": 5,
       "points": 1,
       "archived": false,
-      "conditions": [{
+      "conditions": [
+        {
           "measurementId": "evq21bh",
           "operator": "<=",
           "target": 24.5,
@@ -328,9 +347,8 @@ const createUserState = (name: string | undefined = 'Guest', email: string | und
   name,
   email,
   measurements: [],
-  measurementUnits: generateDefaultMeasurementUnits(),
   recordings: [],
-  habits: [],
+  habitUpdates: [],
 
   loading: false,
   updating: false,
@@ -339,10 +357,18 @@ const createUserState = (name: string | undefined = 'Guest', email: string | und
 
 interface AppState {
   darkMode: boolean;
+
+  createHabitStatus: string,
+  updateHabitStatus: string,
+  deleteHabitStatus: string,
 }
 
 const createAppState = (): AppState => ({
   darkMode: false,
+
+  createHabitStatus: Status.Habit.Create.SUCCESS,
+  updateHabitStatus: Status.Habit.Update.SUCCESS,
+  deleteHabitStatus: Status.Habit.Delete.SUCCESS,
 });
 
 export {

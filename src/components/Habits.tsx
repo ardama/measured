@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Animated } from "react-native";
 
-import { useHabits, useMeasurements, useMeasurementsByIds, useUser } from "@/store/selectors";
-import { editHabit, removeHabit, addHabit, addMeasurement } from "@/store/userReducer";
+import { useHabits, useHabitUpdates, useMeasurements, useMeasurementsByIds, useUser } from "@/store/selectors";
+import { addMeasurement } from "@/store/userReducer";
 import { useDispatch } from "react-redux";
-import { createHabit, getHabitPredicateIcon, getHabitPredicateLabel, habitOperators, getHabitOperatorData, type Habit, type HabitOperator, getHabitOperatorLabel } from "@/types/habits";
+import { createInitialHabitUpdate, getHabitPredicateIcon, getHabitPredicateLabel, habitOperators, getHabitOperatorData, type Habit, type HabitOperator, getHabitOperatorLabel, type HabitUpdate, createEmptyHabitUpdate, constructHabit, mergeHabitUpdate } from "@/types/habits";
 import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, type MD3Theme, Modal, List, TouchableRipple, SegmentedButtons } from 'react-native-paper';
 import { formatNumber, formatTime } from '@u/helpers';
 import { createMeasurement, getMeasurementTypeData } from '@t/measurements';
@@ -13,21 +13,23 @@ import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
 import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
+import { callCreateHabit, callDeleteHabit, callUpdateHabit } from '@s/appReducer';
 
-type EditedHabit = {
-  id: string;
+type FormHabit = {
+  habitId: string;
   userId: string;
   name: string;
   isWeekly: boolean;
   points: string;
   daysPerWeek: string;
   archived: boolean;
-  conditions: EditedHabitCondition[],
+  conditions: FormHabitCondition[],
   predicate: string,
   priority: number,
+  updates: HabitUpdate[],
 };
 
-type EditedHabitCondition = {
+type FormHabitCondition = {
   measurementId: string;
   operator: HabitOperator;
   target: string;
@@ -43,9 +45,8 @@ const Habits = () => {
   const theme = useTheme();
   const formStyles = createFormStyles(theme);
 
-  const [showForm, setShowForm] = useState(false);
-  const [newHabit, setNewHabit] = useState<EditedHabit | null>(null);
-  const [editedHabit, setEditedHabit] = useState<EditedHabit | null>(null);
+  const [formType, setFormType] = useState<'create' | 'edit' | null>(null);
+  const [formHabit, setFormHabit] = useState<FormHabit | null>(null);
   
   const [isReordering, setIsReordering] = useState(false);
   const [movingHabit, setMovingHabit] = useState(-1);
@@ -56,31 +57,24 @@ const Habits = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
-  const handleEditHabit = (editedHabit: Habit) => dispatch(editHabit({
-    id: editedHabit.id,
-    updates: editedHabit,
-  }));
-  
-  const handleDeleteHabit = (habit: Habit) => dispatch(removeHabit(habit.id));
+  const handleEditHabit = (habit: Habit) => dispatch(callUpdateHabit(habit));
+  const handleDeleteHabit = (habit: Habit) => dispatch(callDeleteHabit(habit));
   const handleArchiveHabit = (habit: Habit, archived: boolean) => {
-    dispatch(editHabit({
-      id: habit.id,
-      updates: { ...habit, archived },
-    }));
+    dispatch(callUpdateHabit({ ...habit, archived }));
   };
 
   const handleAddHabit = (newHabit: Habit) => {
-    dispatch(addHabit(newHabit));
+    dispatch(callCreateHabit(newHabit));
     setTimeout(() => {
       scrollToEnd();
     }, 0);
   }
 
-  const getInitialEditedHabit = (habit: Habit) => ({
+  const getInitialFormHabit = (habit: Habit): FormHabit => ({
     ...habit,
     daysPerWeek: habit.daysPerWeek?.toString(),
     points: habit.points?.toString(),
-    conditions: habit.conditions.map((condition) => ({
+    conditions: (habit.conditions || []).map((condition) => ({
       ...condition,
       target: condition.target?.toString(),
     })),
@@ -93,20 +87,21 @@ const Habits = () => {
       dispatch(addMeasurement(measurement));
     }
     
-    setShowForm(true);
-    setNewHabit(getInitialEditedHabit(createHabit(user.id, measurement.id, 'New habit', '>', habits[habits.length - 1].priority + 1, 0)));
+    const formHabitUpdate = createInitialHabitUpdate(user.id, measurement.id, 'New habit', '>', habits[habits.length - 1].priority + 1, 0);
+    const formHabit = constructHabit([formHabitUpdate]);
+    setFormHabit(getInitialFormHabit(formHabit));
+    setFormType('create');
   }
 
   const handleHabitPress = (habit: Habit) => {
-    setShowForm(true);
-    setEditedHabit(getInitialEditedHabit(habit));
+    setFormType('edit');
+    setFormHabit(getInitialFormHabit(habit));
   }
 
   const hideForm = () => {
-    setShowForm(false);
+    setFormType(null);
     setTimeout(() => {
-      setNewHabit(null);
-      setEditedHabit(null);
+      setFormHabit(null);
     }, 250);
   }
 
@@ -120,7 +115,7 @@ const Habits = () => {
       else nextPriorities[i] = Math.max(h.priority, nextPriorities[i - 1] + 1)
     });
 
-    const index = habits.findIndex(({ id }) => id === habit.id);
+    const index = habits.findIndex(({ habitId: id }) => id === habit.habitId);
     if (index < 0) return;
 
     const nextIndex = index + shift;
@@ -133,7 +128,7 @@ const Habits = () => {
     const actions = habits.map((h, i) => {
       const priority = nextPriorities[i];
       if (h.priority === priority) return null;
-      return editHabit({ id: h.id, updates: { priority}})
+      return callUpdateHabit({ ...h, priority });
     }).filter((a) => a !== null);
 
     setMovingHabit(nextIndex);
@@ -145,17 +140,17 @@ const Habits = () => {
   const [isDaysPerWeekMenuVisible, setIsDaysPerWeekMenuVisible] = useState(false);
   const [isPointsMenuVisible, setIsPointsMenuVisible] = useState(false);
   const renderForm = () => {
-    const isNew = !!newHabit;
-    const formHabit = newHabit || editedHabit || null;
-    const formMeasurementIds = formHabit?.conditions.map(({ measurementId }) => measurementId) || [];
-    const formMeasurements = useMeasurementsByIds(formMeasurementIds);
+    if (!formHabit) return;
+    const isNew = formType === 'create';
+
+    const formMeasurementIds = formHabit.conditions?.map(({ measurementId }) => measurementId) || [];
+    const formMeasurements = measurements.filter(({ id }) => formMeasurementIds.indexOf(id) >= 0);
     
     if (formHabit === null || !formMeasurements.length) return;
     const unusedMeasurements = measurements.filter((m) => !formHabit.conditions.find(({ measurementId }) => m.id === measurementId));
 
-    const handleFormEdit = (nextHabit: EditedHabit) => {
-      if (isNew) setNewHabit(nextHabit);
-      else setEditedHabit(nextHabit);
+    const handleFormEdit = (nextHabit: FormHabit) => {
+      setFormHabit(nextHabit);
     }
   
     const handleSave = () => {
@@ -228,6 +223,7 @@ const Habits = () => {
               icon: 'sync',
               style: formStyles.scopeButton,
               labelStyle: formStyles.scopeButtonLabel,
+              disabled: !isNew && formHabit.isWeekly,
             },
             {
               value: 'weekly',
@@ -235,6 +231,7 @@ const Habits = () => {
               icon: 'calendar-sync',
               style: formStyles.scopeButton,
               labelStyle: formStyles.scopeButtonLabel,
+              disabled: !isNew && !formHabit.isWeekly,
             }
           ]}
         />
@@ -590,7 +587,7 @@ const Habits = () => {
                   {habits.length ? (
                     habits.map((habit, index) => (
                       <HabitItem
-                        key={habit.id}
+                        key={habit.habitId}
                         habit={habit}
                         onPress={() => setMovingHabit(index)}
                         onArchive={handleArchiveHabit}
@@ -640,7 +637,7 @@ const Habits = () => {
                     {activeHabits.length ? (
                       activeHabits.map((habit) => (
                         <HabitItem
-                          key={habit.id}
+                          key={habit.habitId}
                           habit={habit}
                           onPress={handleHabitPress}
                           onArchive={handleArchiveHabit}
@@ -682,7 +679,7 @@ const Habits = () => {
                     {archivedHabits.length ? (
                       archivedHabits.map((habit) => (
                         <HabitItem
-                          key={habit.id}
+                          key={habit.habitId}
                           habit={habit}
                           onPress={handleHabitPress}
                           onArchive={handleArchiveHabit}
@@ -715,7 +712,7 @@ const Habits = () => {
         >
           <Text variant='labelLarge' style={listStyles.createButtonText}>Create habit</Text>  
         </Button>
-        {moveUpButtonSlide.isVisible && (
+        {moveUpButtonSlide.isVisible ? (
           <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonUp, moveUpButtonSlide.slideStyle]}>
             <IconButton
               style={[listStyles.reorderIconButton]}
@@ -727,8 +724,8 @@ const Habits = () => {
               }}
               />
           </Animated.View>
-        )}
-        {moveDownButtonSlide.isVisible && (
+        ) : null}
+        {moveDownButtonSlide.isVisible ? (
           <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonDown, moveDownButtonSlide.slideStyle]}>
             <IconButton
               style={[listStyles.reorderIconButton]}
@@ -740,7 +737,7 @@ const Habits = () => {
               }}
             />
           </Animated.View>
-        )}
+        ) : null}
         <Button
           style={listStyles.reorderButton}
           onPress={() => {
@@ -764,7 +761,7 @@ const Habits = () => {
         </Button>
       </View>
       <Modal
-        visible={!!showForm}
+        visible={!!formType}
         onDismiss={() => {
           hideForm();
         }}

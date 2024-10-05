@@ -1,9 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Habit } from '@t/habits';
+import type { Habit, HabitUpdate } from '@t/habits';
 import type { Measurement, MeasurementUnit } from '@t/measurements';
 import type { Recording, RecordingData } from '@t/recording';
 import type { User } from '@t/users';
 import { createUserState, generateTestUser, type UserState } from '@type/redux';
+import { generateId } from '@u/helpers';
 
 const initialState: UserState = generateTestUser();
 
@@ -38,28 +39,6 @@ const userStateSlice = createSlice({
       );
       if (index !== -1) {
         state.measurements[index] = { ...state.measurements[index], ...action.payload.updates };
-      }
-    },
-
-    addMeasurementUnit: (state: UserState, action: PayloadAction<MeasurementUnit>) => {
-      state.measurementUnits.push(action.payload);
-    },
-
-    removeMeasurementUnit: (state: UserState, action: PayloadAction<string>) => {
-      state.measurementUnits = state.measurementUnits.filter(
-        (m): boolean => m.id !== action.payload
-      );
-    },
-
-    editMeasurementUnit: (state: UserState, action: PayloadAction<{
-        id: string;
-        updates: Partial<MeasurementUnit>;
-      }>) => {
-      const index = state.measurementUnits.findIndex(
-        (m): boolean => m.id === action.payload.id
-      );
-      if (index !== -1) {
-        state.measurementUnits[index] = { ...state.measurementUnits[index], ...action.payload.updates };
       }
     },
 
@@ -107,23 +86,37 @@ const userStateSlice = createSlice({
       state.recordings[recordingIndex] = { ...state.recordings[recordingIndex], data: nextData };    
     },
 
-    addHabit: (state: UserState, action: PayloadAction<Habit>) => {
-      state.habits.push(action.payload);
+    addHabitUpdate: (state: UserState, action: PayloadAction<HabitUpdate>) => {
+      state.habitUpdates.push(action.payload);
     },
   
-
-    removeHabit: (state: UserState, action: PayloadAction<string>) => {
-      state.habits = state.habits.filter(
+    removeHabitUpdate: (state: UserState, action: PayloadAction<string>) => {
+      state.habitUpdates = state.habitUpdates.filter(
         (h): boolean => h.id !== action.payload
       );
     },
+
+    removeHabitUpdates: (state: UserState, action: PayloadAction<string>) => {
+      state.habitUpdates = state.habitUpdates.filter(
+        (h): boolean => h.habitId !== action.payload
+      );
+    },
   
-    editHabit: (state: UserState, action: PayloadAction<{id: string, updates: Partial<Habit>}>) => {
-      const index = state.habits.findIndex(
+    editHabitUpdate: (state: UserState, action: PayloadAction<{id: string, updates: Partial<HabitUpdate>}>) => {
+      const index = state.habitUpdates.findIndex(
         (h): boolean => h.id === action.payload.id
       );
       if (index !== -1) {
-        state.habits[index] = { ...state.habits[index], ...action.payload.updates };
+        state.habitUpdates[index] = { ...state.habitUpdates[index], ...action.payload.updates };
+      }
+    },
+
+    replaceHabitUpdate: (state: UserState, action: PayloadAction<{id: string, habitUpdate: HabitUpdate}>) => {
+      const index = state.habitUpdates.findIndex(
+        (h): boolean => h.id === action.payload.id
+      );
+      if (index !== -1) {
+        state.habitUpdates[index] = { ...action.payload.habitUpdate, id: action.payload.id };
       }
     },
 
@@ -170,13 +163,11 @@ export const {
   editRecording,
   editRecordingData,
 
-  addMeasurementUnit,
-  removeMeasurementUnit,
-  editMeasurementUnit,
-
-  addHabit,
-  removeHabit,
-  editHabit,
+  addHabitUpdate,
+  removeHabitUpdate,
+  editHabitUpdate,
+  replaceHabitUpdate,
+  removeHabitUpdates,
 
   fetchUserStart,
   fetchUserSuccess,

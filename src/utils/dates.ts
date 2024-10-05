@@ -63,6 +63,12 @@ export class SimpleDate {
     return `${months[this.month - 1]}`;
   }
 
+  getPreviousDay() {
+    const previousDate = new Date(this.year, this.month - 1, this.day);
+    previousDate.setDate(previousDate.getDate() - 1);
+    return SimpleDate.fromDate(previousDate);
+  }
+
   getDaysInMonth() {
     // Ensure the month is between 1 and 12
     if (this.month < 1 || this.month > 12) {

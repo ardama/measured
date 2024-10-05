@@ -9,7 +9,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
-import { getHabitCompletion, type Habit } from '@t/habits';
+import { getHabitCompletion, rewindHabit, type Habit } from '@t/habits';
 import { getMeasurementRecordingValue, getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
 
 export default function HomeScreen() {
@@ -266,25 +266,29 @@ export default function HomeScreen() {
                   {horizontalLabel}
                 </Text>
               </View>
-              {selectedIndex >= 0 && (<Surface style={s.chartSelection}>
-                <View style={s.chartSelectionRow}>
-                  <Text style={s.chartSelectionLabel} variant='bodyMedium'>
-                    {selectedDateString}
-                  </Text>
-                  <Text style={s.chartSelectionValue} variant='titleSmall'>
-                    {selectedDateValueString}
-                  </Text>
-                </View>
-                {selectedDateAverageString && (<View style={s.chartSelectionRow}>
-                  <Text style={s.chartSelectionLabel} variant='bodyMedium'>
-                    {selectedDateAverageLabel}
-                  </Text>
-                  <Text style={s.chartSelectionValue} variant='titleSmall'>
-                    {selectedDateAverageString}
-                  </Text>
-                </View>)}
+              {selectedIndex < 0 ? null : (
+                <Surface style={s.chartSelection}>
+                  <View style={s.chartSelectionRow}>
+                    <Text style={s.chartSelectionLabel} variant='bodyMedium'>
+                      {selectedDateString}
+                    </Text>
+                    <Text style={s.chartSelectionValue} variant='titleSmall'>
+                      {selectedDateValueString}
+                    </Text>
+                  </View>
+                  {selectedDateAverageString ? (
+                    <View style={s.chartSelectionRow}>
+                      <Text style={s.chartSelectionLabel} variant='bodyMedium'>
+                        {selectedDateAverageLabel}
+                      </Text>
+                      <Text style={s.chartSelectionValue} variant='titleSmall'>
+                        {selectedDateAverageString}
+                      </Text>
+                    </View>
+                  ) : null}
 
-              </Surface>)}
+                </Surface>
+              )}
             </View>
           ) : null}
         </View>
@@ -503,24 +507,29 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
 
   const monthDailyPoints = monthRecordings.map((recording) => {
     return dailyHabits.reduce((dailyPoints, habit) => {
-      const [complete] = getHabitCompletion(habit, [recording], measurements);
+      const [complete] = getHabitCompletion(rewindHabit(habit, SimpleDate.fromString(recording.date)), [recording], measurements);
       return dailyPoints + (complete ? habit.points : 0);
     }, 0);
   });
   const monthTotalDailyPoints = monthDailyPoints.reduce((sum, curr) => sum + curr, 0);
   
-  const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4].map(() => {
-    return [0, 1, 2, 3, 4, 5, 6].map(() => null);
+  const monthFirstDay = new SimpleDate(year, month, 1);
+  const monthDayOffset = monthFirstDay.getDayOfWeek();
+  const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4].map((row) => {
+    return [0, 1, 2, 3, 4, 5, 6].map((column) => {
+      const day = row * 7 + column - monthDayOffset + 1;
+      return (day > 0 && day <= monthFirstDay.getDaysInMonth()) ? 0 : null;
+    });
   });
 
   monthRecordings.forEach((recording, index) => {
     const points = monthDailyPoints[index];
 
     const date = SimpleDate.fromString(recording.date);
-    const column = date.getDayOfWeek();
-    const mod = (date.day - 1) % 7;
-    const floor = Math.floor((date.day - 1) / 7);
-    const row = floor + (mod < column ? 1 : 0);
+    const dayIndex = date.day + monthDayOffset - 1;
+
+    const row = Math.floor(dayIndex / 7);
+    const column = dayIndex % 7;
 
     monthHeatmapData[row][column] = points;
   });

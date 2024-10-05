@@ -210,7 +210,7 @@ export default function HomeScreen() {
                     }}
                   >
                   <Text style={{ ...styles.weekdayText, ...(index === currentDate.getDayOfWeek() ? styles.weekdayTextToday : {})}} variant='titleSmall'>{day}</Text>
-                  {currentDate.getDayOfWeek() === index && <View style={styles.weekProgressMarker} />}
+                  {currentDate.getDayOfWeek() === index ? <View style={styles.weekProgressMarker} /> : null}
                 </View>
               ))}
               <View style={styles.progressContainer}>
@@ -283,7 +283,7 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.recordingContainer}>
-            {recording && (
+            {!recording ? null : (
               <View style={styles.recordingView}>
                 {
                   recording.data
@@ -383,7 +383,7 @@ export default function HomeScreen() {
 
                   return (
                     <RecordingDataHabit
-                      key={habit.id}
+                      key={habit.habitId}
                       dayRecording={recording}
                       habit={habit}
                       scope={habitScopes[habitScope].toLowerCase()}
@@ -646,12 +646,12 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
     controlContent = (
       <View style={[measurementStyles.content, { marginRight: 16 }]}>
         <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
-        {unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text>}
-        {isBool && (
+        {unit ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text> : null}
+        {isBool ? (
           <View style={measurementStyles.valueLabel}>
             <Icon source='check' size={18} />
           </View>
-        )}
+        ) : null}
       </View>
     );
   } else if (isBool) {
@@ -671,7 +671,7 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
     controlContent = (
       <View style={measurementStyles.content}>
         <Text style={measurementStyles.value} variant='titleMedium'>{valueString}</Text>
-        {measurement.unit && <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text>}
+        {measurement.unit ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text> : null}
         {isCombo ? <View style={{marginRight: 16}} /> : (
           <>
             <IconButton

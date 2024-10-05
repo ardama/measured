@@ -2,9 +2,11 @@ import { generateId } from "@/utils/helpers";
 import { getMeasurementRecordingValue, type Measurement, type MeasurementType } from '@t/measurements';
 import type { Recording } from '@t/recording';
 import { Icons } from '@u/constants/Icons';
+import { stripExcessFields } from '@u/constants/Types';
+import { SimpleDate } from '@u/dates';
 
 interface Habit {
-  id: string;
+  habitId: string;
   userId: string;
   name: string;
   isWeekly: boolean;
@@ -14,10 +16,104 @@ interface Habit {
   conditions: HabitCondition[];
   predicate: HabitPredicate;
   priority: number,
+  updates: HabitUpdate[],
 }
 
-const createHabit = (userId: string, measurementId: string, name: string, operator: HabitOperator, priority: number, target: number = -1, isWeekly: boolean = false, daysPerWeek: number = 7, points: number = 1): Habit => ({
+const emptyHabit = (): Habit => ({
+  habitId: '',
+  userId: '',
+  name: '',
+  isWeekly: false,
+  daysPerWeek: -1,
+  points: -1,
+  archived: false,
+  conditions: [],
+  predicate: '',
+  priority: -1,
+  updates: [],
+});
+
+const mergeHabitUpdate = (habit: Habit, update: HabitUpdate): Habit => {
+  const newHabit = { ...habit };
+  habit.updates.push(update);
+  return Object.entries(update).reduce((result: any, [key, value]) => {
+    if (key === 'id') return result as Habit;
+    if (key === 'date') return result as Habit;
+    if (value !== undefined) result[key] = value;
+
+
+    return result as Habit;
+  }, newHabit);
+}
+const constructHabit = (updates: HabitUpdate[]): Habit => {
+  const newHabit = updates.sort((a, b) => a.date >= b.date ? 1 : -1).reduce((habit, update) => {
+    return mergeHabitUpdate(habit, update);
+  }, emptyHabit());
+
+  if (!newHabit.habitId) console.error('Habit id unset');
+  if (!newHabit.userId) console.error('Habit userId unset');
+  if (newHabit.daysPerWeek < 0) console.error('Habit daysPerWeek unset');
+  if (newHabit.priority < 0) console.error('Habit priority unset');
+  if (!newHabit.predicate) console.error('Habit predicate unset');
+
+  return newHabit;
+}
+
+const rewindHabit = (habit: Habit, date: SimpleDate) => {
+  const previousUpdates = habit.updates.filter((update) => update.date <= date.toString());
+  return previousUpdates.length ? constructHabit(previousUpdates) : null;
+}
+
+interface HabitUpdate {
+  id: string;
+  habitId: string;
+  date: string;
+  userId: string;
+
+  name?: string;
+  isWeekly?: boolean;
+  daysPerWeek?: number;
+  points?: number;
+  archived?: boolean;
+  conditions?: HabitCondition[];
+  predicate?: HabitPredicate;
+  priority?: number,
+}
+
+const createEmptyHabitUpdate = (
+  userId: string,
+  habitId: string,
+): HabitUpdate => ({
   id: generateId(),
+  userId,
+  habitId,
+  date: SimpleDate.today().toString(),
+});
+
+export const emptyHabitUpdate: HabitUpdate = {
+  id: '',
+  habitId: '',
+  date: '',
+  userId: '',
+  name: undefined,
+  isWeekly: undefined,
+  daysPerWeek: undefined,
+  points: undefined,
+  archived: undefined,
+  conditions: undefined,
+  predicate: undefined,
+  priority: undefined,
+};
+
+const createInitialHabitUpdate = (
+  userId: string, measurementId: string, name: string,
+  operator: HabitOperator, priority: number,
+  target: number = -1, isWeekly: boolean = false,
+  daysPerWeek: number = 7, points: number = 1,
+): HabitUpdate => ({
+  id: generateId(),
+  habitId: generateId(),
+  date: SimpleDate.today().toString(),
   userId,
   name,
   isWeekly,
@@ -32,6 +128,42 @@ const createHabit = (userId: string, measurementId: string, name: string, operat
   predicate: 'AND',
   priority,
 });
+
+const constructHabitUpdate = (current: Habit, previous: (Habit | null), date: SimpleDate = SimpleDate.today()): HabitUpdate => {
+  const update = stripExcessFields({
+    ...current,
+  }, emptyHabitUpdate);
+
+  if (previous) {
+    (Object.keys(current) as Array<keyof Habit>).forEach((key) => {
+      let diff = false;
+      switch (key) {
+        case 'conditions':
+          diff = current.conditions.length !== previous.conditions.length;
+          diff = diff || !!current.conditions.find((currentCondition, index) => {
+            const previousCondition = previous.conditions[index];
+            if (currentCondition.measurementId !== previousCondition.measurementId) return true;
+            if (currentCondition.operator !== previousCondition.operator) return true;
+            if (currentCondition.target !== previousCondition.target) return true;
+          });
+  
+          if (!diff) delete update[key];
+          break;
+        case 'habitId':
+        case 'updates':
+          break;
+        default:
+          diff = current[key] !== previous[key];
+          if (!diff) delete update[key];
+          break;
+      }
+    });
+  }
+
+  update.id = generateId();
+  update.date = date.toString();
+  return update;
+}
 
 interface HabitCondition {
   measurementId: string,
@@ -82,10 +214,13 @@ const getHabitPredicateLabel = (predicate: string) => predicate === 'OR' ? 'Any'
 const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.predicateOr : Icons.predicateAnd;
 
 
-const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[], measurements: Measurement[]): [boolean, boolean[], number[], number[]] => {
+const getHabitCompletion = (
+  habit: (Habit | null), recordings: (Recording | undefined)[], measurements: Measurement[]
+): [boolean, boolean[], number[], number[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: number[] = [];
   let conditionProgressions: number[] = [];
+  if (!habit) return [false, conditionCompletions, conditionValues, conditionProgressions];
 
   habit.conditions.forEach((condition) => {
     let conditionComplete = false;
@@ -162,7 +297,14 @@ const getHabitCompletion = (habit: Habit, recordings: (Recording | undefined)[],
 
 export {
   type Habit,
-  createHabit,
+  mergeHabitUpdate,
+  constructHabit, 
+  rewindHabit,
+
+  type HabitUpdate,
+  createEmptyHabitUpdate,
+  createInitialHabitUpdate,
+  constructHabitUpdate,
   
   type HabitOperator,
   habitOperators,

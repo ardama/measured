@@ -1,44 +1,45 @@
 import { createSelector } from '@reduxjs/toolkit';
-import type { Habit } from '@t/habits';
+import { constructHabit, type Habit, type HabitUpdate } from '@t/habits';
 import { measurementTypes, type Measurement, type MeasurementType, type MeasurementUnit } from '@t/measurements';
 import type { Recording } from '@t/recording';
 import type { AppState, RootState } from '@t/redux';
 import type { User } from '@t/users';
+import { SimpleDate } from '@u/dates';
 import { useSelector } from 'react-redux';
 
 const selectAppState = (state: RootState): AppState => state.app;
-export const useAppState = (): AppState => useSelector(selectAppState);
+export const useAppState = () => useSelector(selectAppState);
 
 const selectDarkMode = (state: RootState): boolean => state.app.darkMode;
-export const useDarkMode = (): boolean => useSelector(selectDarkMode);
+export const useDarkMode = () => useSelector(selectDarkMode);
 
 const selectUser = (state: RootState): User => state.user;
-export const useUser = (): User => useSelector(selectUser);
+export const useUser = () => useSelector(selectUser);
 
 // -----------------------------------------
 // Measurement selectors -------------------
 const selectMeasurements = (state: RootState): Measurement[] => state.user.measurements.toSorted((a, b) => a.priority - b.priority);
-export const useMeasurements = (): Measurement[] => useSelector(selectMeasurements);
+export const useMeasurements = () => useSelector(selectMeasurements);
 
 const selectMeasurementCount = createSelector(
   selectMeasurements,
   (measurements) => measurements.length
 );
-export const useMeasurementCount = (): number => useSelector(selectMeasurementCount);
+export const useMeasurementCount = () => useSelector(selectMeasurementCount);
 
 const selectMeasurementById = (id: string): (state: RootState) => Measurement | undefined => 
   createSelector(
     selectMeasurements,
     (measurements) => measurements.find(m => m.id === id)
   );
-export const useMeasurement = (id: string): Measurement | undefined => useSelector(selectMeasurementById(id));
+export const useMeasurement = (id: string) => useSelector(selectMeasurementById(id));
 
 const selectMeasurementsByIds = (ids: string[]): (state: RootState) => (Measurement | undefined)[] => 
   createSelector(
     selectMeasurements,
     (measurements) => ids.map((id) => measurements.find(m => m.id === id))
   );
-export const useMeasurementsByIds = (ids: string[]): (Measurement | undefined)[] => useSelector(selectMeasurementsByIds(ids));
+export const useMeasurementsByIds = (ids: string[]) => useSelector(selectMeasurementsByIds(ids));
 
 const selectMeasurementsByMeasurements = (): (state: RootState) => Map<string, Measurement[]> =>
   createSelector(
@@ -63,19 +64,39 @@ const selectMeasurementsByMeasurements = (): (state: RootState) => Map<string, M
       return map;
     }
   );
-export const useMeasurementsByMeasurements = (): Map<string, Measurement[]> => useSelector(selectMeasurementsByMeasurements());
+export const useMeasurementsByMeasurements = () => useSelector(selectMeasurementsByMeasurements());
 
 
 // -----------------------------------------
 // Recording selectors -------------------
 const selectRecordings = (state: RootState): Recording[] => state.user.recordings;
-export const useRecordings = (): Recording[] => useSelector(selectRecordings);
-
+export const useRecordings = () => useSelector(selectRecordings);
 
 // -----------------------------------------
 // Habit selectors -------------------
-const selectHabits = (state: RootState): Habit[] => state.user.habits.toSorted((a, b) => a.priority - b.priority);
-export const useHabits = (): Habit[] => useSelector(selectHabits);
+const selectHabitUpdates = (state: RootState): HabitUpdate[] => state.user.habitUpdates;
+export const useHabitUpdates = () => useSelector(selectHabitUpdates);
+
+const selectHabits = (date: SimpleDate = SimpleDate.today()): (state: RootState) => Habit[] => createSelector(
+  selectHabitUpdates,
+  (habitUpdates) => {
+    const habitUpdatesMap = new Map<string, HabitUpdate[]>();
+    habitUpdates.filter(( update ) => update.date.toString() <= date.toString()).forEach((update) => {
+      const habitUpdateList = habitUpdatesMap.get(update.habitId) || [];
+      habitUpdateList.push(update);
+      habitUpdatesMap.set(update.habitId, habitUpdateList);
+    });
+
+    const habits: Habit[] = [];
+    habitUpdatesMap.forEach((updates) => {
+      habits.push(constructHabit(updates));
+    });
+
+    return habits.toSorted((a, b) => a.priority - b.priority);
+  }
+);
+
+export const useHabits = (date: SimpleDate = SimpleDate.today()) => useSelector(selectHabits(date));
 
 const selectHabitCount = createSelector(
   selectHabits,
@@ -83,25 +104,25 @@ const selectHabitCount = createSelector(
 );
 export const useHabitCount = (): number => useSelector(selectHabitCount);
 
-const selectHabitById = (id: string): (state: RootState) => Habit | undefined => 
+const selectHabitById = (id: string) => 
   createSelector(
-    selectHabits,
-    (habits) => habits.find(h => h.id === id)
+    selectHabits(),
+    (habits) => habits.find(h => h.habitId === id)
   );
-export const useHabit = (id: string): Habit | undefined => useSelector(selectHabitById(id));
+export const useHabit = (id: string) => useSelector(selectHabitById(id));
 
 const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState) => Habit[] =>
   createSelector(
-    selectHabits,
+    selectHabits(),
     (habits) => habits.filter(({ conditions }) => {
       return !!conditions.find(({ measurementId }) => measurementId === measurement.id);
     })
   );
-export const useHabitsByMeasurement = (measurement: Measurement): Habit[] => useSelector(selectHabitsByMeasurement(measurement));
+export const useHabitsByMeasurement = (measurement: Measurement) => useSelector(selectHabitsByMeasurement(measurement));
 
 const selectHabitsByMeasurements = (): (state: RootState) => Map<string, Habit[]> =>
   createSelector(
-    selectHabits,
+    selectHabits(),
     (habits) => {
       const map = new Map();
       habits.forEach((habit) => {
@@ -114,7 +135,7 @@ const selectHabitsByMeasurements = (): (state: RootState) => Map<string, Habit[]
       return map;
     }
   );
-export const useHabitsByMeasurements = (): Map<string, Habit[]> => useSelector(selectHabitsByMeasurements());
+export const useHabitsByMeasurements = () => useSelector(selectHabitsByMeasurements());
 
 
 // -----------------------------------------

@@ -259,7 +259,7 @@ const Measurements = () => {
             }
           )}
         </View>
-        {isCombo && (
+        {isCombo ? (
           <View style={formStyles.comboContainer}>
             <View style={{ flex: 1 }}>
               <Menu
@@ -394,7 +394,7 @@ const Measurements = () => {
               </Menu>
             </View>
           </View>
-        )}
+        ) : null}
         {isCombo ? null : (<TextInput
           style={formStyles.input}
           mode='outlined'
@@ -672,7 +672,7 @@ const Measurements = () => {
         >
           <Text variant='labelLarge' style={listStyles.createButtonText}>Create measurement</Text>  
         </Button>
-        {moveUpButtonSlide.isVisible && (
+        {moveUpButtonSlide.isVisible ? (
           <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonUp, moveUpButtonSlide.slideStyle]}>
             <IconButton
               style={[listStyles.reorderIconButton]}
@@ -684,8 +684,8 @@ const Measurements = () => {
               }}
               />
           </Animated.View>
-        )}
-        {moveDownButtonSlide.isVisible && (
+        ) : null}
+        {moveDownButtonSlide.isVisible ? (
           <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonDown, moveDownButtonSlide.slideStyle]}>
             <IconButton
               style={[listStyles.reorderIconButton]}
@@ -697,7 +697,7 @@ const Measurements = () => {
               }}
             />
           </Animated.View>
-        )}
+        ) : null}
         <Button
           style={listStyles.reorderButton}
           onPress={() => {

@@ -29,16 +29,16 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
           <View key={r} style={styles.row}>
             {row.map((cell, c) => {
   
-              const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum < (cell || 0));
+              const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum <= (cell || 0));
             
               let cellColor = theme.colors.primary;
-              let overlayOpacity = 0.95;
-              if (bucketIndex === 5) overlayOpacity = 0.85;
-              else if (bucketIndex === 4) overlayOpacity = 0.70;
-              else if (bucketIndex === 3) overlayOpacity = 0.55;
-              else if (bucketIndex === 2) overlayOpacity = 0.40;
-              else if (bucketIndex === 1) overlayOpacity = 0.25;
-              else if (bucketIndex === 0) overlayOpacity = 0.10;
+              let overlayOpacity = 0;
+              if (bucketIndex === 5) overlayOpacity = 0.9;
+              else if (bucketIndex === 4) overlayOpacity = 0.74;
+              else if (bucketIndex === 3) overlayOpacity = 0.58;
+              else if (bucketIndex === 2) overlayOpacity = 0.42;
+              else if (bucketIndex === 1) overlayOpacity = 0.26;
+              else if (bucketIndex === 0) overlayOpacity = 0.1;
               
               const overlayColor = darkMode ? `rgba(10, 10, 10, ${overlayOpacity})` : `rgba(255, 255, 255, ${overlayOpacity})`;
                           
@@ -70,6 +70,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     borderRadius: 4,
   },
   empty: {
+    opacity: 0,
   },
   overlay: {
     borderRadius: 3,
