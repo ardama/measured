@@ -1,34 +1,38 @@
 import { generateId } from "@/utils/helpers";
-import type { Recording } from '@t/recording';
+import { Collections } from '@u/constants/Firestore';
 import { Icons } from '@u/constants/Icons';
+import type { SimpleDate } from '@u/dates';
+import type { DocumentData } from 'firebase/firestore';
 
 interface Measurement {
   id: string;
   userId: string;
   type: MeasurementType;
-  activity: string;
+  name: string;
   variant: string;
   unit: string;
   step: number;
-  defaultValue: number;
+  initial: number;
   priority: number,
   archived: boolean;
   comboLeftId?: string,
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
+  recordings: MeasurementRecording[],
 }
 
-const createMeasurement = (userId: string, activity: string, variant: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
-  id: generateId(),
+const createMeasurement = (userId: string, name: string, variant: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
+  id: generateId(Collections.Measurements),
   userId,
-  activity,
+  name,
   variant,
   type,
   unit,
   step,
-  defaultValue: 0,
+  initial: 0,
   priority,
   archived: false,
+  recordings: [],
 });
 
 interface MeasurementUnit {
@@ -39,46 +43,6 @@ interface MeasurementUnit {
   isDefault: boolean,
   isDeletable: boolean,
 }
-
-const createMeasurementUnit = (label: string, abbreviation: string, types: MeasurementType[] = [], isDefault: boolean = false, isDeletable: boolean = true): MeasurementUnit => ({
-  id: generateId(),
-  label,
-  abbreviation,
-  types,
-  isDefault,
-  isDeletable,
-});
-
-const defaultMeasurementUnits: string[] = [
-  '',
-  'min',
-  'hr',
-  'times',
-  'reps',
-  'sets',
-  'oz',
-  'l',
-  'g',
-  'cal',
-]
-const generateDefaultMeasurementUnits = () => [
-  generateDefaultEmptyUnit(),
-
-  createMeasurementUnit('minutes', 'min', ['duration', 'time'], true, false),
-  createMeasurementUnit('hours', 'hr', ['duration', 'time'], true, false),
-
-  createMeasurementUnit('times', 'times', ['count'], true, false),
-
-  createMeasurementUnit('reps', 'reps', ['count'], true),
-  createMeasurementUnit('sets', 'sets', ['count'], true),
-  
-  createMeasurementUnit('ounces', 'oz', ['count'], true),
-  createMeasurementUnit('liters', 'l', ['count'], true),
-  createMeasurementUnit('grams', 'g', ['count'], true),
-  createMeasurementUnit('calories', 'kcal', ['count'], true),
-]
-
-const generateDefaultEmptyUnit = () => createMeasurementUnit('(no unit)', '', ['duration', 'time', 'count', 'bool'], true, false);
 
 type MeasurementType = 'duration' | 'time' | 'count' | 'bool' | 'combo';
 
@@ -131,38 +95,40 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
   return measurementOperatorData[operator || '+'];
 }
 
-const getMeasurementRecordingValue = (measurementId: (string | undefined), measurements: Measurement[], recording: Recording): number => {
+type MeasurementRecording = { date: string, value: number };
+
+const getMeasurementRecordingValue = (measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[]): number | null => {
   const measurement = measurements.find(({ id }) => id === measurementId);
-  if (!measurement) return 0;
+  if (!measurement) return null;
 
   const isCombo = measurement.type === 'combo';
   if (isCombo) {
-    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, measurements, recording);
-    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, measurements, recording);
+    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, date, measurements) || 0;
+    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, date, measurements) || 0;
     switch (measurement.comboOperator) {
       case '+': return leftValue + rightValue;
       case '-': return leftValue - rightValue;
       case '*': return leftValue * rightValue;
       case '/': return leftValue / rightValue;
     }
-    return 0;
+    return null;
   }
 
-  const data = recording.data.find(({ measurementId }) => measurementId === measurement.id);
-  return data?.value || 0;
+  const data = measurement.recordings.find((recording) => recording.date === date.toString());
+  return data?.value === undefined ? null : data.value;
 }
+
+const getDateRecordings = (measurements: Measurement[], date: SimpleDate): MeasurementRecording[] => {
+  const dateString = date.toString();
+  return measurements.map(({ recordings }) => {
+    return recordings.find((recording) => recording.date === dateString);
+  }).filter((recording) => recording !== undefined);
+};
 
 export {
   type Measurement,
   createMeasurement,
 
-  type MeasurementUnit,
-  createMeasurementUnit,
-  generateDefaultMeasurementUnits,
-  generateDefaultEmptyUnit,
-
-  defaultMeasurementUnits,
-  
   type MeasurementType,
   measurementTypes,
   getMeasurementTypeData,
@@ -173,5 +139,7 @@ export {
   measurementOperators,
   getMeasurementOperatorData,
 
+  type MeasurementRecording,
   getMeasurementRecordingValue,
+  getDateRecordings,
 };

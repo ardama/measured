@@ -7,8 +7,10 @@ import { useColorScheme } from '@u/hooks/useColorScheme';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BottomNavigation } from 'react-native-paper';
 import { CommonActions } from '@react-navigation/native';
+import { withAuth } from '@u/hocs/withAuth';
+import { TabScreen } from 'react-native-paper-tabs';
 
-export default function TabLayout() {
+const TabLayout = () => {
   const colorScheme = useColorScheme();
 
   const renderTabBar = ({ navigation, state, descriptors, insets}: BottomTabBarProps): ReactNode => {
@@ -17,8 +19,6 @@ export default function TabLayout() {
       <BottomNavigation.Bar
         navigationState={state}
         safeAreaInsets={insets}
-        labeled={false}
-        compact
         onTabPress={({ route, preventDefault }) => {
           const event = navigation.emit({
             type: 'tabPress',
@@ -37,7 +37,7 @@ export default function TabLayout() {
         renderIcon={({ route, focused, color }) => {
           const { options } = descriptors[route.key];
           if (options.tabBarIcon) {
-            return options.tabBarIcon({ focused, color, size: 24 });
+            return options.tabBarIcon({ focused, color, size: 12 });
           }
         }}
         activeIndicatorStyle={{ height: 48, width: 88 }}
@@ -54,24 +54,27 @@ export default function TabLayout() {
       tabBar={renderTabBar}
     >
       <Tabs.Screen
-        name="configuration"
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'timer-cog' : 'timer-cog-outline'} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="index"
         options={{
+          tabBarLabel: 'Recordings',
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'format-list-checks' : 'format-list-checks'} color={color} />
           ),
         }}
       />
       <Tabs.Screen
+        name="configuration"
+        options={{
+          tabBarLabel: 'Measurements',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'timer-cog' : 'timer-cog-outline'} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="history"
         options={{
+          tabBarLabel: 'Habits',
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'chart-box' : 'chart-box-outline'} color={color} />
           ),
@@ -80,3 +83,5 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+export default withAuth(TabLayout);

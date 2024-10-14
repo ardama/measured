@@ -1,28 +1,23 @@
-import { generateId } from "@/utils/helpers";
-import type { Habit, HabitUpdate } from '@t/habits';
-import { generateDefaultMeasurementUnits, type Measurement, type MeasurementUnit } from '@t/measurements';
-import type { Recording } from '@t/recording';
+import type { User as AuthUser } from 'firebase/auth';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  measurements: Measurement[];
-  recordings: Recording[],
-  habitUpdates: HabitUpdate[],
+type User = {
+  uid: string;
+  email: string | null;
+  emailVerified: boolean;
+  displayName: string | null;
+  photoURL: string | null;
+  phoneNumber: string | null;
 }
-
-const createUser = (name: string = "Guest", email: string = ""): User => ({
-  id: generateId(),
-  name,
-  email,
-  measurements: [],
-  recordings: [],
-  habitUpdates: [],
-});
 
 export {
   type User,
-
-  createUser,
 }
+
+export const serializeUser = (user: AuthUser): User => ({
+  uid: user.uid,
+  email: user.email,
+  emailVerified: user.emailVerified,
+  displayName: user.displayName,
+  photoURL: user.photoURL,
+  phoneNumber: user.phoneNumber,
+})

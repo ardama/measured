@@ -4,33 +4,30 @@ import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
 import { Button, IconButton, Menu, Surface, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
 import { movingAverage } from '@u/helpers';
-import { useHabits, useMeasurements, useRecordings } from '@s/selectors';
+import { useHabits, useMeasurements } from '@s/selectors';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
 import { getHabitCompletion, rewindHabit, type Habit } from '@t/habits';
-import { getMeasurementRecordingValue, getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
+import { getMeasurementRecordingValue, getMeasurementTypeIcon } from '@t/measurements';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const s = createStyles(theme);
-
-  const recordings = useRecordings();
-  
-  const chartDurationItems = [
-    { title: '1W', value: '7' },
-    { title: '1M', value: '30' },
-    { title: '3M', value: '90' },
-    { title: '1Y', value: '365' },
-    { title: 'All', value: '100000' },
-  ];
-  const [chartDurationTitle, setChartDurationTitle] = useState(chartDurationItems[1].title);
-  const chartDurationValue = chartDurationItems.find(({ title }) => title === chartDurationTitle)?.value || '';
-  const chartDuration = parseInt(chartDurationValue) || 30;
   
   const measurements = useMeasurements();
-  const chartMeasurementItems = measurements.map(({ id, activity, variant, type }) => {
+
+  const chartDurationItems = [
+    { title: '1W', value: 7 },
+    { title: '1M', value: 30 },
+    { title: '3M', value: 90 },
+    { title: '1Y', value: 365 },
+    { title: 'All', value: -1 },
+  ];
+  const [chartDurationTitle, setChartDurationTitle] = useState(chartDurationItems[1].title);
+  const chartDurationValue = chartDurationItems.find(({ title }) => title === chartDurationTitle)?.value || 30;
+  const chartMeasurementItems = measurements.map(({ id, name: activity, variant, type }) => {
     return {
       title: `${activity}${variant ? ` : ${variant}` : ''}`,
       value: id,
@@ -71,52 +68,56 @@ export default function HomeScreen() {
 
   const isFocused = useIsFocused();
   const renderMeasurementChartCard = (): JSX.Element | null => {
-    const measurementRecordingValues = recordings.map((recording) => {
-      return getMeasurementRecordingValue(selectedMeasurement?.id, measurements, recording);
-    });
-    const firstDataIndex = measurementRecordingValues.findIndex((value) => !!value);
-    const selectedMeasurementStartIndex = firstDataIndex >= 0 ? Math.max(measurementRecordingValues.length - chartDuration, firstDataIndex, 0) : measurementRecordingValues.length;
+    const { recordings, step, unit } = selectedMeasurement || { recordings: [], step: 1 };
+    const measurementRecordingDates = recordings.map(({ date }) => date).sort((a, b) => a.localeCompare(b)).map((date) => SimpleDate.fromString(date));
+    
+    const firstDate = measurementRecordingDates[0];
+    let chartDuration = chartDurationValue;
+    if (chartDuration < 0 && firstDate) chartDuration = SimpleDate.daysBetween(firstDate, SimpleDate.today());
+    chartDuration = Math.max(chartDuration, 1);
 
-    const selectedMeasurementData = measurementRecordingValues.slice(selectedMeasurementStartIndex).map((value, index) => ({
-      x: index,
-      y: value,
-    }));
+    const selectedMeasurementData = measurementRecordingDates.map((date) => {
+      const daysAgo = SimpleDate.daysBetween(date, SimpleDate.today());
+      const value = getMeasurementRecordingValue(selectedMeasurement?.id, date, measurements);
+      return value === null ? null : {
+        x: chartDuration - daysAgo,
+        y: value,
+      };
+    }).filter((data) => data !== null);
 
     const movingAverageWindow = parseInt(chartTrendlineValue) || 0;
-    const averageValues = movingAverage(measurementRecordingValues, movingAverageWindow).slice(selectedMeasurementStartIndex);
-    const averageData = selectedMeasurementData.map(( { x }, index) => ({
-      x: x,
-      y: averageValues[index],
-    }));
-    const filteredAverageData = averageData.filter((data): data is { x : number, y : number} => data.y !== null);
+    const averageValues = movingAverage(selectedMeasurementData.map(({ y }) => y), movingAverageWindow);
+    const averageData = selectedMeasurementData
+      .map(({ x }, index) => ({
+        x: x,
+        y: averageValues[index],
+      }))
+      .filter((data): data is { x : number, y : number} => data.y !== null);
 
     let dotSize = 8;
-    if (selectedMeasurementData.length > 400) dotSize = 1;
-    else if (selectedMeasurementData.length > 200) dotSize = 2;
-    else if (selectedMeasurementData.length > 80) dotSize = 4;
-    else if (selectedMeasurementData.length > 40) dotSize = 5;
-    else if (selectedMeasurementData.length > 20) dotSize = 6;
+    if (chartDuration > 400) dotSize = 1;
+    else if (chartDuration > 200) dotSize = 2;
+    else if (chartDuration > 80) dotSize = 4;
+    else if (chartDuration > 40) dotSize = 5;
+    else if (chartDuration > 20) dotSize = 6;
 
     const chartHeight = 300;
     const chartWidth = Dimensions.get('window').width - 72;
     const chartPadding = Math.ceil(Math.max((dotSize + 1) / 2, 2));
 
-    const verticalStep = selectedMeasurement?.step || 1;
+    const verticalStep = step || 1;
     const verticalMin = 0;
     const verticalMaxRaw = Math.max(...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y || 0), verticalStep);
     const verticalMax = Math.ceil(verticalMaxRaw / verticalStep) * verticalStep;
     const verticalOffset = (verticalMax - verticalMin) * (chartPadding / chartHeight);
 
-    let horizontalMin = Math.min(...selectedMeasurementData.map(({ x }) => x));
-    const horizontalMax = Math.max(...selectedMeasurementData.map(({ x }) => x));
-    if (horizontalMax === horizontalMin) {
-      
-      horizontalMin -= 1;
-    }
+    let horizontalMin = 0;
+    const horizontalMax = chartDuration;
     const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
+    const unitString = unit ? ` ${unit}` : '';
     const horizontalLabel = SimpleDate.fromDate(new Date()).toString();
-    const verticalLabelValueString = `${verticalMax.toFixed(0)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
+    const verticalLabelValueString = `${verticalMax.toFixed(0)}${unitString}`;
     
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const dateIndex = selectedIndex === -1 ? 0 : selectedMeasurementData.length - 1 - selectedIndex;
@@ -125,10 +126,10 @@ export default function HomeScreen() {
     const selectedDateString = `${SimpleDate.fromDate(selectedDate).toFormattedString(true)}: `;
     
     const selectedDateValue = selectedIndex === -1 ? null : selectedMeasurementData[selectedIndex].y;
-    const selectedDateValueString = selectedIndex === -1 ? '' : `${selectedDateValue?.toFixed(0)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
+    const selectedDateValueString = selectedIndex === -1 ? '' : `${selectedDateValue?.toFixed(0)}${unitString}`;
       
     const selectedDateAverage = selectedIndex === -1 ? null : averageData[selectedIndex]?.y;
-    const selectedDateAverageString = selectedDateAverage == null ? '' : `${selectedDateAverage.toFixed(1)}${selectedMeasurement?.unit ? ` ${selectedMeasurement.unit}` : ''}`;
+    const selectedDateAverageString = selectedDateAverage == null ? '' : `${selectedDateAverage.toFixed(1)}${unitString}`;
     const selectedDateAverageLabel = `${chartTrendlineTitle}: `;
 
     return (
@@ -176,14 +177,14 @@ export default function HomeScreen() {
                     }}
                   />
                 ) : null}
-                {selectedMeasurementData.length && movingAverageWindow && filteredAverageData.length ? (
+                {selectedMeasurementData.length && movingAverageWindow && averageData.length ? (
                   <Line
-                    data={filteredAverageData}
+                    data={averageData}
                     theme={{
                       stroke: {
                         color: theme.colors.primary,
-                        width: Math.max(Math.min(3, dotSize), 2),
-                        dashArray:[15,4],
+                        width: 2,
+                        dashArray:[8,4],
                       },
                       scatter: {
                         default: {
@@ -317,7 +318,7 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Header title='History' />
+      {/* <Header title='History' /> */}
       <View style={s.container}>
         <View style={s.cards}>
           <MonthSummaryCard />
@@ -486,13 +487,13 @@ type MonthSummaryCardProps = {
 const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const theme = useTheme();
   
-  const dateToday = SimpleDate.fromDate(new Date());
-  const [date, setDate] = useState(new SimpleDate(dateToday.year, dateToday.month, 1));
+  const today = SimpleDate.fromDate(new Date());
+  const [firstDate, setFirstDate] = useState(new SimpleDate(today.year, today.month, 1));
 
-  const month = date.month;
-  const year = date.year;
+  const month = firstDate.month;
+  const year = firstDate.year;
+  const isCurrentMonth = today.month === month && today.year === year;
 
-  const recordings = useRecordings();
   const habits = useHabits();
   const measurements = useMeasurements();
   const dailyHabits = habits.filter(({ isWeekly }) => !isWeekly);
@@ -500,32 +501,27 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
     return previous + current.points * current.daysPerWeek;
   }, 0) / 7;
 
-  const monthRecordings = recordings.filter((recording) => {
-    const date = SimpleDate.fromString(recording.date);
-    return date.month === month && date.year === year;
-  });
+  const monthDates = SimpleDate.generateMonth(month, year);
 
-  const monthDailyPoints = monthRecordings.map((recording) => {
+  const monthDailyPoints = monthDates.map((monthDate) => {
     return dailyHabits.reduce((dailyPoints, habit) => {
-      const [complete] = getHabitCompletion(rewindHabit(habit, SimpleDate.fromString(recording.date)), [recording], measurements);
+      const [complete] = getHabitCompletion(rewindHabit(habit, monthDate), measurements, [monthDate]);
       return dailyPoints + (complete ? habit.points : 0);
     }, 0);
   });
   const monthTotalDailyPoints = monthDailyPoints.reduce((sum, curr) => sum + curr, 0);
   
-  const monthFirstDay = new SimpleDate(year, month, 1);
-  const monthDayOffset = monthFirstDay.getDayOfWeek();
-  const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4].map((row) => {
+  const monthDayOffset = firstDate.getDayOfWeek();
+  const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4, 5].map((row) => {
     return [0, 1, 2, 3, 4, 5, 6].map((column) => {
       const day = row * 7 + column - monthDayOffset + 1;
-      return (day > 0 && day <= monthFirstDay.getDaysInMonth()) ? 0 : null;
+      const lastDay = monthDates.length;
+      return (day > 0 && day <= lastDay) ? 0 : null;
     });
-  });
+  }).filter((week) => week.findIndex((day) => day !== null) !== -1);
 
-  monthRecordings.forEach((recording, index) => {
+  monthDates.forEach((date, index) => {
     const points = monthDailyPoints[index];
-
-    const date = SimpleDate.fromString(recording.date);
     const dayIndex = date.day + monthDayOffset - 1;
 
     const row = Math.floor(dayIndex / 7);
@@ -534,7 +530,8 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
     monthHeatmapData[row][column] = points;
   });
 
-  const pointsPerDayMonth = monthTotalDailyPoints / monthDailyPoints.length;
+  const daysThisMonth = (isCurrentMonth ? today.day : monthDates.length);
+  const pointsPerDayMonth = monthTotalDailyPoints / daysThisMonth;
 
   const cardStyles = createStyles(theme);
   const styles = createMonthSummaryStyles(theme);
@@ -542,13 +539,13 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   return (
     <Surface style={[cardStyles.card]}>
       <View style={cardStyles.cardHeader}>
-        <Text style={[cardStyles.cardTitle, styles.title]} variant='titleLarge'>{date.toFormattedMonthYear()}</Text>
+        <Text style={[cardStyles.cardTitle, styles.title]} variant='titleLarge'>{firstDate.toFormattedMonthYear()}</Text>
         <IconButton
           style={styles.dateSelectionButton}
           icon={'chevron-left'}
           size={20}
           onPress={() => {
-            setDate(date.getMonthsAgo(1));
+            setFirstDate(firstDate.getMonthsAgo(1));
           }}
         />
         <IconButton
@@ -556,9 +553,9 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
           icon={'chevron-right'}
           size={22}
           onPress={() => {
-            setDate(date.getMonthsAgo(-1));
+            setFirstDate(firstDate.getMonthsAgo(-1));
           }}
-          disabled={dateToday.year === date.year && dateToday.month === date.month}
+          disabled={today.year === firstDate.year && today.month === firstDate.month}
         />
       </View>
       <View style={styles.pointsPerDay}>

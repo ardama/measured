@@ -1,38 +1,40 @@
 import { Fragment, useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, Animated } from "react-native";
 
-import { useMeasurements, useUser, useHabitsByMeasurement, useHabitsByMeasurements, useMeasurementsByMeasurements } from "@/store/selectors";
-import { addMeasurement, removeMeasurement, editMeasurement } from "@/store/userReducer";
+import { useAuthState, useMeasurements, useDataState, useMeasurementUsage } from "@/store/selectors";
 import { useDispatch } from "react-redux";
-import { type Measurement, createMeasurement, getMeasurementTypeData, type MeasurementType, measurementTypes, type MeasurementOperator, getMeasurementOperatorData, measurementOperators, getMeasurementTypeIcon } from "@/types/measurements";
+import { type Measurement, createMeasurement, getMeasurementTypeData, type MeasurementType, measurementTypes, type MeasurementOperator, getMeasurementOperatorData, measurementOperators, getMeasurementTypeIcon, type MeasurementRecording } from "@/types/measurements";
 import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple } from 'react-native-paper';
 import { formatTime } from '@u/helpers';
 import { EmptyError, Error, NoError } from '@u/constants/Errors';
 import { Icons } from '@u/constants/Icons';
 import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
 import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
+import { callCreateMeasurement, callDeleteMeasurement, callUpdateMeasurement } from '@s/dataReducer';
 
 type EditedMeasurement = {
   step: string;
   id: string;
   userId: string;
   type: MeasurementType;
-  activity: string;
+  name: string;
   variant: string;
   unit: string;
   archived: boolean;
-  defaultValue: string,
+  initial: string,
   priority: number,
   comboLeftId?: string,
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
+  recordings: MeasurementRecording[],
 };
 
 const Measurements = () => {
   const dispatch = useDispatch();
   const dispatchMultiple = useDispatchMultiple();
   const measurements = useMeasurements();
-  const user = useUser();
+  const auth = useAuthState();
+  const data = useDataState();
 
   const theme = useTheme();
   const formStyles = createFormStyles(theme);
@@ -48,27 +50,22 @@ const Measurements = () => {
   const [isComboRightMenuVisible, setIsComboRightMenuVisible] = useState(false);
   const [isComboOperatorMenuVisible, setIsComboOperatorMenuVisible] = useState(false);
 
+  const [saveAttempted, setSaveAttempted] = useState(false);
+
   const scrollViewRef = useRef<ScrollView>(null);
 
   const scrollToEnd = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
-  const handleEditMeasurement = (editedMeasurement: Measurement) => dispatch(editMeasurement({
-    id: editedMeasurement.id,
-    updates: editedMeasurement,
-  }));
-  
-  const handleDeleteMeasurement = (measurement: Measurement) => dispatch(removeMeasurement(measurement.id));
+  const handleEditMeasurement = (editedMeasurement: Measurement) => dispatch(callUpdateMeasurement(editedMeasurement));
+  const handleDeleteMeasurement = (measurement: Measurement) => dispatch(callDeleteMeasurement(measurement));
   const handleArchiveMeasurement = (measurement: Measurement, archived: boolean) => {
-    dispatch(editMeasurement({
-      id: measurement.id,
-      updates: { ...measurement, archived },
-    }));
+    dispatch(callUpdateMeasurement({ ...measurement, archived }));
   };
 
   const handleAddMeasurement = (newMeasurement: Measurement) => {
-    dispatch(addMeasurement(newMeasurement));
+    dispatch(callCreateMeasurement(newMeasurement));
     setTimeout(() => {
       scrollToEnd();
     }, 0);
@@ -77,13 +74,13 @@ const Measurements = () => {
   const getInitialEditedMeasurement = (measurement: Measurement) => ({
     ...measurement,
     step: measurement.step.toString(),
-    defaultValue: measurement.defaultValue.toString(),
+    initial: measurement.initial.toString(),
   });
   
   const handleAddMeasurementPress = () => {
     setShowForm(true);
-    const lastMeasurement = measurements[measurements.length - 1];
-    setNewMeasurement(getInitialEditedMeasurement(createMeasurement(user.id, 'New activity', 'New variant', 'duration', 'min', 15, lastMeasurement.priority + 1)));
+    const lastPriority = measurements[measurements.length - 1]?.priority || 0;
+    setNewMeasurement(getInitialEditedMeasurement(createMeasurement(auth?.user?.uid || '', '', '', 'duration', 'min', 15, lastPriority + 1)));
   }
   const handleMeasurementPress = (measurement: Measurement) => {
     setShowForm(true);
@@ -92,6 +89,7 @@ const Measurements = () => {
 
   const hideForm = () => {
     setShowForm(false);
+    setSaveAttempted(false);
     setTimeout(() => {
       setNewMeasurement(null);
       setEditedMeasurement(null);
@@ -121,7 +119,7 @@ const Measurements = () => {
     const actions = measurements.map((m, i) => {
       const priority = nextPriorities[i];
       if (m.priority === priority) return null;
-      return editMeasurement({ id: m.id, updates: { priority}})
+      return callUpdateMeasurement({ ...m, priority });
     }).filter((a) => a !== null);
 
     setMovingMeasurement(nextIndex);
@@ -147,21 +145,24 @@ const Measurements = () => {
     }
   
     const handleSave = () => {
-      if (hasErrors()) return;
+      if (hasErrors()) {
+        setSaveAttempted(true);
+        return;
+      }
   
       const step = isBool ? 1 : isCombo ? 0 : parseFloat(formMeasurement.step);
       const unit = isBool ? '' : isTime ? '' : formMeasurement.unit;
-      const defaultValue = isBool ? 0 : parseFloat(formMeasurement.defaultValue);
+      const initial = isBool ? 0 : parseFloat(formMeasurement.initial);
       const comboLeftId = isCombo ? formMeasurement.comboLeftId : undefined;
       const comboRightId = isCombo ? formMeasurement.comboRightId : undefined;
       const comboOperator = isCombo ? formMeasurement.comboOperator : undefined;
       const nextMeasurement = {
         ...formMeasurement,
-        activity: formMeasurement.activity.trim(),
+        name: formMeasurement.name.trim(),
         variant: formMeasurement.variant.trim(),
         unit,
         step,
-        defaultValue,
+        initial,
         comboLeftId,
         comboRightId,
         comboOperator,
@@ -178,14 +179,14 @@ const Measurements = () => {
     }
 
     const hasErrors = () => {
-      if (getActivityErrors().hasError) return true;
+      if (getNameErrors().hasError) return true;
       if (getVariantErrors().hasError) return true;
       if (getStepErrors().hasError) return true;
       return false
     }
   
-    const getActivityErrors = () => {
-      return formMeasurement.activity ? NoError : EmptyError;
+    const getNameErrors = () => {
+      return formMeasurement.name ? NoError : EmptyError;
     }
   
     const getVariantErrors = () => {
@@ -207,21 +208,21 @@ const Measurements = () => {
           <IconButton style={formStyles.closeButton} icon={'window-close'} onPress={() => hideForm() } />
         </View>
         <TextInput
-          label="Activity"
           style={formStyles.input}
           mode='outlined'
-          error={getActivityErrors().hasError}
-          value={formMeasurement.activity || ' '}
+          placeholder="Enter name..."
+          error={saveAttempted && getNameErrors().hasError}
+          value={formMeasurement.name || ''}
           onChangeText={(text) => {
-            const nextMeasurement = { ...formMeasurement, activity: text };
+            const nextMeasurement = { ...formMeasurement, name: text };
             handleFormEdit(nextMeasurement);
           }}
           />
         <TextInput
-          label="Variant"
           style={formStyles.input}
           mode='outlined'
-          error={getVariantErrors().hasError}
+          placeholder="Enter variant..."
+          error={saveAttempted && getVariantErrors().hasError}
           value={formMeasurement.variant || ''}
           onChangeText={(text) => {
             const nextMeasurement = { ...formMeasurement, variant: text };
@@ -246,6 +247,9 @@ const Measurements = () => {
                     if (type === 'combo') {
                       nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0].id;
                       nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[0].id;
+                    } else if (type === 'time') {
+                      nextMeasurement.step = '0.5';
+                      nextMeasurement.initial = '12'
                     }
                     handleFormEdit(nextMeasurement);
                   }}
@@ -278,8 +282,8 @@ const Measurements = () => {
                   >
                     <>
                       <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
-                      <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementActivity}>
-                        {comboLeftMeasurement?.activity}
+                      <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementName}>
+                        {comboLeftMeasurement?.name}
                       </Text>
                       {comboLeftMeasurement?.variant ? (
                         <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={formStyles.measurementVariant}> : {comboLeftMeasurement?.variant}</Text>
@@ -296,7 +300,7 @@ const Measurements = () => {
                       style={{ maxWidth: 600 }}
                       contentStyle={{ maxWidth: 600 }}
                       key={measurement.id}
-                      title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
+                      title={`${measurement.name}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
                       leadingIcon={getMeasurementTypeData(measurement.type).icon}
                       onPress={() => {
                         const nextMeasurement = { ...formMeasurement, comboLeftId: measurement.id };
@@ -363,8 +367,8 @@ const Measurements = () => {
                   >
                     <>
                       <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
-                      <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementActivity}>
-                        {comboRightMeasurement?.activity}
+                      <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementName}>
+                        {comboRightMeasurement?.name}
                       </Text>
                       {comboRightMeasurement?.variant ? (
                         <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={formStyles.measurementVariant}> : {comboRightMeasurement?.variant}</Text>
@@ -381,7 +385,7 @@ const Measurements = () => {
                       style={{ maxWidth: 600 }}
                       contentStyle={{ maxWidth: 600 }}
                       key={measurement.id}
-                      title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
+                      title={`${measurement.name}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
                       leadingIcon={getMeasurementTypeData(measurement.type).icon}
                       onPress={() => {
                         const nextMeasurement = { ...formMeasurement, comboRightId: measurement.id };
@@ -399,7 +403,7 @@ const Measurements = () => {
           style={formStyles.input}
           mode='outlined'
           label="Step"
-          error={!!getStepErrors().hasError}
+          error={saveAttempted && getStepErrors().hasError}
           value={isBool ? '--' : formMeasurement.step.toString() || ''}
           onChangeText={(text) => {
             const nextMeasurement = { ...formMeasurement, step: text };
@@ -407,7 +411,7 @@ const Measurements = () => {
           }}
           keyboardType="numeric"
           disabled={isBool}
-          right={isTime ? <TextInput.Affix text={`(${(parseFloat(formMeasurement.step) * 60).toFixed(0)} minutes)`} /> : null}
+          right={isTime && formMeasurement.step ? <TextInput.Affix text={`(${(parseFloat(formMeasurement.step) * 60).toFixed(0)} minutes)`} /> : null}
         />)}
         <TextInput
           style={formStyles.input}
@@ -423,14 +427,14 @@ const Measurements = () => {
         {isCombo ? null : (<TextInput
           style={formStyles.input}
           mode='outlined'
-          label='Default'
-          value={isBool ? 'No' : formMeasurement.defaultValue}
+          label='Starting value'
+          value={isBool ? 'No' : formMeasurement.initial}
           onChangeText={(text) => {
-            const nextMeasurement = { ...formMeasurement, defaultValue: text };
+            const nextMeasurement = { ...formMeasurement, initial: text };
             handleFormEdit(nextMeasurement);
           }}
           disabled={isBool}
-          right={isTime ? <TextInput.Affix text={`(${formatTime(parseFloat(formMeasurement.defaultValue))})`} /> : null}
+          right={isTime && formMeasurement.initial ? <TextInput.Affix text={`(${formatTime(parseFloat(formMeasurement.initial))})`} /> : null}
         />)}
         <View style={formStyles.buttons}>
           <Button
@@ -446,7 +450,6 @@ const Measurements = () => {
             style={formStyles.button}
             labelStyle={formStyles.buttonLabel}
             onPress={() => handleSave()}
-            disabled={hasErrors()}
           >
             <Text variant='labelLarge' style={formStyles.buttonText}>Save</Text>
           </Button>
@@ -455,8 +458,7 @@ const Measurements = () => {
     );
   }
 
-  const habitsByMeasurements = useHabitsByMeasurements();
-  const measurementsByMeasurements = useMeasurementsByMeasurements();
+  const measurementUsage = useMeasurementUsage();
   const activeMeasurements = measurements.filter(({archived }) => !archived);
   // const inactiveMeasurements = measurements.filter(({ id, archived }) => !archived && !(habitsByMeasurements.get(id) || measurementsByMeasurements.get(id)));
   const archivedMeasurements = measurements.filter(({ archived }) => archived);
@@ -501,8 +503,7 @@ const Measurements = () => {
                       <Divider style={listStyles.divider} />
                       <MeasurementItem
                         measurement={measurement}
-                        habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
-                        comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                        usage={measurementUsage.get(measurement.id)}
                         onPress={() => setMovingMeasurement(index)}
                         onArchive={handleArchiveMeasurement}
                         onDelete={handleDeleteMeasurement}
@@ -550,8 +551,7 @@ const Measurements = () => {
                               onPress={handleMeasurementPress}
                               onArchive={handleArchiveMeasurement}
                               onDelete={handleDeleteMeasurement}
-                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
-                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                              usage={measurementUsage.get(measurement.id)}
                             />
                           </Fragment>
                         ))
@@ -595,8 +595,7 @@ const Measurements = () => {
                               onPress={handleMeasurementPress}
                               onArchive={handleArchiveMeasurement}
                               onDelete={handleDeleteMeasurement}
-                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
-                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                              usage={measurementUsage.get(measurement.id)}
                             />
                           </Fragment>
                         ))
@@ -640,8 +639,7 @@ const Measurements = () => {
                               onPress={handleMeasurementPress}
                               onArchive={handleArchiveMeasurement}
                               onDelete={handleDeleteMeasurement}
-                              habitCount={(habitsByMeasurements.get(measurement.id) || []).length}
-                              comboCount={(measurementsByMeasurements.get(measurement.id) || []).length}
+                              usage={measurementUsage.get(measurement.id)}
                             />
                           </Fragment>
                         ))
@@ -899,7 +897,7 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
     borderRadius: 4,
     flexShrink: 1,
   },
-  measurementActivity: {
+  measurementName: {
     marginLeft: 4,
     flexShrink: 2,
   },
@@ -928,19 +926,18 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
 
 type MeasurementItemProps = {
   measurement: Measurement;
-  habitCount: number,
-  comboCount: number,
   selected?: boolean,
+  usage?: { measurements: string[], habits: string[], pastHabits: string[] },
   onPress: (measurement: Measurement) => void,
   onArchive: (measurement: Measurement, archived: boolean) => void,
   onDelete: (measurement: Measurement) => void,
 };
 
 const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
-  const { measurement,
-    habitCount,
-    comboCount,
+  const {
+    measurement,
     selected,
+    usage,
     onPress,
     onArchive,
     onDelete,
@@ -952,8 +949,9 @@ const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
   const itemStyles = createItemStyles(theme);
 
   const typeData = getMeasurementTypeData(measurement.type);
-  const hasHabits = habitCount !== 0;
-  const hasCombos = comboCount !== 0;
+  const hasCombos = !!usage?.measurements.length;
+  const hasHabits = !!usage?.habits.length;
+  const hasPastHabits = !!usage?.pastHabits.length;
   const isInactive = !hasHabits && !hasCombos;
 
   const color = isInactive ? theme.colors.outline : theme.colors.primary;
@@ -965,8 +963,8 @@ const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
         </View>
         <View style={itemStyles.content}>
           <View style={itemStyles.labelContainer}>
-            <Text style={itemStyles.labelActivity} variant='titleMedium' numberOfLines={1} ellipsizeMode='tail'>
-              {measurement.activity}
+            <Text style={itemStyles.labelName} variant='titleMedium' numberOfLines={1} ellipsizeMode='tail'>
+              {measurement.name}
               </Text>
             {measurement.variant ? <Text style={itemStyles.labelDivider} variant='bodyMedium'> : </Text> : null}
             <Text style={itemStyles.labelVariant} variant='bodyLarge' numberOfLines={1} ellipsizeMode='tail'>
@@ -990,7 +988,7 @@ const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
                   <Icon source={Icons.habitMultiple} size={18} color={color} />
                 </View>
                 <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
-                  {habitCount} Habit{habitCount === 1 ? '' : 's'}
+                  {usage.habits.length} Habit{usage.habits.length === 1 ? '' : 's'}
                 </Text>
               </>
             ) : null}
@@ -1000,7 +998,17 @@ const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
                   <Icon source={Icons.measurementMultiple} size={18} color={color} />
                 </View>
                 <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
-                  {comboCount} Combo{comboCount === 1 ? '' : 's'}
+                  {usage.measurements.length} Combo{usage.measurements.length === 1 ? '' : 's'}
+                </Text>
+              </>
+            ) : null}
+            {hasPastHabits ? (
+              <>
+                <View style={itemStyles.habitCountIcon}>
+                  <Icon source={Icons.habitMultiple} size={18} color={color} />
+                </View>
+                <Text variant='titleSmall' style={{ ...itemStyles.habitCountText, color }}>
+                  {usage.pastHabits.length} Past habit{usage.pastHabits.length === 1 ? '' : 's'}
                 </Text>
               </>
             ) : null}
@@ -1064,7 +1072,7 @@ const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  labelActivity: {
+  labelName: {
   },
   labelDivider: {
     marginHorizontal: 2,

@@ -1,6 +1,6 @@
 import { put, all, takeEvery } from 'redux-saga/effects';
-import { userSaga } from '@s/userSagas';
-
+import { dataSaga } from '@s/dataSaga';
+import { authSaga } from '@s/authSaga';
 import { type DispatchMultipleAction, DISPATCH_MULTIPLE } from '@u/hooks/useDispatchMultiple';
 
 function* dispatchMultipleSaga(action: DispatchMultipleAction) {
@@ -11,7 +11,8 @@ function* dispatchMultipleSaga(action: DispatchMultipleAction) {
 
 export default function* rootSaga(): Generator {
   yield all([
-    userSaga(),
+    authSaga(),
+    dataSaga(),
     yield takeEvery(DISPATCH_MULTIPLE, dispatchMultipleSaga),
   ]);
 }

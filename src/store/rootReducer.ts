@@ -1,9 +1,11 @@
 import appReducer from "@s/appReducer";
-import userReducer from "@s/userReducer";
+import authReducer from '@s/authReducer';
+import dataReducer from "@s/dataReducer";
 
 const rootReducer = {
     app: appReducer,
-    user: userReducer,
+    auth: authReducer,
+    data: dataReducer,
 }
 
 export default rootReducer;

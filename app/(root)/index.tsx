@@ -1,116 +1,85 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { useHabits, useMeasurements, useMeasurementsByIds, useRecordings, useUser } from '@s/selectors';
-import { getMeasurementRecordingValue, getMeasurementTypeData, type Measurement } from '@t/measurements';
+import { useHabits, useMeasurements, useMeasurementsByIds, useAuthState } from '@s/selectors';
+import { getDateRecordings, getMeasurementRecordingValue, getMeasurementTypeData, type Measurement, type MeasurementRecording } from '@t/measurements';
 import { Checkbox, Icon, IconButton, ProgressBar, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
-import { createRecording, type Recording, type RecordingData } from '@t/recording';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { generateDates, SimpleDate } from '@u/dates';
+import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
-import { addRecording, editRecording, editRecordingData } from '@s/userReducer';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type Habit } from '@t/habits';
 import { formatNumber, formatTime } from '@u/helpers';
 import Points from '@c/Points';
+import { Icons } from '@u/constants/Icons';
+import { callUpdateMeasurement } from '@s/dataReducer';
 
 
-export default function HomeScreen() {
+const HomeScreen = () => {
   const dispatch = useDispatch();
-  const recordings = useRecordings();
   const measurements = useMeasurements();
+
   const habits = useHabits();
-  const [dateIndex, setDateIndex] = useState(6);
-  const [dates, setDates] = useState(generateDates(7, 0));
-  const currentDate = dates[dateIndex];
-  const weekStartDateIndex = dateIndex - currentDate.getDayOfWeek();
-  const weekDates = dates.slice(weekStartDateIndex, Math.min(weekStartDateIndex + 7, dates.length));
-  const user = useUser();
+  const dailyHabits = habits.filter((h) => !h.isWeekly)
+  const weeklyHabits = habits.filter((h) => h.isWeekly);
+
+  const today = SimpleDate.today();
+  const [selectedDateIndex, setSelectedDateIndex] = useState(7 + today.getDayOfWeek());
+  const [selectableDates, setSelectableDates] = useState(SimpleDate.generate(14, -6 + today.getDayOfWeek()));
+  const selectedDate = selectableDates[selectedDateIndex];
+  
+  const selectedWeekStartDateIndex = selectedDateIndex - selectedDate.getDayOfWeek();
+  const selectedWeekDates = selectableDates.slice(selectedWeekStartDateIndex, selectedWeekStartDateIndex + 7);
 
   const theme = useTheme();
   const styles = createStyles(theme);
 
-  const recording = recordings.find(({ date }) => date === currentDate.toString());
-  const weekRecordings = weekDates.map((weekDate) => recordings.find(({ date }) => date === weekDate.toString()));
-  useEffect(() => {
-    weekRecordings.forEach((weekRecording, index) => {
-      const weekDateIndex = weekStartDateIndex + index;
-
-      if (weekRecording && weekDateIndex !== dates.length - 1) return;
-
-      const newRecordingData: RecordingData[] = measurements.map((m) => ({
-        measurementId: m.id,
-        value: m.defaultValue,
-      }));
-  
-      if (weekRecording) {
-        let overlapCount = 0;
-        newRecordingData.map((newData) => {
-          const existingData = weekRecording.data.find(({ measurementId }) => measurementId === newData.measurementId);
-          overlapCount += existingData ? 1 : 0;
-          return existingData || newData;
-        });
-  
-        if (overlapCount === newRecordingData.length && overlapCount === weekRecording.data.length) return;
-        dispatch(editRecording({ id: weekRecording.id, updates: { ...weekRecording, data: newRecordingData }}));
-      } else {
-        const newRecording = createRecording(user.id, weekDates[index].toString(), newRecordingData);
-        dispatch(addRecording(newRecording));
-      }
-    })
-  }, [weekStartDateIndex, weekRecordings, weekDates, measurements]);  
-
-  const dailyHabits = habits.filter((h) => !h.isWeekly)
-  const weeklyHabits = habits.filter((h) => h.isWeekly);
-  const weekDailyHabitPointTotals = weekDates.map((_, index) => {
-    return dailyHabits.reduce((previous: number, current: Habit) => {
-      const [complete, _, __] = getHabitCompletion(current, [recordings[index]], measurements);  
-      return previous + (complete ? current.points : 0);
+  const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date, index) => {
+    return dailyHabits.reduce((previous: number, habit: Habit) => {
+      const [complete, _, __] = getHabitCompletion(habit, measurements, [date]);  
+      return previous + (complete ? habit.points : 0);
     }, 0);
   });
 
-  const weekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
+  const selectedWeekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
   weeklyHabits.forEach((habit) => {
-    const firstCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
-      const recordings = weekRecordings.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, recordings, measurements);
-      return complete;
-    }).findIndex((completion) => completion) : -1;
+    selectedWeekDates.find((_, index) => {
+      const dates = selectedWeekDates.slice(0, index + 1);
+      const [complete] = getHabitCompletion(habit, measurements, dates);
 
-    if (firstCompletionIndex !== -1) weekWeeklyHabitPointTotals[firstCompletionIndex] += habit.points;
+      if (complete) selectedWeekWeeklyHabitPointTotals[index] += habit.points;
+      return complete;
+    });
   });
 
-  const dailyPointTotal = (
-    weekDailyHabitPointTotals[currentDate.getDayOfWeek()]
-    + weekWeeklyHabitPointTotals[currentDate.getDayOfWeek()]
-  );
-  const cumulativeWeeklyPointTotal = (
-    weekDailyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
-    + weekWeeklyHabitPointTotals.slice(0, currentDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  const selectedDatePointTotal = (
+    selectedWeekDailyHabitPointTotals[selectedDate.getDayOfWeek()]
+    + selectedWeekWeeklyHabitPointTotals[selectedDate.getDayOfWeek()]
   );
 
-  const overallWeeklyPointTotal = weekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (weekDailyHabitPointTotals[index] || 0), 0);
+  const selectedDateCumulativePointTotal = (
+    selectedWeekDailyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+    + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  );
 
-  const weeklyPointTarget = habits.reduce((previous: number, current: Habit) => {
+  const selectedWeekPointTotal = selectedWeekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (selectedWeekDailyHabitPointTotals[index] || 0), 0);
+  const perWeekPointTarget = habits.reduce((previous: number, current: Habit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
-  const proratedWeeklyTarget = weeklyPointTarget * weekDates.length / 7; 
-  const dailyPointTarget = weeklyPointTarget / 7;
+  const perDayPointTarget = perWeekPointTarget / 7;
 
-  const weeklyMeasurementValues = new Map<string, (number | null)[]>();
-  weekRecordings.forEach((weeklyRecording, index) => {
-    weeklyRecording?.data.forEach(({ measurementId }) => {
-      const current = weeklyMeasurementValues.get(measurementId) || [null, null, null, null, null, null, null];
-      const value = getMeasurementRecordingValue(measurementId, measurements, weeklyRecording);
-      current[index] = value;
-      weeklyMeasurementValues.set(measurementId, current);
-    })
-  })
+  const selectedWeekMeasurementValues = new Map<string, (number | null)[]>();
+  measurements.forEach(({ id }) => {
+    const values = selectedWeekDates.map((date) => {
+      return getMeasurementRecordingValue(id, date, measurements);
+    });
+    selectedWeekMeasurementValues.set(id, values);
+  });
 
-  let dateLabel = currentDate.toFormattedString();
-  if (dateIndex === dates.length - 1) dateLabel = 'Today';
-  else if (dateIndex === dates.length - 2) dateLabel = 'Yesterday';
+  let selectedDateLabel = selectedDate.toFormattedString();
+  // if (selectedDateIndex === selectableDates.length - 1) selectedDateLabel = 'Today';
+  // else if (selectedDateIndex === selectableDates.length - 2) selectedDateLabel = 'Yesterday';
 
-  const measurementScopes = ['Day', 'Week'];
+  const measurementScopes = ['Day', 'Average', 'Total'];
   const [measurementScope, setMeasurementScope] = useState(0);
 
   const habitScopes = ['Day', 'Week'];
@@ -123,10 +92,10 @@ export default function HomeScreen() {
     const jump = count > weeklyJumpCount ? 1 : 1;
     let nextDayIndex = index - jump;
     if (nextDayIndex < 7) {
-      setDates((current) => [...generateDates(14, current.length), ...current]);
+      setSelectableDates((current) => [...SimpleDate.generate(14, current.length), ...current]);
       nextDayIndex += 14;
     }
-    setDateIndex(nextDayIndex);
+    setSelectedDateIndex(nextDayIndex);
     
     const nextDelay = count > weeklyJumpCount ? 25 : Math.max(delay - 25, 100);
     longPressPreviousTimeout.current = setTimeout(() => handleLongPressPrevious(nextDayIndex, nextDelay, count + 1), delay);
@@ -134,39 +103,53 @@ export default function HomeScreen() {
 
   const handleLongPressNext = (index: number, delay: number = 250, count: number = 1) => {
     const jump = count > weeklyJumpCount ? 1 : 1;
-    const nextDayIndex = Math.min(dates.length - 1, index + jump);
-    setDateIndex(nextDayIndex);
+    const nextDayIndex = Math.min(selectableDates.length - 1, index + jump);
+    setSelectedDateIndex(nextDayIndex);
 
     const nextDelay = count > weeklyJumpCount ? 25 : Math.max(delay - 25, 100);
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextDayIndex, nextDelay, count + 1), delay);
   }
+
+  // const displayedRecordings = selectedDateRecordings
+  //   .filter((recording) => measurements.find(({ id }) => id === recording.measurementId )?.archived !== true)
+  //   .sort((a, b) => {
+  //     const aPriority = measurements.find(({ id }) => id === a.measurementId )?.priority || 0;
+  //     const bPriority = measurements.find(({ id }) => id === b.measurementId )?.priority || 0;
+  //     return aPriority - bPriority;
+  //   }); 
+  const displayedMeasurements = measurements
+    .filter(m => !m.archived);
+  const displayedHabits = habits
+    .filter(h => !h.archived)
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0));
+
   return (
     <>
-      <Header title='Overview' />
+      {/* <Header title='Overview' /> */}
       <View style={styles.container}>
         <View style={styles.headerSection}>
           <Surface style={styles.recordingHeaderContainer}>
             <View style={styles.recordingHeader}>
-              {dateIndex === dates.length - 1 ? (
+              {selectedDateIndex === selectableDates.length - 1 ? (
                 <View style={styles.recordingHeaderIcon}>
                   <Icon source='calendar-today' size={26} color={theme.colors.primary} />
                 </View>
               ) : null}
               <Text style={styles.recordingHeaderDate} variant='titleLarge'>
-                {dateLabel}
+                {selectedDateLabel}
               </Text>
               <IconButton
                 style={styles.recordingHeaderButton}
                 icon={'chevron-left'}
                 onPress={() => {
-                  if (dateIndex < 7) {
-                    setDates([...generateDates(7, dates.length), ...dates]);
-                    setDateIndex(dateIndex + 6);
+                  if (selectedDateIndex < 7) {
+                    setSelectableDates([...SimpleDate.generate(7, selectableDates.length), ...selectableDates]);
+                    setSelectedDateIndex(selectedDateIndex + 6);
                   } else {
-                    setDateIndex(dateIndex - 1);
+                    setSelectedDateIndex(selectedDateIndex - 1);
                   }
                 }}
-                onLongPress={() => handleLongPressPrevious(dateIndex)}
+                onLongPress={() => handleLongPressPrevious(selectedDateIndex)}
                 onPressOut={() => {
                   if (longPressPreviousTimeout.current === null) return;
                   clearTimeout(longPressPreviousTimeout.current);
@@ -177,11 +160,11 @@ export default function HomeScreen() {
               <IconButton
                 style={styles.recordingHeaderButton}
                 icon={'chevron-right'}
-                disabled={dateIndex >= dates.length - 1}
+                disabled={selectedDateIndex >= selectableDates.length - 1}
                 onPress={() => {
-                  setDateIndex(Math.min(dates.length - 1, dateIndex + 1));
+                  setSelectedDateIndex(Math.min(selectableDates.length - 1, selectedDateIndex + 1));
                 }}
-                onLongPress={() => handleLongPressNext(dateIndex)}
+                onLongPress={() => handleLongPressNext(selectedDateIndex)}
                 onPressOut={() => {
                   if (longPressNextTimeout.current === null) return;
                   clearTimeout(longPressNextTimeout.current);
@@ -192,9 +175,9 @@ export default function HomeScreen() {
               <IconButton
                 style={styles.recordingHeaderButton}
                 icon={'page-last'}
-                disabled={dateIndex >= dates.length - 1}
+                disabled={selectedDateIndex >= selectableDates.length - 1}
                 onPress={() => {
-                  setDateIndex(dates.length - 1);
+                  setSelectedDateIndex(selectableDates.length - 1);
                 }}
               />
             </View>
@@ -209,50 +192,50 @@ export default function HomeScreen() {
                     left: `${100 * (index + 1) / 7}%`,
                     }}
                   >
-                  <Text style={{ ...styles.weekdayText, ...(index === currentDate.getDayOfWeek() ? styles.weekdayTextToday : {})}} variant='titleSmall'>{day}</Text>
-                  {currentDate.getDayOfWeek() === index ? <View style={styles.weekProgressMarker} /> : null}
+                  <Text style={{ ...styles.weekdayText, ...(index === selectedDate.getDayOfWeek() ? styles.weekdayTextToday : {})}} variant='titleSmall'>{day}</Text>
+                  {selectedDate.getDayOfWeek() === index ? <View style={styles.weekProgressMarker} /> : null}
                 </View>
               ))}
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={(overallWeeklyPointTotal) / weeklyPointTarget}
+                  progress={(selectedWeekPointTotal) / perWeekPointTarget || 0}
                   style={styles.baseProgress}
                   color={theme.colors.inversePrimary}
                 />
               </View>
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={(overallWeeklyPointTotal) / weeklyPointTarget}
+                  progress={(selectedWeekPointTotal) / perWeekPointTarget || 0}
                   style={styles.overlapProgress}
                   color={theme.colors.onSurfaceDisabled}
                 />
               </View>
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={cumulativeWeeklyPointTotal / weeklyPointTarget}
+                  progress={selectedDateCumulativePointTotal / perWeekPointTarget || 0}
                   style={styles.overlapProgress}
                   color={theme.colors.primary}
                 />
               </View>
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={(cumulativeWeeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  progress={(selectedDateCumulativePointTotal - selectedDatePointTotal) / perWeekPointTarget || 0}
                   style={styles.overlapProgress}
                   color={theme.colors.inversePrimary}
                 />
               </View>
               <View style={styles.progressContainer}>
                 <ProgressBar
-                  progress={(cumulativeWeeklyPointTotal - dailyPointTotal) / weeklyPointTarget}
+                  progress={(selectedDateCumulativePointTotal - selectedDatePointTotal) / perWeekPointTarget || 0}
                   style={styles.overlapProgress}
                   color={theme.colors.onSurfaceDisabled}
                 />
               </View>
             </View>
             <View style={styles.weekPointsContainer}>
-              <Points style={{ height: 28, minWidth: 38 }} points={overallWeeklyPointTotal} />
+              <Points style={{ height: 28, minWidth: 38 }} points={selectedWeekPointTotal} />
               <Text style={styles.weekPointsDivider}> / </Text>
-              <Text style={styles.weekPointsTarget}>{weeklyPointTarget}</Text>
+              <Text style={styles.weekPointsTarget}>{perWeekPointTarget}</Text>
             </View>
           </View>
         </View>
@@ -283,45 +266,41 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.recordingContainer}>
-            {!recording ? null : (
-              <View style={styles.recordingView}>
-                {
-                  recording.data
-                  .filter((d) => measurements.find(({ id }) => id === d.measurementId )?.archived !== true)
-                  .toSorted((a, b) => {
-                    const aPriority = measurements.find(({ id }) => id === a.measurementId )?.priority || 0;
-                    const bPriority = measurements.find(({ id }) => id === b.measurementId )?.priority || 0;
-                    return aPriority - bPriority;
-                  }).map((data) => {
-                    const measurement = measurements.find(({ id }) => id === data.measurementId );
-                    if (!measurement) return null;
-                    return (
-                      <RecordingMeasurementItem
-                        key={data.measurementId}
-                        measurement={measurement}
-                        currentDate={currentDate}
-                        weekMeasurementValues={weeklyMeasurementValues}
-                        scope={measurementScopes[measurementScope].toLowerCase()}
-                        onPlus={(value, measurement) => {
-                          const nextValue = value + measurement.step;
-                          const updates = { value: nextValue };
-                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));
-                        }}
-                        onMinus={(value, measurement) => {
-                          const nextValue = Math.max(0, value - measurement.step);
-                          const updates = { value: nextValue };
-                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));                        
-                        }}
-                        onToggle={(toggled) => {
-                          const updates = { value: toggled ? 1 : 0};
-                          dispatch(editRecordingData({ id: recording.id, measurementId: measurement.id, updates }));                        
-                        }}
-                      />
-                    );
-                  })
-                }
-              </View>
-            )}
+            <View style={styles.recordingView}>
+              {
+                displayedMeasurements.length ? displayedMeasurements.map((measurement) => {
+                  const { id, recordings } = measurement;
+                  const recordingIndex = recordings.findIndex(({ date }) => date == selectedDate.toString());
+                  const recording = recordings[recordingIndex] || { date: selectedDate.toString(), value: 0 };
+                  const isNewRecording = recordingIndex < 0;
+
+                  const updateRecording = (nextValue: number) => {
+                    const nextRecording = { ...recording, value: nextValue };
+                    const nextRecordings = [...recordings];
+                    isNewRecording ? nextRecordings.push(nextRecording) : nextRecordings.splice(recordingIndex, 1, nextRecording);
+                    dispatch(callUpdateMeasurement({ ...measurement, recordings: nextRecordings }));
+                  }
+
+                  return (
+                    <RecordingMeasurementItem
+                      key={id}
+                      measurement={measurement}
+                      date={selectedDate}
+                      weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                      scope={measurementScopes[measurementScope].toLowerCase()}
+                      onValueChange={updateRecording}
+                    />
+                  );
+                }) : (
+                  <View style={styles.noData}>
+                    <View style={styles.noDataIcon}>
+                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={styles.noDataText} variant='bodyLarge'>No active measurements</Text>
+                  </View>
+                )
+              }
+            </View>
           </View>
           <View style={styles.recordingContainerHeader}>
             <View style={styles.recordingContainerHeaderIcon}>
@@ -349,49 +328,53 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.recordingContainer}>
-            <View style={styles.dailyPointTotalContainer}>
-              {habitScopes[habitScope] === 'Week' ? (
-                <>
-                  {/* <Text style={{...styles.dailyPointTotalTitle, flex: 1}} variant='titleMedium'>Daily totals: </Text> */}
-                  {weekWeeklyHabitPointTotals.map((weekly, index) => {
-                    const daily = weekDailyHabitPointTotals[index] || 0;
-                    const total = daily + weekly;
-                    
-                    return (
-                      <View key={index}>
-                        <Points style={styles.dailyPointTotal} points={total} size='small' disabled={index !== currentDate.getDayOfWeek()} />
-                      </View>
-                    )
-                  })}
-                </>
-              ) : (
-                <>
-                  <Text style={styles.dailyPointTotalTitle} variant='titleMedium'>Daily total: </Text>
-                  <View>
-                    <Points style={styles.dailyPointTotal} points={dailyPointTotal} size='large' />
-                  </View>
-                </>
-              )}
-            </View>
+            {displayedHabits.length ? (
+              <View style={styles.dailyPointTotalContainer}>
+                {habitScopes[habitScope] === 'Week' ? (
+                  <>
+                    {/* <Text style={{...styles.dailyPointTotalTitle, flex: 1}} variant='titleMedium'>Daily totals: </Text> */}
+                    {selectedWeekWeeklyHabitPointTotals.map((weekly, index) => {
+                      const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                      const total = daily + weekly;
+                      
+                      return (
+                        <View key={index}>
+                          <Points style={styles.dailyPointTotal} points={total} size='small' disabled={index !== selectedDate.getDayOfWeek()} />
+                        </View>
+                      )
+                    })}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.dailyPointTotalTitle} variant='titleMedium'>Daily total: </Text>
+                    <View>
+                      <Points style={styles.dailyPointTotal} points={selectedDatePointTotal} size='large' />
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : null}
             <View style={styles.recordingView}>
               {
-                habits
-                .filter((h) => h.archived !== true)
-                .toSorted((a, b) => (a.priority || 0) - (b.priority || 0))
-                .map((habit) => {
-                  if (!recording) return null;
-
+                displayedHabits.length ? displayedHabits.map((habit) => {
                   return (
                     <RecordingDataHabit
                       key={habit.habitId}
-                      dayRecording={recording}
                       habit={habit}
+                      date={selectedDate}
+                      weekDates={selectedWeekDates}
+                      measurements={measurements}
                       scope={habitScopes[habitScope].toLowerCase()}
-                      currentDate={currentDate}
-                      weekRecordings={weekRecordings}
                     />
                   );
-                })
+                }) : (
+                  <View style={styles.noData}>
+                    <View style={styles.noDataIcon}>
+                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
+                  </View>
+                )
               }
             </View>
           </View>
@@ -560,7 +543,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
 
   },
   recordingHeaderScopeText: {
-    width: 48,
+    width: 60,
     textAlign: 'center',
     color: theme.colors.primary,
   },
@@ -587,23 +570,35 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   dailyPointTotalTitle: {
-    // flex: 1,
     marginRight: 8,
     color: theme.colors.primary,
   },
+  noData: {
+    flexDirection: 'row',
+    paddingVertical: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: theme.colors.outline,
+  },
+  noDataIcon: {
+    marginRight: 8,
+  },
 });
+
+export default HomeScreen;
 
 type RecordingMeasurementItemProps = {
   measurement: Measurement,
-  currentDate: SimpleDate,
-  weekMeasurementValues: Map<string, (number | null)[]>,
+  date: SimpleDate,
+  weekMeasurementValues: (number | null)[],
   scope: string,
-  onPlus: ((currentValue: number, measurement: Measurement) => void) | undefined,
-  onMinus: ((currentValue: number, measurement: Measurement) => void) | undefined,
-  onToggle: ((toggled: boolean) => void) | undefined,
+  onValueChange: (nextValue: number) => void,
 }
 
-const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementValues, scope, onPlus, onMinus, onToggle } : RecordingMeasurementItemProps) : JSX.Element | null  => {
+const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurementValues, scope, onValueChange } : RecordingMeasurementItemProps) : JSX.Element | null  => {
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
   if (!typeData) return null;
@@ -615,34 +610,33 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
   const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
 
-  const weeklyValues = weekMeasurementValues.get(measurement.id) || [];
-  const value = weeklyValues[currentDate.getDayOfWeek()] || 0;
+  const value = weekMeasurementValues[currentDate.getDayOfWeek()];
 
   const valueRef = useRef(value);
-  const measurementRef = useRef(measurement);
 
   useEffect(() => {
     valueRef.current = value;
-    measurementRef.current = measurement;
-  }, [value, measurement]);
+  }, [value]);
 
   const handleLongPressLeft = () => {
     longPressLeftInterval.current = setInterval(() => {
-      onMinus && onMinus(valueRef.current, measurementRef.current);
+      onValueChange(valueRef.current === null ? measurement.initial : valueRef.current - measurement.step);
     }, 125);
   }
   const handleLongPressRight = () => {
     longPressRightInterval.current = setInterval(() => {
-      onPlus && onPlus(valueRef.current, measurementRef.current);
+      onValueChange(valueRef.current === null ? measurement.initial : valueRef.current + measurement.step);
     }, 125);
   }
 
   let controlContent;
-  if (scope === 'week') {
-    const sum = weeklyValues.reduce((acc: number, curr) => acc + (curr || 0), 0);
-    const count = weeklyValues.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
-    const value = isTime ? formatTime(sum / count) : formatNumber(sum);
-    const unit = isTime ? '(average)' : measurement.unit;
+  if (scope === 'average' || scope === 'total') {
+    const total = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr || 0), 0);
+    const count = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
+    const average = isTime ? formatTime(total / count) : formatNumber(total / count);
+    const unit = isTime ? '' : measurement.unit;
+
+    const value = scope === 'average' ? average : isTime ? '-- : --' : total;
     controlContent = (
       <View style={[measurementStyles.content, { marginRight: 16 }]}>
         <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
@@ -658,28 +652,29 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
     controlContent = (
       <View style={measurementStyles.content}>
         <Text style={measurementStyles.value} variant='titleMedium'> </Text>
-        <IconButton size={18} mode={!value ? 'contained' : undefined} icon='window-close' onPress={() => {
-          onToggle && onToggle(false);
+        <IconButton size={18} mode={value === 0 ? 'contained' : undefined} icon='window-close' onPress={() => {
+          onValueChange(0);
         }}/>
         <IconButton size={18} mode={value ? 'contained' : undefined} icon='check' onPress={() => {
-          onToggle && onToggle(true);
+          onValueChange(1);
         }}/>
       </View>
     );
   } else {
-    let valueString = isTime ? formatTime(value) : formatNumber(value);
+    const unitString = value === null ? '' : measurement.unit;
+    const valueString = value === null ? '' : isTime ? formatTime(value) : formatNumber(value);
     controlContent = (
       <View style={measurementStyles.content}>
-        <Text style={measurementStyles.value} variant='titleMedium'>{valueString}</Text>
-        {measurement.unit ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{measurement.unit}</Text> : null}
+        <Text style={measurementStyles.value} variant='bodyLarge'>{valueString}</Text>
+        {unitString ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unitString}</Text> : null}
         {isCombo ? <View style={{marginRight: 16}} /> : (
           <>
             <IconButton
               size={18}
               icon='minus'
-              disabled={!value}
+              disabled={!isTime && !value}
               onPress={() => {
-                onMinus && onMinus(value, measurement);
+                onValueChange(value === null ? measurement.initial : value - measurement.step);
               }}
               onLongPress={() => {
                 handleLongPressLeft();
@@ -690,12 +685,12 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
                 longPressLeftInterval.current = null;
               }}
               delayLongPress={250}
-            />
+              />
             <IconButton
               size={18}
               icon='plus'
               onPress={() => {
-                onPlus && onPlus(value, measurement);
+                onValueChange(value === null ? measurement.initial : value + measurement.step);
               }}
               onLongPress={() => {
                 handleLongPressRight();
@@ -718,7 +713,7 @@ const RecordingMeasurementItem = ({ measurement, currentDate, weekMeasurementVal
         <View style={measurementStyles.typeIconContainer}>
           <Icon source={typeData.icon} size={24} />
         </View>
-          <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={measurementStyles.labelActivity}>{measurement.activity}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={measurementStyles.labelActivity}>{measurement.name}</Text>
           {measurement.variant ? (
             <>
               <Text variant='bodyLarge' style={measurementStyles.labelDivider}> : </Text>
@@ -768,36 +763,36 @@ const measurementStyles = StyleSheet.create({
 
 type RecordingDataHabitProps = {
   habit: Habit,
-  dayRecording: Recording,
-  weekRecordings: (Recording | undefined)[],
+  date: SimpleDate,
+  weekDates: SimpleDate[],
+  measurements: Measurement[],
   scope: string,
-  currentDate: SimpleDate,
 }
 
 const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | null => {
-  const { habit, weekRecordings, scope, currentDate } = props;
+  const { habit, date, weekDates, measurements, scope } = props;
 
   const theme = useTheme();
   const habitStyles = createHabitStyles(theme);
-  const habitMeasurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId));
-  const measurements = useMeasurements();
+
+  const dayRecordings = getDateRecordings(measurements, date);
+  const weekRecordings = weekDates.map((weekDate) => getDateRecordings(measurements, weekDate));
 
   let content;
   if (scope === 'week') {
     const firstWeeklyCompletionIndex = habit.isWeekly ? [undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
-      const recordings = weekRecordings.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, recordings, measurements);
+      const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1));
       return complete;
     }).findIndex((completion) => completion) : -1;
 
     content = (
       <View style={habitStyles.checkboxes}>
-        {[undefined, undefined, undefined, undefined, undefined, undefined, undefined].map((_, index) => {
-          const recordings = habit.isWeekly ? weekRecordings : [weekRecordings[index]];
-          const [complete] = getHabitCompletion(habit, recordings, measurements);
+        {weekDates.map((weekDate, index) => {
+          const dates = habit.isWeekly ? weekDates : [weekDate];
+          const [complete] = getHabitCompletion(habit, measurements, dates);
           
-          const isToday = index === currentDate.getDayOfWeek();
-          const isFuture = weekRecordings[index] === undefined
+          const isToday = index === date.getDayOfWeek();
+          const isFuture = SimpleDate.today().toString().localeCompare(weekDate.toString()) < 0;
           let status = 'indeterminate';
           let color = theme.colors.surfaceVariant;
           if (isFuture) {
@@ -820,7 +815,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         
           return (
             <View
-              key={index}
+              key={weekDate.toString()}
               style={habitStyles.checkboxContainer}>
               <Checkbox.IOS
                 status={status as ('unchecked' | 'indeterminate' | 'checked')}
@@ -834,8 +829,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       </View>
     );
   } else {
-    const recordings = weekRecordings.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
-    const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, recordings, measurements);
+    const dates = weekDates.slice(habit.isWeekly ? 0 : date.getDayOfWeek(), date.getDayOfWeek() + 1);
+    const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, measurements, dates);
 
     const predicateColor = complete ? theme.colors.primary : theme.colors.onSurfaceDisabled;
   
@@ -851,26 +846,28 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
               <Points points={habit.points} disabled={!complete} />
             </View>
           )}
-          {habit.conditions.map((condition, index) => {
-            const measurement = habitMeasurements[index];
+          {habit.conditions.map(({ target, measurementId }, index) => {
+            const measurement = measurements.find(({ id }) => id === measurementId);
+            if (!measurement) return null;
+
             const conditionCompletion = conditionCompletions[index];
             const conditionValue = conditionValues[index];
             const conditionProgress = conditionProgressions[index];
             
-            if (!measurement) return null;
             const isBool = measurement.type === 'bool';
             const isTime = measurement.type === 'time';
 
             const progressLabelColor = theme.colors.onSurface;
             const progressColor = conditionCompletion ? theme.colors.primary : theme.colors.onSurfaceDisabled;
             
+            const valueString = conditionValue === null ? '-' : isTime ? formatTime(conditionValue) : formatNumber(conditionValue)
             return (
-              <Fragment key={`${condition.measurementId}${condition.target}`}>
+              <Fragment key={`${measurementId}${target}`}>
                 <View style={habitStyles.progressContainer}>
                   <View style={habitStyles.progressBarContainer}>
                     <ProgressBar
                       style={[habitStyles.progressBar, conditionCompletion ? habitStyles.progressBarComplete : {}]}
-                      progress={conditionProgress}
+                      progress={conditionProgress || 0}
                       color={progressColor}
                     />
                   </View>
@@ -882,7 +879,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                       />
                     ) : (
                       <Text style={{ ...habitStyles.progressLabelCurrent, color: progressLabelColor }} variant='bodyMedium'>
-                        {isTime ? formatTime(conditionValue) : formatNumber(conditionValue)}
+                        {valueString}
                       </Text>
                     )}
                     {false ? (
@@ -899,7 +896,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                       />
                     ) : (
                       <Text style={{ ...habitStyles.progressLabelTarget, color: progressLabelColor }} variant='bodyMedium' numberOfLines={1}>
-                        {isTime ? formatTime(condition.target) : formatNumber(condition.target)}{measurement?.unit ? ` ${ measurement?.unit}` : ''}
+                        {isTime ? formatTime(target) : formatNumber(target)}{measurement.unit ? ` ${measurement.unit}` : ''}
                       </Text>
                     )}
                   </View>
@@ -935,8 +932,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           </View>
           {scope === 'day' ? (
             <>
-              {habit.conditions.map(({ measurementId, target }, index) => {
-                const measurement = habitMeasurements[index];
+              {habit.conditions.map(({ measurementId, target }) => {
+                const measurement = measurements.find(({ id }) => id === measurementId);
                 if (!measurement) return;
 
                 const typeData = getMeasurementTypeData(measurement.type);    
@@ -945,7 +942,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                     <View style={habitStyles.labelSubtitleIcon}>
                       <Icon source={typeData.icon} size={16} />
                     </View>
-                    <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleActivity} variant='titleSmall'>{measurement?.activity}</Text>
+                    <Text numberOfLines={1} ellipsizeMode="tail" style={habitStyles.labelSubtitleActivity} variant='titleSmall'>{measurement?.name}</Text>
                     {measurement.variant ? (
                       <>
                         <Text style={habitStyles.labelSubtitleDivider} variant='bodyMedium'> : </Text>

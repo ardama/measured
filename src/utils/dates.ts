@@ -104,7 +104,7 @@ export class SimpleDate {
       months++;
     }
 
-    return new SimpleDate(year, month, Math.max(this.day, SimpleDate.getDaysInMonth(month, year)));
+    return new SimpleDate(year, month, Math.min(this.day, SimpleDate.getDaysInMonth(month, year)));
   }
 
   getDaysInPreviousMonth() {
@@ -167,17 +167,36 @@ export class SimpleDate {
 
     return days[month];
   }
-}
-
-export const generateDates = (numDays = 7, offset = 0) => {
-  const dates = [];
-  const now = new Date();
-  const tzOffset = now.getTimezoneOffset();
   
-  for (let i = 0; i < numDays; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i + offset));
-    date.setMinutes(date.getMinutes());
-    dates.unshift(SimpleDate.fromDate(date));
+  static daysBetween(date1: SimpleDate, date2: SimpleDate): number {
+    const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+    const time1 = date1.toDate().getTime();
+    const time2 = date2.toDate().getTime();
+    const diffDays = Math.round(Math.abs((time1 - time2) / oneDay));
+    return diffDays;
   }
-  return dates;
+  
+  static generate(numDays: number = 7, offset: number = 0): SimpleDate[] {
+    const dates = [];
+    const now = new Date();
+    
+    for (let i = 0; i < numDays; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i + offset));
+      dates.unshift(SimpleDate.fromDate(date));
+    }
+    return dates;
+  }
+
+  static generateMonth(month: number, year: number): SimpleDate[] {
+    const m = (month - 1) % 12;
+
+    const dates: SimpleDate[] = [];
+    const date = new Date(year, m, 1);
+    while (date.getMonth() === m) {
+      dates.push(SimpleDate.fromDate(date));
+      date.setDate(date.getDate() + 1);
+    }
+
+    return dates;
+  }
 }

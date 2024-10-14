@@ -7,6 +7,40 @@ const Status = {
   SUCCESS,
   ERROR,
 
+  Measurement: {
+    Create: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+    Update: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+    Delete: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+  },
+  Recording: {
+    Create: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+    Update: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+    Delete: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+  },
   Habit: {
     Create: {
       IN_PROGRESS,

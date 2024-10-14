@@ -13,7 +13,7 @@ const ConfigurationScreen = () => {
   const [configurationView, setConfigurationView] = useState('measurements'); 
   return (
     <>
-      <Header title='Configuration' />
+      {/* <Header title='Configuration' /> */}
       <TabsProvider defaultIndex={1}>
         <Tabs showTextLabel iconPosition='top'>
           <TabScreen label='Measurements' icon='clipboard-edit-outline'>

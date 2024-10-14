@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Animated } from "react-native";
 
-import { useHabits, useHabitUpdates, useMeasurements, useMeasurementsByIds, useUser } from "@/store/selectors";
-import { addMeasurement } from "@/store/userReducer";
+import { useHabits, useHabitUpdates, useMeasurements, useMeasurementsByIds, useDataState, useAuthState } from "@/store/selectors";
 import { useDispatch } from "react-redux";
-import { createInitialHabitUpdate, getHabitPredicateIcon, getHabitPredicateLabel, habitOperators, getHabitOperatorData, type Habit, type HabitOperator, getHabitOperatorLabel, type HabitUpdate, createEmptyHabitUpdate, constructHabit, mergeHabitUpdate } from "@/types/habits";
+import { createInitialHabitUpdate, getHabitPredicateIcon, getHabitPredicateLabel, habitOperators, getHabitOperatorData, type Habit, type HabitOperator, getHabitOperatorLabel, type HabitUpdate, constructHabit } from "@/types/habits";
 import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, type MD3Theme, Modal, List, TouchableRipple, SegmentedButtons } from 'react-native-paper';
 import { formatNumber, formatTime } from '@u/helpers';
 import { createMeasurement, getMeasurementTypeData } from '@t/measurements';
@@ -13,7 +12,7 @@ import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
 import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
-import { callCreateHabit, callDeleteHabit, callUpdateHabit } from '@s/appReducer';
+import { callCreateHabit, callCreateMeasurement, callDeleteHabit, callUpdateHabit } from '@s/dataReducer';
 
 type FormHabit = {
   habitId: string;
@@ -39,7 +38,7 @@ const Habits = () => {
   const dispatch = useDispatch();
   const dispatchMultiple = useDispatchMultiple();
   const habits = useHabits();
-  const user = useUser();
+  const auth = useAuthState();
   const measurements = useMeasurements();
 
   const theme = useTheme();
@@ -83,11 +82,12 @@ const Habits = () => {
   const handleAddHabitPress = () => {
     let measurement = measurements.length ? measurements[0] : null;
     if (!measurement) {
-      measurement = createMeasurement(user.id, 'New measurement', 'New variant', 'duration', 'min', 15, measurements[measurements.length - 1].priority + 1);
-      dispatch(addMeasurement(measurement));
+      measurement = createMeasurement(auth?.user?.uid || '', 'New measurement', 'New variant', 'duration', 'min', 15, 1);
+      dispatch(callCreateMeasurement(measurement));
     }
-    
-    const formHabitUpdate = createInitialHabitUpdate(user.id, measurement.id, 'New habit', '>', habits[habits.length - 1].priority + 1, 0);
+
+    const priority = 1 + (habits[habits.length - 1]?.priority || 0);
+    const formHabitUpdate = createInitialHabitUpdate(auth?.user?.uid || '', measurement.id, 'New habit', '>', priority, 0);
     const formHabit = constructHabit([formHabitUpdate]);
     setFormHabit(getInitialFormHabit(formHabit));
     setFormType('create');
@@ -144,9 +144,9 @@ const Habits = () => {
     const isNew = formType === 'create';
 
     const formMeasurementIds = formHabit.conditions?.map(({ measurementId }) => measurementId) || [];
-    const formMeasurements = measurements.filter(({ id }) => formMeasurementIds.indexOf(id) >= 0);
+    const formMeasurements = formMeasurementIds.map((id) => measurements.find((measurement) => measurement.id === id));
     
-    if (formHabit === null || !formMeasurements.length) return;
+    if (formHabit === null) return;
     const unusedMeasurements = measurements.filter((m) => !formHabit.conditions.find(({ measurementId }) => m.id === measurementId));
 
     const handleFormEdit = (nextHabit: FormHabit) => {
@@ -398,7 +398,7 @@ const Habits = () => {
                         <>
                           <Icon source={typeData.icon} size={16} />
                           <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementActivity}>
-                            {formMeasurement.activity}
+                            {formMeasurement.name}
                           </Text>
                           {formMeasurement.variant ? <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={formStyles.measurementVariant}> : {formMeasurement.variant}</Text> : null}
                         </>
@@ -412,7 +412,7 @@ const Habits = () => {
                           style={{ maxWidth: 600 }}
                           contentStyle={{ maxWidth: 600 }}
                           key={measurement.id}
-                          title={`${measurement.activity}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
+                          title={`${measurement.name}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
                           leadingIcon={getMeasurementTypeData(measurement.type).icon}
                           onPress={() => {
                             const nextHabit = { ...formHabit };
@@ -1091,7 +1091,7 @@ return measurements.length ? (
               <View style={itemStyles.measurement}>
                 <Icon source={typeData.icon} size={16} />
                 <Text numberOfLines={1} ellipsizeMode='tail' variant='titleSmall' style={itemStyles.measurementActivity}>
-                  {measurement.activity}
+                  {measurement.name}
                 </Text>
                 {measurement.variant ? <Text numberOfLines={1} ellipsizeMode='tail' variant='bodyMedium' style={itemStyles.measurementVariant}> : {measurement.variant}</Text> : null}
               </View>

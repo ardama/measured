@@ -1,13 +1,15 @@
+import { firestore } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
-export const generateId = (): string => Math.random().toString(36).substring(2, 9);
+export const generateId = (collectionName: string): string => doc(collection(firestore, collectionName)).id;
 
 export const forWeb = (webValue: any, defaultValue: any): any => {
   return Platform.OS === 'web' ? webValue : defaultValue;
 }
 
 export const formatNumber = (num: number): string => {
-  if (num < 10000) return num.toString();
+  if (num < 10000) return Number(num.toFixed(2)).toString();
   
   const units = [
     { value: 1e9, symbol: 'B' },
@@ -53,6 +55,8 @@ const minutesStr = minutes.toString().padStart(2, '0');
 let dayString = '';
 if (totalDays > 0) {
     dayString = `+${totalDays}`;
+} else if (totalDays < 0) {
+    dayString = `${totalDays}`;
 }
 
 // Return the formatted time string
@@ -72,4 +76,11 @@ export const movingAverage = (data: number[], windowSize: number): (number | nul
 
 export const capitalize = (s: string) => {
   return `${s.slice(0, 1).toUpperCase()}${s.slice(1)}`;
+}
+
+export const removeUndefined = (obj: object) => {
+  const o = Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  );
+  return o;
 }

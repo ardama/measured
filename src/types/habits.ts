@@ -1,6 +1,6 @@
 import { generateId } from "@/utils/helpers";
 import { getMeasurementRecordingValue, type Measurement, type MeasurementType } from '@t/measurements';
-import type { Recording } from '@t/recording';
+import { Collections } from '@u/constants/Firestore';
 import { Icons } from '@u/constants/Icons';
 import { stripExcessFields } from '@u/constants/Types';
 import { SimpleDate } from '@u/dates';
@@ -37,12 +37,11 @@ const mergeHabitUpdate = (habit: Habit, update: HabitUpdate): Habit => {
   const newHabit = { ...habit };
   habit.updates.push(update);
   return Object.entries(update).reduce((result: any, [key, value]) => {
-    if (key === 'id') return result as Habit;
-    if (key === 'date') return result as Habit;
     if (value !== undefined) result[key] = value;
 
-
-    return result as Habit;
+    return stripExcessFields({
+      ...result,
+    }, emptyHabit());
   }, newHabit);
 }
 const constructHabit = (updates: HabitUpdate[]): Habit => {
@@ -61,7 +60,7 @@ const constructHabit = (updates: HabitUpdate[]): Habit => {
 
 const rewindHabit = (habit: Habit, date: SimpleDate) => {
   const previousUpdates = habit.updates.filter((update) => update.date <= date.toString());
-  return previousUpdates.length ? constructHabit(previousUpdates) : null;
+  return previousUpdates.length ? constructHabit(previousUpdates) : emptyHabit();
 }
 
 interface HabitUpdate {
@@ -75,20 +74,10 @@ interface HabitUpdate {
   daysPerWeek?: number;
   points?: number;
   archived?: boolean;
-  conditions?: HabitCondition[];
+  conditions?: HabitCondition[]
   predicate?: HabitPredicate;
   priority?: number,
 }
-
-const createEmptyHabitUpdate = (
-  userId: string,
-  habitId: string,
-): HabitUpdate => ({
-  id: generateId(),
-  userId,
-  habitId,
-  date: SimpleDate.today().toString(),
-});
 
 export const emptyHabitUpdate: HabitUpdate = {
   id: '',
@@ -111,8 +100,8 @@ const createInitialHabitUpdate = (
   target: number = -1, isWeekly: boolean = false,
   daysPerWeek: number = 7, points: number = 1,
 ): HabitUpdate => ({
-  id: generateId(),
-  habitId: generateId(),
+  id: generateId(Collections.HabitUpdates),
+  habitId: generateId(Collections.HabitUpdates),
   date: SimpleDate.today().toString(),
   userId,
   name,
@@ -129,38 +118,38 @@ const createInitialHabitUpdate = (
   priority,
 });
 
-const constructHabitUpdate = (current: Habit, previous: (Habit | null), date: SimpleDate = SimpleDate.today()): HabitUpdate => {
+const constructHabitUpdate = (current: Habit, previous: Habit = emptyHabit(), date: SimpleDate = SimpleDate.today()): HabitUpdate => {
   const update = stripExcessFields({
     ...current,
   }, emptyHabitUpdate);
 
-  if (previous) {
-    (Object.keys(current) as Array<keyof Habit>).forEach((key) => {
-      let diff = false;
-      switch (key) {
-        case 'conditions':
-          diff = current.conditions.length !== previous.conditions.length;
-          diff = diff || !!current.conditions.find((currentCondition, index) => {
-            const previousCondition = previous.conditions[index];
-            if (currentCondition.measurementId !== previousCondition.measurementId) return true;
-            if (currentCondition.operator !== previousCondition.operator) return true;
-            if (currentCondition.target !== previousCondition.target) return true;
-          });
-  
-          if (!diff) delete update[key];
-          break;
-        case 'habitId':
-        case 'updates':
-          break;
-        default:
-          diff = current[key] !== previous[key];
-          if (!diff) delete update[key];
-          break;
-      }
-    });
-  }
 
-  update.id = generateId();
+  (Object.keys(current) as Array<keyof Habit>).forEach((key) => {
+    let diff = false;
+    switch (key) {
+      case 'conditions':
+        diff = current.conditions.length !== previous.conditions.length;
+        diff = diff || !!current.conditions.find((currentCondition, index) => {
+          const previousCondition = previous.conditions[index];
+          if (currentCondition.measurementId !== previousCondition.measurementId) return true;
+          if (currentCondition.operator !== previousCondition.operator) return true;
+          if (currentCondition.target !== previousCondition.target) return true;
+        });
+
+        if (diff) update.conditions = current.conditions;
+        break;
+      case 'userId':
+      case 'habitId':
+      case 'updates':
+        break;
+      default:
+        diff = current[key] !== previous[key];
+        if (!diff) delete update[key];
+        break;
+    }
+  });
+
+  update.id = generateId(Collections.HabitUpdates);
   update.date = date.toString();
   return update;
 }
@@ -215,29 +204,28 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 
 
 const getHabitCompletion = (
-  habit: (Habit | null), recordings: (Recording | undefined)[], measurements: Measurement[]
-): [boolean, boolean[], number[], number[]] => {
+  habit: Habit | null, measurements: Measurement[], dates: SimpleDate[],
+): [boolean, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
-  let conditionValues: number[] = [];
+  let conditionValues: (number | null)[] = [];
   let conditionProgressions: number[] = [];
-  if (!habit) return [false, conditionCompletions, conditionValues, conditionProgressions];
+  if (!habit || !habit.conditions.length) return [false, conditionCompletions, conditionValues, conditionProgressions];
 
   habit.conditions.forEach((condition) => {
     let conditionComplete = false;
-    let conditionValue = 0;
+    let conditionValue = null;
     let conditionProgress = 0;
     
-    if (!recordings.length) {
+    if (!dates.length) {
       conditionProgressions.push(conditionProgress);
       conditionCompletions.push(conditionComplete);
       conditionValues.push(conditionValue);
       return;
     };
-    
-    const measurementValues = recordings.filter((r) => !!r).map((r) => {
-      return getMeasurementRecordingValue(condition.measurementId, measurements, r);
-    }).filter((v) => v !== undefined);
 
+    const measurementValues = dates.map((date) => {
+      return getMeasurementRecordingValue(condition.measurementId, date, measurements);
+    }).filter((value) => value !== null);
     
     if (!measurementValues.length) {
       conditionProgressions.push(conditionProgress);
@@ -302,7 +290,6 @@ export {
   rewindHabit,
 
   type HabitUpdate,
-  createEmptyHabitUpdate,
   createInitialHabitUpdate,
   constructHabitUpdate,
   
