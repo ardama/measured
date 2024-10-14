@@ -3,6 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
+      "@firebase/auth": ["./node_modules/@firebase/auth/dist/index.rn.d.ts"],
+      
       "@c/*": ["./src/components/*"],
       "@components/*": ["./src/components/*"],
       "@s/*": ["./src/store/*"],
@@ -13,7 +15,7 @@
       "@utils/*": ["./src/utils/*"],
       "@a/*": ["./src/assets/*"],
       "@assets/*": ["./src/assets/*"],
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],      
     },
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
