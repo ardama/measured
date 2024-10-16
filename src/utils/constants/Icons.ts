@@ -36,4 +36,6 @@ export const Icons = {
   moveDown: 'chevron-down',
 
   close: 'window-close',
+  hide: 'eye-off-outline',
+  show: 'eye-off-outline',
 }

@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit';
-import { constructHabit, type Habit, type HabitUpdate } from '@t/habits';
+import { computeHabit, type ComputedHabit, type Habit, type HabitUpdate } from '@t/habits';
 import { type Measurement } from '@t/measurements';
 import type { AppState, AuthState, DataState, RootState } from '@t/redux';
 import type { User } from '@t/users';
@@ -56,46 +56,37 @@ export const useMeasurementsByIds = (ids: string[]) => useSelector(selectMeasure
 
 // -----------------------------------------
 // Habit selectors -------------------
-const selectHabitUpdates = (state: RootState): HabitUpdate[] => state.data.habitUpdates;
-export const useHabitUpdates = () => useSelector(selectHabitUpdates);
+const selectHabits = (state: RootState): Habit[] => state.data.habits;
+export const useHabits = () => useSelector(selectHabits);
 
 
-const selectHabits = (date: SimpleDate = SimpleDate.today()): (state: RootState) => Habit[] => createSelector(
-  selectHabitUpdates,
-  (habitUpdates) => {
-    const habitUpdatesMap = new Map<string, HabitUpdate[]>();
-    habitUpdates
-      .filter(( update ) => update.date.toString() <= date.toString())
-      .forEach((update) => {
-        const habitUpdateList = habitUpdatesMap.get(update.habitId) || [];
-        habitUpdateList.push(update);
-        habitUpdatesMap.set(update.habitId, habitUpdateList);
-      });
-
-    return Array.from(habitUpdatesMap.values())
-      .map(constructHabit)
+const selectComputedHabits = (date: SimpleDate = SimpleDate.today()): (state: RootState) => ComputedHabit[] => createSelector(
+  selectHabits,
+  (habits) => {
+    return habits
+      .map((habit) => computeHabit(habit, date))
       .sort((a, b) => a.priority - b.priority);
   }
 );
 
-export const useHabits = (date: SimpleDate = SimpleDate.today()) => useSelector(selectHabits(date));
+export const useComputedHabits = (date: SimpleDate = SimpleDate.today()) => useSelector(selectComputedHabits(date));
 
 const selectHabitCount = createSelector(
-  selectHabits,
+  selectComputedHabits,
   (habits) => habits.length
 );
 export const useHabitCount = (): number => useSelector(selectHabitCount);
 
 const selectHabitById = (id: string) => 
   createSelector(
-    selectHabits(),
-    (habits) => habits.find(h => h.habitId === id)
+    selectComputedHabits(),
+    (habits) => habits.find(h => h.id === id)
   );
 export const useHabit = (id: string) => useSelector(selectHabitById(id));
 
-const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState) => Habit[] =>
+const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState) => ComputedHabit[] =>
   createSelector(
-    selectHabits(),
+    selectComputedHabits(),
     (habits) => habits.filter(({ conditions }) => {
       return !!conditions.find(({ measurementId }) => measurementId === measurement.id);
     })
@@ -105,8 +96,8 @@ export const useHabitsByMeasurement = (measurement: Measurement) => useSelector(
 // -----------------------------------------
 // Complex selectors -----------------------
 const selectMeasurementUsage = createSelector(
-  [selectMeasurements, selectHabitUpdates, selectHabits()],
-  (measurements, habitUpdates, habits) => {
+  [selectMeasurements, selectHabits, selectComputedHabits()],
+  (measurements, habits, computedHabits) => {
     const map: Map<string, { measurements: string[], habits: string[], pastHabits: string[] }> = new Map();
     const blankUsage = () => ({ measurements: [], habits: [], pastHabits: [] });
     
@@ -126,7 +117,7 @@ const selectMeasurementUsage = createSelector(
       }
     });
 
-    habits.forEach(({ habitId, conditions }) => {
+    computedHabits.forEach(({ id: habitId, conditions }) => {
       conditions.forEach(({ measurementId }) => {
         const usage = map.get(measurementId) || blankUsage();
         usage.habits.push(habitId);
@@ -134,14 +125,16 @@ const selectMeasurementUsage = createSelector(
       })
     });
 
-    habitUpdates.forEach(({ habitId, conditions }) => {
-      conditions?.forEach(({ measurementId }) => {
-        const usage = map.get(measurementId) || blankUsage();
-        if (usage.habits.indexOf(habitId) === -1) {
-          usage.pastHabits.push(habitId);
-          map.set(measurementId, usage);
-        }
-      })
+    habits.forEach(({ id: habitId, updates }) => {
+      updates.forEach(({ conditions }) => {
+        conditions?.forEach(({ measurementId }) => {
+          const usage = map.get(measurementId) || blankUsage();
+          if (usage.habits.indexOf(habitId) === -1) {
+            usage.pastHabits.push(habitId);
+            map.set(measurementId, usage);
+          }
+        });
+      });
     });
     return map;
   }

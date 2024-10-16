@@ -1,23 +1,23 @@
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { useHabits, useMeasurements, useMeasurementsByIds, useAuthState } from '@s/selectors';
+import { useComputedHabits, useMeasurements, useMeasurementsByIds, useAuthState } from '@s/selectors';
 import { getDateRecordings, getMeasurementRecordingValue, getMeasurementTypeData, type Measurement, type MeasurementRecording } from '@t/measurements';
 import { Checkbox, Icon, IconButton, ProgressBar, Surface, Text, useTheme, type MD3Theme } from 'react-native-paper';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { useDispatch } from 'react-redux';
-import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type Habit } from '@t/habits';
+import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
 import { formatNumber, formatTime } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import { callUpdateMeasurement } from '@s/dataReducer';
 
 
-const HomeScreen = () => {
+const RecordingsScreen = () => {
   const dispatch = useDispatch();
   const measurements = useMeasurements();
 
-  const habits = useHabits();
+  const habits = useComputedHabits();
   const dailyHabits = habits.filter((h) => !h.isWeekly)
   const weeklyHabits = habits.filter((h) => h.isWeekly);
 
@@ -33,7 +33,7 @@ const HomeScreen = () => {
   const styles = createStyles(theme);
 
   const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date, index) => {
-    return dailyHabits.reduce((previous: number, habit: Habit) => {
+    return dailyHabits.reduce((previous: number, habit: ComputedHabit) => {
       const [complete, _, __] = getHabitCompletion(habit, measurements, [date]);  
       return previous + (complete ? habit.points : 0);
     }, 0);
@@ -61,7 +61,7 @@ const HomeScreen = () => {
   );
 
   const selectedWeekPointTotal = selectedWeekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (selectedWeekDailyHabitPointTotals[index] || 0), 0);
-  const perWeekPointTarget = habits.reduce((previous: number, current: Habit) => {
+  const perWeekPointTarget = habits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
@@ -359,7 +359,7 @@ const HomeScreen = () => {
                 displayedHabits.length ? displayedHabits.map((habit) => {
                   return (
                     <RecordingDataHabit
-                      key={habit.habitId}
+                      key={habit.id}
                       habit={habit}
                       date={selectedDate}
                       weekDates={selectedWeekDates}
@@ -588,7 +588,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default RecordingsScreen;
 
 type RecordingMeasurementItemProps = {
   measurement: Measurement,
@@ -633,13 +633,14 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
   if (scope === 'average' || scope === 'total') {
     const total = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr || 0), 0);
     const count = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
-    const average = isTime ? formatTime(total / count) : formatNumber(total / count);
+    const average = total / count || 0;
+    const averageString = isTime ? count === 0 ? '-- : --' : formatTime(average) : formatNumber(average);
     const unit = isTime ? '' : measurement.unit;
-
-    const value = scope === 'average' ? average : isTime ? '-- : --' : total;
+    
+    const value = scope === 'average' ? averageString : isTime ? '-- : --' : total;
     controlContent = (
       <View style={[measurementStyles.content, { marginRight: 16 }]}>
-        <Text style={measurementStyles.value} variant='titleMedium'>{value}</Text>
+        <Text style={measurementStyles.value} variant='bodyLarge'>{value}</Text>
         {unit ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unit}</Text> : null}
         {isBool ? (
           <View style={measurementStyles.valueLabel}>
@@ -651,7 +652,7 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
   } else if (isBool) {
     controlContent = (
       <View style={measurementStyles.content}>
-        <Text style={measurementStyles.value} variant='titleMedium'> </Text>
+        <Text style={measurementStyles.value} variant='bodyLarge'> </Text>
         <IconButton size={18} mode={value === 0 ? 'contained' : undefined} icon='window-close' onPress={() => {
           onValueChange(0);
         }}/>
@@ -667,8 +668,8 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
       <View style={measurementStyles.content}>
         <Text style={measurementStyles.value} variant='bodyLarge'>{valueString}</Text>
         {unitString ? <Text style={measurementStyles.valueLabel} variant='bodyLarge'>{unitString}</Text> : null}
-        {isCombo ? <View style={{marginRight: 16}} /> : (
-          <>
+        {isCombo ? <View style={{ ...measurementStyles.controls, marginRight: 16 }} /> : (
+          <View style={measurementStyles.controls}>
             <IconButton
               size={18}
               icon='minus'
@@ -702,7 +703,7 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
               }}
               delayLongPress={250}
             />
-          </>
+          </View>
         )}
       </View>
     )
@@ -713,6 +714,7 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
         <View style={measurementStyles.typeIconContainer}>
           <Icon source={typeData.icon} size={24} />
         </View>
+        <View style={measurementStyles.label}>
           <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={measurementStyles.labelActivity}>{measurement.name}</Text>
           {measurement.variant ? (
             <>
@@ -720,7 +722,8 @@ const RecordingMeasurementItem = ({ measurement, date: currentDate, weekMeasurem
               <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={[measurementStyles.labelVariant, { color: theme.colors.outline }]}>{measurement.variant}</Text>
             </>
           ) : null}
-          {controlContent}
+        </View>
+        {controlContent}
       </View>
     </>
   );
@@ -731,10 +734,16 @@ const measurementStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
+    // justifyContent: 'space-between',
   },
   typeIconContainer: {
     marginRight: 12,
     marginLeft: 4,
+  },
+  label: {
+    flexGrow: 0,
+    // flexShrink: 1,
+    flexDirection: 'row',
   },
   labelActivity: {
     flexShrink: 1,
@@ -748,21 +757,28 @@ const measurementStyles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+    flexShrink: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center',    
   },
   value: {
     flexGrow: 1,
     textAlign: 'right',
   },
   valueLabel: {
+    flexShrink: 0,
     marginLeft: 6,
     textAlign: 'right',
+  },
+  controls: {
+    flexShrink: 0,
+    flexGrow: 0,
+    flexDirection: 'row',
   },
 });
 
 type RecordingDataHabitProps = {
-  habit: Habit,
+  habit: ComputedHabit,
   date: SimpleDate,
   weekDates: SimpleDate[],
   measurements: Measurement[],

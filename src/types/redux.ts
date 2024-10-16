@@ -1,6 +1,6 @@
 import Status from '@u/constants/Status';
 import type { Measurement } from '@t/measurements';
-import type { HabitUpdate } from '@t/habits';
+import type { Habit } from '@t/habits';
 import type { User } from '@t/users';
 
 interface RootState {
@@ -22,7 +22,7 @@ interface AuthState {
 
 interface DataState {
   measurements: Measurement[];
-  habitUpdates: HabitUpdate[],
+  habits: Habit[],
 
   measurementStatus: {
     create: string,
@@ -43,7 +43,7 @@ interface DataState {
 
 const createDataState = (): DataState => ({
   measurements: [],
-  habitUpdates: [],
+  habits: [],
 
   measurementStatus: {
     create: Status.Measurement.Create.SUCCESS,

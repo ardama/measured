@@ -3,20 +3,22 @@ import { useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
 import { Button, IconButton, Menu, Surface, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
-import { movingAverage } from '@u/helpers';
-import { useHabits, useMeasurements } from '@s/selectors';
+import { formatNumber, formatTime, movingAverage, range } from '@u/helpers';
+import { useComputedHabits, useMeasurements } from '@s/selectors';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
-import { getHabitCompletion, rewindHabit, type Habit } from '@t/habits';
+import { computeHabit, getHabitCompletion, type ComputedHabit } from '@t/habits';
 import { getMeasurementRecordingValue, getMeasurementTypeIcon } from '@t/measurements';
 
-export default function HomeScreen() {
+export default function HistoryScreen() {
   const theme = useTheme();
   const s = createStyles(theme);
   
   const measurements = useMeasurements();
+
+  const [selectedDataIndex, setSelectedDataIndex] = useState(-1);
 
   const chartDurationItems = [
     { title: '1W', value: 7 },
@@ -44,6 +46,7 @@ export default function HomeScreen() {
       items={chartMeasurementItems}
       onChange={(item) => {
         setChartMeasurementTitle(item.title);
+        setSelectedDataIndex(-1);
       }}
     />
   );
@@ -68,12 +71,12 @@ export default function HomeScreen() {
 
   const isFocused = useIsFocused();
   const renderMeasurementChartCard = (): JSX.Element | null => {
-    const { recordings, step, unit } = selectedMeasurement || { recordings: [], step: 1 };
+    const { recordings, step, unit, type } = selectedMeasurement || { recordings: [], step: 1 };
     const measurementRecordingDates = recordings.map(({ date }) => date).sort((a, b) => a.localeCompare(b)).map((date) => SimpleDate.fromString(date));
     
-    const firstDate = measurementRecordingDates[0];
+    const firstDateWithData = measurementRecordingDates[0];
     let chartDuration = chartDurationValue;
-    if (chartDuration < 0 && firstDate) chartDuration = SimpleDate.daysBetween(firstDate, SimpleDate.today());
+    if (chartDuration < 0 && firstDateWithData) chartDuration = SimpleDate.daysBetween(firstDateWithData, SimpleDate.today());
     chartDuration = Math.max(chartDuration, 1);
 
     const selectedMeasurementData = measurementRecordingDates.map((date) => {
@@ -92,6 +95,7 @@ export default function HomeScreen() {
         x: x,
         y: averageValues[index],
       }))
+    const filteredAverageData = averageData
       .filter((data): data is { x : number, y : number} => data.y !== null);
 
     let dotSize = 8;
@@ -103,33 +107,44 @@ export default function HomeScreen() {
 
     const chartHeight = 300;
     const chartWidth = Dimensions.get('window').width - 72;
-    const chartPadding = Math.ceil(Math.max((dotSize + 1) / 2, 2));
+    const chartPadding = Math.ceil(Math.max((dotSize) / 2, 1));
 
+    const allDataValues = [...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y)].filter((value) => value !== null);
     const verticalStep = step || 1;
-    const verticalMin = 0;
-    const verticalMaxRaw = Math.max(...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y || 0), verticalStep);
-    const verticalMax = Math.ceil(verticalMaxRaw / verticalStep) * verticalStep;
-    const verticalOffset = (verticalMax - verticalMin) * (chartPadding / chartHeight);
+    const verticalMinRaw = allDataValues.length ? Math.min(...allDataValues) : 0;
+    const verticalMinSteps = Math.floor(verticalMinRaw / verticalStep);
+    const verticalMinUnits = verticalMinSteps * verticalStep;
+    const verticalMaxRaw = allDataValues.length ? Math.max(...allDataValues) : 1;
+    const verticalMaxSteps = Math.max(Math.ceil(verticalMaxRaw / verticalStep), verticalMinSteps + 1);
+    const verticalMaxUnits = verticalMaxSteps * verticalStep;
+    const verticalOffset = (verticalMaxUnits - verticalMinUnits) * (chartPadding / chartHeight);
+    const verticalSteps = 1 + verticalMaxSteps - verticalMinSteps;
+    const stepsPerTick = Math.ceil(verticalSteps / 5);
+    const tickCount = Math.ceil(verticalSteps / stepsPerTick); 
+    const ticks = range(0, tickCount)
+      .map((tickIndex) => {
+        const stepsFromBottom = tickIndex * stepsPerTick;
+        const unitsFromBottom = stepsFromBottom * step;
+        const unitsFromZero = verticalMinUnits + unitsFromBottom;
+        return unitsFromZero;
+      });
 
     let horizontalMin = 0;
     const horizontalMax = chartDuration;
     const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
     const unitString = unit ? ` ${unit}` : '';
-    const horizontalLabel = SimpleDate.fromDate(new Date()).toString();
-    const verticalLabelValueString = `${verticalMax.toFixed(0)}${unitString}`;
-    
-    const [selectedIndex, setSelectedIndex] = useState(-1);
-    const dateIndex = selectedIndex === -1 ? 0 : selectedMeasurementData.length - 1 - selectedIndex;
-    const selectedDate = new Date();
-    selectedDate.setDate(selectedDate.getDate() - dateIndex);
+
+    const selectedDateDayOffset = selectedDataIndex === -1 ? 0 : selectedMeasurementData[selectedDataIndex].x;
+    const selectedDate = SimpleDate.today().toDate();
+    selectedDate.setDate(selectedDate.getDate() - chartDuration + selectedDateDayOffset);
     const selectedDateString = `${SimpleDate.fromDate(selectedDate).toFormattedString(true)}: `;
     
-    const selectedDateValue = selectedIndex === -1 ? null : selectedMeasurementData[selectedIndex].y;
-    const selectedDateValueString = selectedIndex === -1 ? '' : `${selectedDateValue?.toFixed(0)}${unitString}`;
-      
-    const selectedDateAverage = selectedIndex === -1 ? null : averageData[selectedIndex]?.y;
-    const selectedDateAverageString = selectedDateAverage == null ? '' : `${selectedDateAverage.toFixed(1)}${unitString}`;
+    const selectedDateValue = selectedDataIndex === -1 ? null : selectedMeasurementData[selectedDataIndex].y;
+    const selectedDateValueString = selectedDateValue === null ? '' : type === 'time' ? formatTime(selectedDateValue) : `${formatNumber(selectedDateValue)}${unitString}`;
+    
+    const selectedDateAverage = selectedDataIndex === -1 ? null : averageData[selectedDataIndex]?.y;
+    const selectedDateAverageString = selectedDateAverage === null ? '' : type === 'time' ? formatTime(selectedDateAverage) : `${formatNumber(selectedDateAverage)}${unitString}`;
     const selectedDateAverageLabel = `${chartTrendlineTitle}: `;
 
     return (
@@ -147,8 +162,8 @@ export default function HomeScreen() {
                   max: horizontalMax + horizontalOffset,
                 }}
                 yDomain={{
-                  min: verticalMin - verticalOffset,
-                  max: verticalMax + verticalOffset,
+                  min: verticalMinUnits - verticalOffset,
+                  max: verticalMaxUnits + verticalOffset,
                 }}
                 style={{
                   height: chartHeight,
@@ -159,7 +174,7 @@ export default function HomeScreen() {
                   bottom: 0,
                 }}
               >
-                {selectedMeasurementData.length ? (
+                {selectedMeasurementData.length > 1 ? (
                   <Area
                     data={selectedMeasurementData}
                     smoothing='cubic-spline'
@@ -177,9 +192,9 @@ export default function HomeScreen() {
                     }}
                   />
                 ) : null}
-                {selectedMeasurementData.length && movingAverageWindow && averageData.length ? (
+                {selectedMeasurementData.length > 1 && movingAverageWindow && filteredAverageData.length > 1 ? (
                   <Line
-                    data={averageData}
+                    data={filteredAverageData}
                     theme={{
                       stroke: {
                         color: theme.colors.primary,
@@ -209,87 +224,69 @@ export default function HomeScreen() {
                         color: theme.colors.primary,
                         rx: dotSize,
                       },
-                      selected: {
-                        color:theme.colors.inversePrimary,
-                        width: dotSize + 1,
-                        height: dotSize + 1,
-                        rx: dotSize + 1,
-                      }
                     }
                   }}
                   hideTooltipOnDragEnd
                   onTooltipSelect={(value, index) => {
-                    setSelectedIndex(index);
+                    setSelectedDataIndex(index);
                   }}
                   onTooltipSelectEnd={() => {
-                    setSelectedIndex(-1);
+                    setSelectedDataIndex(-1);
                   }}
+                  initialTooltipIndex={selectedMeasurementData.length - 1}
                 />
                 ) : null}
-                <HorizontalAxis
-                  theme={{
-                    axis: {
-                      visible: true,
-                      stroke: {
-                        color: theme.colors.primary,
-                        width: 3,
-                      },
-                      dy: 1.5,
-                    },
-                    labels: {
-                      visible: false,
-                    }
-                  }}
-                />
-                <VerticalAxis
-                  theme={{
-                    axis: {
-                      visible: true,
-                      stroke: {
-                        color: theme.colors.primary,
-                        width: 3,
-                      },
-                      dx: 1.5,
-                    },
-                    labels: {
-                      visible: false,
-                    }
-                  }}
-                />
               </Chart>
-              <View style={s.chartLabelVertical}>
-                <Text style={s.chartLabelVerticalText} variant='titleSmall'>
-                  {verticalLabelValueString}
-                </Text>
-              </View>
-              <View style={s.chartLabelHorizontal}>
-                <Text style={s.chartLabelHorizontalText} variant='titleSmall'>
-                  {horizontalLabel}
-                </Text>
-              </View>
-              {selectedIndex < 0 ? null : (
-                <Surface style={s.chartSelection}>
-                  <View style={s.chartSelectionRow}>
-                    <Text style={s.chartSelectionLabel} variant='bodyMedium'>
-                      {selectedDateString}
-                    </Text>
-                    <Text style={s.chartSelectionValue} variant='titleSmall'>
-                      {selectedDateValueString}
-                    </Text>
-                  </View>
-                  {selectedDateAverageString ? (
-                    <View style={s.chartSelectionRow}>
-                      <Text style={s.chartSelectionLabel} variant='bodyMedium'>
-                        {selectedDateAverageLabel}
-                      </Text>
-                      <Text style={s.chartSelectionValue} variant='titleSmall'>
-                        {selectedDateAverageString}
-                      </Text>
+              <View style={s.chartTicks} pointerEvents='none'>
+                {ticks.map((value) => {
+                  const height = 24;
+                  const bottom = ((value - verticalMinUnits) / (verticalMaxUnits - verticalMinUnits)) * (300 - 2 * chartPadding) + chartPadding - height / 2;
+                  const label = type === 'time' ? formatTime(value) : formatNumber(value);
+                  return value !== verticalMaxUnits && (
+                    <View key={value} style={{ ...s.chartTick, bottom, height, }}>
+                      <View style={{ ...s.chartTickLine, flexGrow: 0, width: 8 }} />
+                      <Text style={s.chartTickLabel} variant='bodySmall'>{label}</Text>
+                      <View style={s.chartTickLine} />
                     </View>
-                  ) : null}
-
-                </Surface>
-              )}
+                  )
+                })}
+                <View style={{ ...s.chartTick, bottom: (300 - 2 * chartPadding) + chartPadding - 24 / 2, height: 24, }}>
+                  <View style={{ ...s.chartTickLine, flexGrow: 0, width: 8 }} />
+                  <Text style={s.chartTickLabel} variant='bodySmall'>{type === 'time' ? formatTime(verticalMaxUnits) : `${formatNumber(verticalMaxUnits)}${unitString}`}</Text>
+                  <View style={s.chartTickLine} />
+                </View>
+              </View>
+              {selectedDataIndex < 0 ? null : (() => {
+                const ratio = selectedDateDayOffset / chartDuration;
+                const justifyContent = ratio > 0.7 ? 'flex-end' : ratio > 0.4 ? 'center' : 'flex-start';
+                return (
+                  <View style={s.chartSelectionContainer}>
+                    <View style={{ ...s.chartSelectionLine, left: (selectedDateDayOffset / chartDuration) * (chartWidth - 2 * chartPadding) + chartPadding - 1 }} />
+                    <View style={{ flexGrow: (selectedDateDayOffset / chartDuration) }} />
+                    <View style={s.chartSelection}>
+                      <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                        <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                          {selectedDateString}
+                        </Text>
+                        <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
+                          {selectedDateValueString}
+                        </Text>
+                      </View>
+                      {selectedDateAverageString ? (
+                        <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                          <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                            {selectedDateAverageLabel}
+                          </Text>
+                          <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
+                            {selectedDateAverageString}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={{ flexGrow: 1 - (selectedDateDayOffset / chartDuration) }} />
+                  </View>
+                )
+              })()}
             </View>
           ) : null}
         </View>
@@ -317,15 +314,12 @@ export default function HomeScreen() {
   };
 
   return (
-    <>
-      {/* <Header title='History' /> */}
-      <View style={s.container}>
-        <View style={s.cards}>
-          <MonthSummaryCard />
-          {renderMeasurementChartCard()}
-        </View>
+    <View style={s.container}>
+      <View style={s.cards}>
+        <MonthSummaryCard />
+        {renderMeasurementChartCard()}
       </View>
-    </>
+    </View>
   );
 }
 
@@ -376,7 +370,8 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingVertical: 0,
   },
   chart: {
-    paddingVertical: 24,
+    paddingTop: 52,
+    paddingBottom: 24,
   },
   chartLabelVertical: {
     position: 'absolute',
@@ -396,24 +391,64 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: 'bold',
   },
-  chartSelection: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+  chartTicks: {
     
+  },
+  chartTick: {
+    position: 'absolute',
+    width: '100%',
+    opacity: 0.4,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chartTickLabel: {
+    marginHorizontal: 6,
+    color: theme.colors.onSurface,
+  },
+  chartTickLine: {
+    flexGrow: 1,
+    borderTopColor: theme.colors.onSurface,
+    borderTopWidth: 2,
+    height: 0,
+    opacity: 0.2,
+  },
+  chartSelectionContainer: {
+    top: 6,
+    position: 'absolute',
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+  },
+  chartSelection: {
+    flexGrow: 0,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexShrink: 0,
+    backgroundColor: theme.colors.surface,
   },
   chartSelectionRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
   },
   chartSelectionLabel: {
-
+    fontSize: 12,
+    lineHeight: 16,
   },
   chartSelectionValue: {
-
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  chartSelectionLine: {
+    position: 'absolute',
+    top: 0,
+    height: 352,
+    borderLeftColor: theme.colors.primary,
+    borderLeftWidth: 2,
+    borderEndEndRadius: 4,
+    borderEndStartRadius: 4,
+    borderStartEndRadius: 4,
+    borderStartStartRadius: 4,
   },
   chartDurationButtons: {
     justifyContent: 'flex-end',
@@ -494,10 +529,10 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const year = firstDate.year;
   const isCurrentMonth = today.month === month && today.year === year;
 
-  const habits = useHabits();
+  const habits = useComputedHabits();
   const measurements = useMeasurements();
   const dailyHabits = habits.filter(({ isWeekly }) => !isWeekly);
-  const dailyPointTarget = dailyHabits.reduce((previous: number, current: Habit) => {
+  const dailyPointTarget = dailyHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * current.daysPerWeek;
   }, 0) / 7;
 
@@ -505,7 +540,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
 
   const monthDailyPoints = monthDates.map((monthDate) => {
     return dailyHabits.reduce((dailyPoints, habit) => {
-      const [complete] = getHabitCompletion(rewindHabit(habit, monthDate), measurements, [monthDate]);
+      const [complete] = getHabitCompletion(computeHabit(habit, monthDate), measurements, [monthDate]);
       return dailyPoints + (complete ? habit.points : 0);
     }, 0);
   });

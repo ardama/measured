@@ -4,7 +4,7 @@ import { View, StyleSheet, ScrollView, Animated } from "react-native";
 import { useAuthState, useMeasurements, useDataState, useMeasurementUsage } from "@/store/selectors";
 import { useDispatch } from "react-redux";
 import { type Measurement, createMeasurement, getMeasurementTypeData, type MeasurementType, measurementTypes, type MeasurementOperator, getMeasurementOperatorData, measurementOperators, getMeasurementTypeIcon, type MeasurementRecording } from "@/types/measurements";
-import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple } from 'react-native-paper';
+import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, Modal, type MD3Theme, Divider, List, TouchableRipple, Dialog, Portal } from 'react-native-paper';
 import { formatTime } from '@u/helpers';
 import { EmptyError, Error, NoError } from '@u/constants/Errors';
 import { Icons } from '@u/constants/Icons';
@@ -33,6 +33,8 @@ const Measurements = () => {
   const dispatch = useDispatch();
   const dispatchMultiple = useDispatchMultiple();
   const measurements = useMeasurements();
+  const measurementUsage = useMeasurementUsage();
+
   const auth = useAuthState();
   const data = useDataState();
 
@@ -42,6 +44,15 @@ const Measurements = () => {
   const [showForm, setShowForm] = useState(false);
   const [newMeasurement, setNewMeasurement] = useState<EditedMeasurement | null>(null);
   const [editedMeasurement, setEditedMeasurement] = useState<EditedMeasurement | null>(null);
+
+  const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [deletionTarget, setDeletionTarget] = useState<Measurement | null>(null);
+  const deletionTargetUsage = deletionTarget && measurementUsage.get(deletionTarget.id);
+  const canDelete = (
+    !deletionTargetUsage?.habits.length
+    && !deletionTargetUsage?.pastHabits.length
+    && !deletionTargetUsage?.measurements.length
+  );
 
   const [isReordering, setIsReordering] = useState(false);
   const [movingMeasurement, setMovingMeasurement] = useState(-1);
@@ -59,7 +70,17 @@ const Measurements = () => {
   };
 
   const handleEditMeasurement = (editedMeasurement: Measurement) => dispatch(callUpdateMeasurement(editedMeasurement));
-  const handleDeleteMeasurement = (measurement: Measurement) => dispatch(callDeleteMeasurement(measurement));
+  const handleDeleteMeasurement = (measurement: Measurement) => {
+    setDeletionTarget(measurement);
+    setIsDialogVisible(true);
+
+  };
+  const handleConfirmDeleteMeasurement = (measurement: Measurement | null) => {
+    if (measurement) dispatch(callDeleteMeasurement(measurement))
+    
+    setDeletionTarget(null);
+    setIsDialogVisible(false);
+  };
   const handleArchiveMeasurement = (measurement: Measurement, archived: boolean) => {
     dispatch(callUpdateMeasurement({ ...measurement, archived }));
   };
@@ -208,9 +229,9 @@ const Measurements = () => {
           <IconButton style={formStyles.closeButton} icon={'window-close'} onPress={() => hideForm() } />
         </View>
         <TextInput
+          label="Name"
           style={formStyles.input}
           mode='outlined'
-          placeholder="Enter name..."
           error={saveAttempted && getNameErrors().hasError}
           value={formMeasurement.name || ''}
           onChangeText={(text) => {
@@ -219,9 +240,9 @@ const Measurements = () => {
           }}
           />
         <TextInput
+          label="Variant (optional)"
           style={formStyles.input}
           mode='outlined'
-          placeholder="Enter variant..."
           error={saveAttempted && getVariantErrors().hasError}
           value={formMeasurement.variant || ''}
           onChangeText={(text) => {
@@ -325,8 +346,8 @@ const Measurements = () => {
                   }}
                   disabled={isBool}
                 >
-                  <Text variant='titleSmall'>
-                    {getMeasurementOperatorData(formMeasurement.comboOperator).label.toLowerCase()}
+                  <Text variant='titleSmall' style={formStyles.operatorLabel}>
+                    {getMeasurementOperatorData(formMeasurement.comboOperator).operator.toLowerCase()}
                   </Text>
                 </TouchableRipple>
               }
@@ -334,11 +355,11 @@ const Measurements = () => {
             >
               {
                 measurementOperators.map((operator) => {
-                  const { icon, label } = getMeasurementOperatorData(operator);
+                  const { icon, action } = getMeasurementOperatorData(operator);
                   return (
                     <Menu.Item
                       key={operator}
-                      title={label}
+                      title={action}
                       leadingIcon={icon}
                       onPress={() => {
                         const nextMeasurement = { ...formMeasurement, comboOperator: operator };
@@ -416,7 +437,7 @@ const Measurements = () => {
         <TextInput
           style={formStyles.input}
           mode='outlined'
-          label='Unit'
+          label='Unit (optional)'
           value={isBool ? '--' : isTime ? 'hours' : formMeasurement.unit}
           onChangeText={(text) => {
             const nextMeasurement = { ...formMeasurement, unit: text };
@@ -458,8 +479,7 @@ const Measurements = () => {
     );
   }
 
-  const measurementUsage = useMeasurementUsage();
-  const activeMeasurements = measurements.filter(({archived }) => !archived);
+  const activeMeasurements = measurements.filter(({ archived }) => !archived);
   // const inactiveMeasurements = measurements.filter(({ id, archived }) => !archived && !(habitsByMeasurements.get(id) || measurementsByMeasurements.get(id)));
   const archivedMeasurements = measurements.filter(({ archived }) => archived);
 
@@ -614,9 +634,9 @@ const Measurements = () => {
                   title={
                     <View style={listStyles.sectionHeaderTitle}>
                       <View style={listStyles.sectionHeaderTitleIcon}>
-                        <Icon source='archive-outline' size={18} color={theme.colors.primary} />
+                        <Icon source={Icons.hide} size={18} color={theme.colors.primary} />
                       </View>
-                      <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Archived${showArchivedMeasurements ? '' : ` (${archivedMeasurements.length})`}`}</Text>
+                      <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Hidden${showArchivedMeasurements ? '' : ` (${archivedMeasurements.length})`}`}</Text>
                     </View>
                   }
                   expanded={showArchivedMeasurements}
@@ -648,7 +668,7 @@ const Measurements = () => {
                           <View style={listStyles.noDataIcon}>
                             <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
                           </View>
-                          <Text style={listStyles.noDataText} variant='bodyLarge'>No archived measurements</Text>
+                          <Text style={listStyles.noDataText} variant='bodyLarge'>No hidden measurements</Text>
                         </View>
                       )}
                     </>
@@ -718,16 +738,39 @@ const Measurements = () => {
           </View>
         </Button>
       </View>
-      <Modal
-        visible={!!showForm}
-        onDismiss={() => {
-          hideForm();
-        }}
-        contentContainerStyle={formStyles.container}
-        dismissable={false}
-      >
-        {renderForm()}
-      </Modal>
+      <Portal>
+        <Modal
+          visible={!!showForm}
+          onDismiss={() => {
+            hideForm();
+          }}
+          contentContainerStyle={formStyles.container}
+          dismissable={false}
+          >
+          {renderForm()}
+        </Modal>
+      </Portal>
+      <Portal>
+        <Dialog
+          visible={isDialogVisible}
+          onDismiss={() => setIsDialogVisible(false) }
+          dismissable
+        >
+          <Dialog.Title>Delete measurement</Dialog.Title>
+          <Dialog.Content>
+            <Text variant='bodyMedium'>
+              {canDelete
+                ? 'Are you sure you want to delete this measurement, including all of its recordings? This action cannot be undone.'
+                : 'This measurement is currently being referenced and cannot be deleted.'
+              }
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setIsDialogVisible(false)}>{canDelete ? 'Cancel' : 'Close'}</Button>
+            {canDelete && <Button onPress={() => handleConfirmDeleteMeasurement(deletionTarget) }>Delete</Button>}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 };
@@ -905,6 +948,10 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
     color: theme.colors.outline,
     flexShrink: 1,
   },
+  operatorLabel: {
+    width: 16,
+    textAlign: 'center',
+  },
   buttons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -1027,13 +1074,13 @@ const MeasurementItem = (props: MeasurementItemProps): JSX.Element => {
           anchorPosition='bottom'
           >
           <Menu.Item
-            leadingIcon='archive-outline'
+            leadingIcon={measurement.archived ? Icons.show : Icons.hide}
             onPress={() => { onArchive(measurement, !measurement.archived); }}
-            title={measurement.archived ? 'Unarchive' : 'Archive'}
+            title={measurement.archived ? 'Show' : 'Hide'}
             />
           <Menu.Item
             leadingIcon='delete-outline'
-            onPress={() => { onDelete(measurement); }}
+            onPress={() => { onDelete(measurement); setIsMenuVisible(false); }}
             title="Delete"
             />
         </Menu>

@@ -6,8 +6,12 @@ import { stripExcessFields } from '@u/constants/Types';
 import { SimpleDate } from '@u/dates';
 
 interface Habit {
-  habitId: string;
-  userId: string;
+  id: string,
+  userId: string,
+  updates: HabitUpdate[];
+}
+
+interface ComputedHabit extends Habit {
   name: string;
   isWeekly: boolean;
   daysPerWeek: number;
@@ -16,12 +20,14 @@ interface Habit {
   conditions: HabitCondition[];
   predicate: HabitPredicate;
   priority: number,
-  updates: HabitUpdate[],
 }
 
-const emptyHabit = (): Habit => ({
-  habitId: '',
+
+const emptyComputedHabit = (): ComputedHabit => ({
+  id: '',
   userId: '',
+  updates: [],
+
   name: '',
   isWeekly: false,
   daysPerWeek: -1,
@@ -30,44 +36,42 @@ const emptyHabit = (): Habit => ({
   conditions: [],
   predicate: '',
   priority: -1,
-  updates: [],
 });
 
-const mergeHabitUpdate = (habit: Habit, update: HabitUpdate): Habit => {
-  const newHabit = { ...habit };
-  habit.updates.push(update);
+const mergeHabitUpdate = (computedHabit: ComputedHabit, update: HabitUpdate): ComputedHabit => {
+  const newComputedHabit = { ...computedHabit };
+  computedHabit.updates.push(update);
   return Object.entries(update).reduce((result: any, [key, value]) => {
     if (value !== undefined) result[key] = value;
 
     return stripExcessFields({
       ...result,
-    }, emptyHabit());
-  }, newHabit);
+    }, emptyComputedHabit());
+  }, newComputedHabit);
 }
-const constructHabit = (updates: HabitUpdate[]): Habit => {
-  const newHabit = updates.sort((a, b) => a.date >= b.date ? 1 : -1).reduce((habit, update) => {
+const computeHabit = (habit: Habit, date: SimpleDate = SimpleDate.today()): ComputedHabit => {
+  const initialHabit: ComputedHabit = {
+    ...emptyComputedHabit(),
+    
+    id: habit.id,
+    userId: habit.userId,
+  }
+
+  const updates = habit.updates
+    .filter((update) => update.date <= date.toString())
+    .sort((a, b) => a.date >= b.date ? 1 : -1);
+  const computedHabit = updates.reduce((habit, update) => {
     return mergeHabitUpdate(habit, update);
-  }, emptyHabit());
+  }, initialHabit);
 
-  if (!newHabit.habitId) console.error('Habit id unset');
-  if (!newHabit.userId) console.error('Habit userId unset');
-  if (newHabit.daysPerWeek < 0) console.error('Habit daysPerWeek unset');
-  if (newHabit.priority < 0) console.error('Habit priority unset');
-  if (!newHabit.predicate) console.error('Habit predicate unset');
+  if (!computedHabit.id) console.error('Habit id unset');
+  if (!computedHabit.userId) console.error('Habit userId unset');
 
-  return newHabit;
-}
-
-const rewindHabit = (habit: Habit, date: SimpleDate) => {
-  const previousUpdates = habit.updates.filter((update) => update.date <= date.toString());
-  return previousUpdates.length ? constructHabit(previousUpdates) : emptyHabit();
+  return computedHabit;
 }
 
 interface HabitUpdate {
-  id: string;
-  habitId: string;
   date: string;
-  userId: string;
 
   name?: string;
   isWeekly?: boolean;
@@ -80,10 +84,7 @@ interface HabitUpdate {
 }
 
 export const emptyHabitUpdate: HabitUpdate = {
-  id: '',
-  habitId: '',
   date: '',
-  userId: '',
   name: undefined,
   isWeekly: undefined,
   daysPerWeek: undefined,
@@ -94,39 +95,40 @@ export const emptyHabitUpdate: HabitUpdate = {
   priority: undefined,
 };
 
-const createInitialHabitUpdate = (
-  userId: string, measurementId: string, name: string,
-  operator: HabitOperator, priority: number,
-  target: number = -1, isWeekly: boolean = false,
+const createInitialHabit = (
+  userId: string, name: string,
+  conditions: HabitCondition[],
+  priority: number, isWeekly: boolean = false,
   daysPerWeek: number = 7, points: number = 1,
-): HabitUpdate => ({
-  id: generateId(Collections.HabitUpdates),
-  habitId: generateId(Collections.HabitUpdates),
-  date: SimpleDate.today().toString(),
+): Habit => ({
+  id: generateId(Collections.Habits),
   userId,
-  name,
-  isWeekly,
-  daysPerWeek,
-  points,
-  archived: false,
-  conditions: [{
-    measurementId,
-    operator,
-    target,
+  updates: [{
+    date: SimpleDate.today().toString(),
+    name,
+    isWeekly,
+    daysPerWeek,
+    points,
+    archived: false,
+    conditions,
+    predicate: 'AND',
+    priority,
   }],
-  predicate: 'AND',
-  priority,
 });
 
-const constructHabitUpdate = (current: Habit, previous: Habit = emptyHabit(), date: SimpleDate = SimpleDate.today()): HabitUpdate => {
+const constructHabitUpdate = (current: ComputedHabit, previous: ComputedHabit = emptyComputedHabit(), date: SimpleDate = SimpleDate.today()): HabitUpdate => {
   const update = stripExcessFields({
     ...current,
   }, emptyHabitUpdate);
 
 
-  (Object.keys(current) as Array<keyof Habit>).forEach((key) => {
+  (Object.keys(current) as Array<keyof ComputedHabit>).forEach((key) => {
     let diff = false;
     switch (key) {
+      case 'id':
+      case 'userId':
+      case 'updates':
+        break;
       case 'conditions':
         diff = current.conditions.length !== previous.conditions.length;
         diff = diff || !!current.conditions.find((currentCondition, index) => {
@@ -136,11 +138,7 @@ const constructHabitUpdate = (current: Habit, previous: Habit = emptyHabit(), da
           if (currentCondition.target !== previousCondition.target) return true;
         });
 
-        if (diff) update.conditions = current.conditions;
-        break;
-      case 'userId':
-      case 'habitId':
-      case 'updates':
+        if (!diff) delete update.conditions;
         break;
       default:
         diff = current[key] !== previous[key];
@@ -149,9 +147,13 @@ const constructHabitUpdate = (current: Habit, previous: Habit = emptyHabit(), da
     }
   });
 
-  update.id = generateId(Collections.HabitUpdates);
   update.date = date.toString();
   return update;
+}
+
+const isEmptyHabitUpdate = (update: HabitUpdate): boolean => {
+  const keyCount = Object.keys(update).length;
+  return keyCount === 0 || (keyCount === 1 && !!update.date);
 }
 
 interface HabitCondition {
@@ -204,7 +206,7 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 
 
 const getHabitCompletion = (
-  habit: Habit | null, measurements: Measurement[], dates: SimpleDate[],
+  habit: ComputedHabit | null, measurements: Measurement[], dates: SimpleDate[],
 ): [boolean, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: (number | null)[] = [];
@@ -285,13 +287,14 @@ const getHabitCompletion = (
 
 export {
   type Habit,
+  type ComputedHabit,
   mergeHabitUpdate,
-  constructHabit, 
-  rewindHabit,
+  computeHabit, 
 
   type HabitUpdate,
-  createInitialHabitUpdate,
+  createInitialHabit,
   constructHabitUpdate,
+  isEmptyHabitUpdate,
   
   type HabitOperator,
   habitOperators,

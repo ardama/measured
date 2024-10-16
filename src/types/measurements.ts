@@ -78,17 +78,17 @@ const getMeasurementTypeIcon = (type: (MeasurementType | undefined)): string => 
 type MeasurementOperator = '+' | '-' | '*' | '/';
 const measurementOperators: MeasurementOperator[] = ['+', '-', '*', '/'];
 
-type MeasurementOperatorData = { icon: string, label: string };
+type MeasurementOperatorData = { icon: string, label: string, action: string, operator: string, };
 const measurementOperatorData: {
   ['+']: MeasurementOperatorData,
   ['-']: MeasurementOperatorData,
   ['*']: MeasurementOperatorData,
   ['/']: MeasurementOperatorData,
 } = {
-  '+': { label: 'Plus', icon: Icons.measurementOperatorAdd },
-  '-': { label: 'Minus', icon: Icons.measurementOperatorSubtract },
-  '*': { label: 'Times', icon: Icons.measurementOperatorMultiply },
-  '/': { label: 'Over', icon: Icons.measurementOperatorDivide },
+  '+': { label: 'Plus', action: 'Add', operator: '+', icon: Icons.measurementOperatorAdd },
+  '-': { label: 'Minus', action: 'Subtract', operator: '-', icon: Icons.measurementOperatorSubtract },
+  '*': { label: 'Times', action: 'Multiply', operator: '×', icon: Icons.measurementOperatorMultiply },
+  '/': { label: 'Over', action: 'Divide', operator: '÷', icon: Icons.measurementOperatorDivide },
 };
 
 const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined)): MeasurementOperatorData => {

@@ -43,6 +43,10 @@
         "projectId": "59b85aeb-57ff-472f-a532-c09ffaf6d5fd"
       }
     },
-    "owner": "aricdama"
+    "owner": "aricdama",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/59b85aeb-57ff-472f-a532-c09ffaf6d5fd"
+    }
   }
 }

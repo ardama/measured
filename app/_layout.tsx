@@ -27,9 +27,7 @@ export default function RootLayout() {
     <Provider store={store}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <Portal>
-            <RootStack />
-          </Portal>
+          <RootStack />
         </ThemeProvider>
       </SafeAreaProvider>
     </Provider>
@@ -69,9 +67,11 @@ const RootStack = () => {
   return (
     <>
       <Stack>
-        <Stack.Screen name="(root)" options={{  }} />
-        <Stack.Screen name="+not-found" options={{  }} />
-        <Stack.Screen name="auth/login" options={{ headerShown: false }} />                
+        <Stack.Screen name="index" options={{ headerShown: false }} />          
+        <Stack.Screen name="login" options={{ headerShown: false }} />               
+        <Stack.Screen name="signout" options={{ headerShown: false }} />               
+        <Stack.Screen name="home" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
       </Stack>
       {loading || !firstLoadComplete ? <LoadingScreen /> : null}
     </>

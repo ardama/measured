@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { Habit } from '@t/habits';
+import type { ComputedHabit } from '@t/habits';
 import { createAppState, type AppState } from '@type/redux';
 
 const initialState: AppState = {

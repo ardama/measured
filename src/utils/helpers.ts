@@ -66,7 +66,7 @@ return `${hour12}:${minutesStr}${period}${dayString}`;
 
 export const movingAverage = (data: number[], windowSize: number): (number | null)[] => {
   return data.map((_, index, array) => {
-    if (index + 1 < windowSize) return null;
+    if (!windowSize || windowSize > index + 1) return null;
 
     const windowData = array.slice(index - windowSize + 1, index + 1);
     const sum = windowData.reduce((acc, curr) => acc + curr, 0);
@@ -83,4 +83,14 @@ export const removeUndefined = (obj: object) => {
     Object.entries(obj).filter(([_, v]) => v !== undefined)
   );
   return o;
+}
+
+export const range = (start: number, end: number) => {
+  const res = [];
+  let current = start;
+  while (current < end) {
+    res.push(current);
+    current++;
+  }
+  return res;
 }

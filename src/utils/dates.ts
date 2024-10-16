@@ -23,6 +23,11 @@ export class SimpleDate {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
+    const monthsAbbr = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
     const getOrdinalSuffix = (day: number) => {
       if (day > 3 && day < 21) return 'th';
       switch (day % 10) {
@@ -33,14 +38,15 @@ export class SimpleDate {
       }
     };
 
-    const monthName = months[this.month - 1];
     const dayWithSuffix = useOrdinal ? `${this.day}${getOrdinalSuffix(this.day)}` : this.day;
-
+    
     const currentYear = SimpleDate.today().year;
     if (this.year !== currentYear) {
-      return `${String(this.month).padStart(2, '0')}/${String(this.day).padStart(2, '0')}/${this.year}`
+      const monthName = monthsAbbr[this.month - 1];
+      return `${monthName} ${dayWithSuffix}, ${this.year}`
     } 
-
+    
+    const monthName = months[this.month - 1];
     return `${monthName} ${dayWithSuffix}`;
   }
 
