@@ -31,14 +31,14 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
   
               const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum <= (cell || 0));
             
-              let cellColor = theme.colors.primary;
+              let cellColor = theme.colors.onSurface;
               let overlayOpacity = 0;
               if (bucketIndex === 5) overlayOpacity = 0.9;
-              else if (bucketIndex === 4) overlayOpacity = 0.74;
-              else if (bucketIndex === 3) overlayOpacity = 0.58;
-              else if (bucketIndex === 2) overlayOpacity = 0.42;
-              else if (bucketIndex === 1) overlayOpacity = 0.26;
-              else if (bucketIndex === 0) overlayOpacity = 0.1;
+              else if (bucketIndex === 4) overlayOpacity = 0.77;
+              else if (bucketIndex === 3) overlayOpacity = 0.64;
+              else if (bucketIndex === 2) overlayOpacity = 0.51;
+              else if (bucketIndex === 1) overlayOpacity = 0.38;
+              else if (bucketIndex === 0) overlayOpacity = 0.25;
               
               const overlayColor = darkMode ? `rgba(10, 10, 10, ${overlayOpacity})` : `rgba(255, 255, 255, ${overlayOpacity})`;
                           

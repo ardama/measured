@@ -1,9 +1,9 @@
 import Header from '@c/Header';
-import { useState } from 'react';
-import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
-import { Button, IconButton, Menu, Surface, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
+import { useEffect, useRef, useState } from 'react';
+import { Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, IconButton, Menu, Surface, Switch, Text, TextInput, ToggleButton, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
-import { formatNumber, formatTime, movingAverage, range } from '@u/helpers';
+import { formatValue, movingAverage, range } from '@u/helpers';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
@@ -11,41 +11,47 @@ import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
 import { computeHabit, getHabitCompletion, type ComputedHabit } from '@t/habits';
 import { getMeasurementRecordingValue, getMeasurementTypeIcon } from '@t/measurements';
+import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
+import useDimensions from '@u/hooks/useDimensions';
+import { Icons } from '@u/constants/Icons';
 
 export default function HistoryScreen() {
   const theme = useTheme();
   const s = createStyles(theme);
   
   const measurements = useMeasurements();
+  const dimensions = useDimensions();
 
   const [selectedDataIndex, setSelectedDataIndex] = useState(-1);
+
 
   const chartDurationItems = [
     { title: '1W', value: 7 },
     { title: '1M', value: 30 },
     { title: '3M', value: 90 },
     { title: '1Y', value: 365 },
-    { title: 'All', value: -1 },
+    { title: 'ALL', value: 100000 },
   ];
   const [chartDurationTitle, setChartDurationTitle] = useState(chartDurationItems[1].title);
   const chartDurationValue = chartDurationItems.find(({ title }) => title === chartDurationTitle)?.value || 30;
-  const chartMeasurementItems = measurements.map(({ id, name: activity, variant, type }) => {
+
+  const [chartMeasurementId, setChartMeasurementId] = useState(measurements[0]?.id);
+  const selectedMeasurement = measurements.find(({ id }) => id === chartMeasurementId) || null;
+  const chartMeasurementItems: BottomDrawerItem<string>[] = measurements.map(({ id, name: activity, variant, type }) => {
     return {
       title: `${activity}${variant ? ` : ${variant}` : ''}`,
       value: id,
       icon: getMeasurementTypeIcon(type),
     }
   });
-  const [chartMeasurementTitle, setChartMeasurementTitle] = useState(chartMeasurementItems[0]?.title);
-  const chartMeasurementValue = chartMeasurementItems.find(({ title }) => title === chartMeasurementTitle)?.value || '';
-  const selectedMeasurement = measurements.find(({ id }) => id === chartMeasurementValue);
+  const selectedMeasurementItem = chartMeasurementItems.find(({ value }) => value === chartMeasurementId) || null;
   const chartMeasurementDropdown = (
     <MeasurementChartDropdown
       label='Measurement'
-      value={chartMeasurementTitle}
+      selectedItem={selectedMeasurementItem}
       items={chartMeasurementItems}
       onChange={(item) => {
-        setChartMeasurementTitle(item.title);
+        setChartMeasurementId(item.value);
         setSelectedDataIndex(-1);
       }}
     />
@@ -54,33 +60,40 @@ export default function HistoryScreen() {
   const chartTrendlineItems = [
     { title: 'None', value: '0', icon: undefined },
     { title: '7-day average', value: '7', icon: undefined },
+    { title: '14-day average', value: '14', icon: undefined },
     { title: '30-day average', value: '30', icon: undefined },
   ]
-  const [chartTrendlineTitle, setChartTrendlineTitle] = useState(chartTrendlineItems[1]?.title);
-  const chartTrendlineValue = chartTrendlineItems.find(({ title }) => title === chartTrendlineTitle)?.value || '';
+  const [chartTrendlineValue, setChartTrendlineValue] = useState(chartTrendlineItems[1]?.value);
+  const chartTrendlineItem = chartTrendlineItems.find(({ value }) => value === chartTrendlineValue) || null;
   const chartTrendlineDropdown = (
     <MeasurementChartDropdown
       label='Trendline'
-      value={chartTrendlineTitle}
+      selectedItem={chartTrendlineItem}
       items={chartTrendlineItems}
       onChange={(item) => {
-        setChartTrendlineTitle(item.title);
+        setChartTrendlineValue(item.value);
       }}
     />
   );
 
   const isFocused = useIsFocused();
+
+  const today = SimpleDate.today();
   const renderMeasurementChartCard = (): JSX.Element | null => {
     const { recordings, step, unit, type } = selectedMeasurement || { recordings: [], step: 1 };
-    const measurementRecordingDates = recordings.map(({ date }) => date).sort((a, b) => a.localeCompare(b)).map((date) => SimpleDate.fromString(date));
+    const measurementRecordingDates = recordings
+      .map(({ date }) => date)
+      .sort((a, b) => a.localeCompare(b))
+      .map((date) => SimpleDate.fromString(date))
+      .filter((date) => !date.after(today));
     
     const firstDateWithData = measurementRecordingDates[0];
     let chartDuration = chartDurationValue;
-    if (chartDuration < 0 && firstDateWithData) chartDuration = SimpleDate.daysBetween(firstDateWithData, SimpleDate.today());
+    if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(firstDateWithData, today), chartDuration);
     chartDuration = Math.max(chartDuration, 1);
 
     const selectedMeasurementData = measurementRecordingDates.map((date) => {
-      const daysAgo = SimpleDate.daysBetween(date, SimpleDate.today());
+      const daysAgo = SimpleDate.daysBetween(date, today);
       const value = getMeasurementRecordingValue(selectedMeasurement?.id, date, measurements);
       return value === null ? null : {
         x: chartDuration - daysAgo,
@@ -105,8 +118,8 @@ export default function HistoryScreen() {
     else if (chartDuration > 40) dotSize = 5;
     else if (chartDuration > 20) dotSize = 6;
 
+    const chartWidth = dimensions.window.width - 72;
     const chartHeight = 300;
-    const chartWidth = Dimensions.get('window').width - 72;
     const chartPadding = Math.ceil(Math.max((dotSize) / 2, 1));
 
     const allDataValues = [...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y)].filter((value) => value !== null);
@@ -133,22 +146,20 @@ export default function HistoryScreen() {
     const horizontalMax = chartDuration;
     const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
-    const unitString = unit ? ` ${unit}` : '';
-
     const selectedDateDayOffset = selectedDataIndex === -1 ? 0 : selectedMeasurementData[selectedDataIndex].x;
-    const selectedDate = SimpleDate.today().toDate();
+    const selectedDate = today.toDate();
     selectedDate.setDate(selectedDate.getDate() - chartDuration + selectedDateDayOffset);
     const selectedDateString = `${SimpleDate.fromDate(selectedDate).toFormattedString(true)}: `;
     
     const selectedDateValue = selectedDataIndex === -1 ? null : selectedMeasurementData[selectedDataIndex].y;
-    const selectedDateValueString = selectedDateValue === null ? '' : type === 'time' ? formatTime(selectedDateValue) : `${formatNumber(selectedDateValue)}${unitString}`;
+    const selectedDateValueString = formatValue(selectedDateValue, type, unit, true);
     
     const selectedDateAverage = selectedDataIndex === -1 ? null : averageData[selectedDataIndex]?.y;
-    const selectedDateAverageString = selectedDateAverage === null ? '' : type === 'time' ? formatTime(selectedDateAverage) : `${formatNumber(selectedDateAverage)}${unitString}`;
-    const selectedDateAverageLabel = `${chartTrendlineTitle}: `;
+    const selectedDateAverageString = formatValue(selectedDateAverage, type, unit, true);
+    const selectedDateAverageLabel = `${chartTrendlineItem?.title || ''}: `;
 
     return (
-      <Surface style={s.card}>
+      <Surface style={s.cardContainer}>
         <View style={{ ...s.cardRow, justifyContent: 'flex-start', gap: 8 }}>
           {chartMeasurementDropdown}
           {chartTrendlineDropdown}
@@ -181,12 +192,12 @@ export default function HistoryScreen() {
                     theme={{
                       gradient: {
                         from: {
-                          color: theme.colors.primaryContainer,
-                          opacity: 1
+                          color: theme.colors.onSurface,
+                          opacity: 0.25
                         },
                         to: {
-                          color: theme.colors.primaryContainer,
-                          opacity: 0.0
+                          color: theme.colors.onSurface,
+                          opacity: 0
                         }
                       }
                     }}
@@ -197,9 +208,8 @@ export default function HistoryScreen() {
                     data={filteredAverageData}
                     theme={{
                       stroke: {
-                        color: theme.colors.primary,
+                        color: theme.colors.onSurface,
                         width: 2,
-                        dashArray:[8,4],
                       },
                       scatter: {
                         default: {
@@ -221,7 +231,7 @@ export default function HistoryScreen() {
                       default: {
                         width: dotSize,
                         height: dotSize,
-                        color: theme.colors.primary,
+                        color: theme.colors.onSurface,
                         rx: dotSize,
                       },
                     }
@@ -241,7 +251,7 @@ export default function HistoryScreen() {
                 {ticks.map((value) => {
                   const height = 24;
                   const bottom = ((value - verticalMinUnits) / (verticalMaxUnits - verticalMinUnits)) * (300 - 2 * chartPadding) + chartPadding - height / 2;
-                  const label = type === 'time' ? formatTime(value) : formatNumber(value);
+                  const label = formatValue(value, type);
                   return value !== verticalMaxUnits && (
                     <View key={value} style={{ ...s.chartTick, bottom, height, }}>
                       <View style={{ ...s.chartTickLine, flexGrow: 0, width: 8 }} />
@@ -252,13 +262,13 @@ export default function HistoryScreen() {
                 })}
                 <View style={{ ...s.chartTick, bottom: (300 - 2 * chartPadding) + chartPadding - 24 / 2, height: 24, }}>
                   <View style={{ ...s.chartTickLine, flexGrow: 0, width: 8 }} />
-                  <Text style={s.chartTickLabel} variant='bodySmall'>{type === 'time' ? formatTime(verticalMaxUnits) : `${formatNumber(verticalMaxUnits)}${unitString}`}</Text>
+                  <Text style={s.chartTickLabel} variant='bodySmall'>{formatValue(verticalMaxUnits, type, unit, true)}</Text>
                   <View style={s.chartTickLine} />
                 </View>
               </View>
               {selectedDataIndex < 0 ? null : (() => {
                 const ratio = selectedDateDayOffset / chartDuration;
-                const justifyContent = ratio > 0.7 ? 'flex-end' : ratio > 0.4 ? 'center' : 'flex-start';
+                const justifyContent = ratio > 0.8 ? 'flex-end' : 'flex-start';
                 return (
                   <View style={s.chartSelectionContainer}>
                     <View style={{ ...s.chartSelectionLine, left: (selectedDateDayOffset / chartDuration) * (chartWidth - 2 * chartPadding) + chartPadding - 1 }} />
@@ -299,10 +309,13 @@ export default function HistoryScreen() {
                 onPress={() => {
                   setChartDurationTitle(title);
                 }}
-                mode={selected ? 'contained-tonal' : 'text'}
+                mode={'text'}
+                textColor={theme.colors.onSurface}
+                contentStyle={[s.chartDurationButton, selected ? s.chartDurationButtonSelected : {}]}
+                labelStyle={s.chartDurationLabel}
                 compact
               >
-                <Text style={{ ...s.chartDurationButton, ...(selected ? s.chartDurationButtonSelected : {})}}>
+                <Text variant='titleMedium'>
                   {title}
                 </Text>
               </Button>
@@ -314,21 +327,18 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View style={s.container}>
+    <ScrollView style={s.container}>
       <View style={s.cards}>
         <MonthSummaryCard />
         {renderMeasurementChartCard()}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const createStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-
-    backgroundColor: theme.colors.elevation.level1,
   },
   cards: {
     flexDirection: 'row',
@@ -337,13 +347,13 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
 
     paddingVertical: 16,
   },
-  card: {
+  cardContainer: {
     paddingVertical: 16,
     paddingHorizontal: 20,
+    marginHorizontal: 16,
     borderRadius: 12,
 
-    flex: 1,
-    minWidth: '100%',
+    flexGrow: 1,
 
     backgroundColor: theme.colors.background,
   },
@@ -351,17 +361,20 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     minWidth: 200,
     width: 'auto',
   },
-  cardHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  cardTitle: {
+  title: {
     flex: 1,
   },
-  cardSubtitle: {
-    
+  subheader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   cardRow: {
     flexDirection: 'row',
@@ -372,24 +385,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   chart: {
     paddingTop: 52,
     paddingBottom: 24,
-  },
-  chartLabelVertical: {
-    position: 'absolute',
-    top: 4,
-    left: 0,
-  },
-  chartLabelVerticalText: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
-  chartLabelHorizontal: {
-    position: 'absolute',
-    bottom: 4,
-    right: 0,
-  },
-  chartLabelHorizontalText: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
   },
   chartTicks: {
     
@@ -430,6 +425,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   chartSelectionRow: {
     flexDirection: 'row',
+    gap: 4,
   },
   chartSelectionLabel: {
     fontSize: 12,
@@ -443,7 +439,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     position: 'absolute',
     top: 0,
     height: 352,
-    borderLeftColor: theme.colors.primary,
+    borderLeftColor: theme.colors.onSurface,
     borderLeftWidth: 2,
     borderEndEndRadius: 4,
     borderEndStartRadius: 4,
@@ -452,35 +448,34 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   chartDurationButtons: {
     justifyContent: 'flex-end',
-    gap: 6,
+    gap: 8,
     marginTop: 8
   },
   chartDurationButton: {
-    marginVertical: 8,
-    width: 40,
+    width: 60,
+    height: 40,
   },
   chartDurationButtonSelected: {
+    backgroundColor: theme.colors.surfaceDisabled,
+  },
+  chartDurationLabel: {
   },
 });
 
-const MeasurementChartDropdown = ({ label, value, items, onChange
+const MeasurementChartDropdown = ({ label, selectedItem, items, onChange
 }: {
   label: string,
-  value: string,
-  items: { title: string, icon: string | undefined, value: string }[],
-  onChange: (item: { title: string, icon: string | undefined, value: string }) => void,
+  selectedItem: BottomDrawerItem<string> | null,
+  items: BottomDrawerItem<string>[],
+  onChange: (item: { title: string, icon?: string, value: string }) => void,
 }): JSX.Element => {
   const [isVisible, setIsVisible] = useState(false); 
 
 
   return (
     <View style={{ flex: 1 }}>
-      <Menu
-        style={{ maxWidth: 600 }}
-        contentStyle={{ maxWidth: 600 }}
-        visible={isVisible}
-        onDismiss={() => setIsVisible(false)}
-        anchor={
+      <BottomDrawer
+        anchor={(
           <Pressable
             onPress={() => { setIsVisible(true); }}
           >
@@ -489,28 +484,16 @@ const MeasurementChartDropdown = ({ label, value, items, onChange
               style={{}}
               mode='outlined'
               readOnly
-              value={value}
+              value={selectedItem ? selectedItem.title : ''}
             />
           </Pressable>
-        }
-        anchorPosition='bottom'
-      >
-        {
-          items.map((item) => (
-            <Menu.Item
-              style={{ maxWidth: 600 }}
-              contentStyle={{ maxWidth: 600 }}
-              key={item.title}
-              title={item.title}
-              leadingIcon={item.icon}
-              onPress={() => {
-                onChange(item);
-                setIsVisible(false);
-              }}
-            />
-          ))
-        }
-      </Menu>
+        )}
+        visible={isVisible}
+        selectedItem={selectedItem}
+        onSelect={(item) => onChange(item)}
+        onDismiss={() => setIsVisible(false) }
+        items={items}
+      />
     </View>
   );
 }
@@ -522,29 +505,41 @@ type MonthSummaryCardProps = {
 const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const theme = useTheme();
   
-  const today = SimpleDate.fromDate(new Date());
+  const today = SimpleDate.today();
   const [firstDate, setFirstDate] = useState(new SimpleDate(today.year, today.month, 1));
 
   const month = firstDate.month;
   const year = firstDate.year;
   const isCurrentMonth = today.month === month && today.year === year;
 
+  const [showOptions, setShowOptions] = useState(false);
+  const [includeWeeklyHabits, setIncludeWeeklyHabits] = useState(false);
+  const [useRelativeHabits, setUseRelativeHabits] = useState(false);
+
   const habits = useComputedHabits();
   const measurements = useMeasurements();
-  const dailyHabits = habits.filter(({ isWeekly }) => !isWeekly);
-  const dailyPointTarget = dailyHabits.reduce((previous: number, current: ComputedHabit) => {
-    return previous + current.points * current.daysPerWeek;
+  const filteredHabits = habits.filter(({ isWeekly }) => includeWeeklyHabits || !isWeekly);
+  const dailyPointTarget = filteredHabits.reduce((previous: number, current: ComputedHabit) => {
+    return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0) / 7;
 
   const monthDates = SimpleDate.generateMonth(month, year);
 
-  const monthDailyPoints = monthDates.map((monthDate) => {
-    return dailyHabits.reduce((dailyPoints, habit) => {
-      const [complete] = getHabitCompletion(computeHabit(habit, monthDate), measurements, [monthDate]);
-      return dailyPoints + (complete ? habit.points : 0);
+  const monthDatePoints = monthDates.map((monthDate) => {
+    if (monthDate.after(today)) return 0;
+
+    const weekDates = SimpleDate.generateWeek(monthDate).slice(0, monthDate.getDayOfWeek() + 1);
+    return filteredHabits.reduce((datePoints, habit) => {
+      const [complete] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, habit.isWeekly ? weekDates : [monthDate]);
+      if (!complete) return datePoints;
+      if (!habit.isWeekly || monthDate.getDayOfWeek() === 0) return datePoints + habit.points;
+
+      const previousDateWeekDates = weekDates.slice(0, -1);
+      const [completePreviousDate] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, previousDateWeekDates);
+      return datePoints + (completePreviousDate ? 0 : habit.points);
     }, 0);
   });
-  const monthTotalDailyPoints = monthDailyPoints.reduce((sum, curr) => sum + curr, 0);
+  const monthTotalPoints = monthDatePoints.reduce((sum, curr) => sum + curr, 0);
   
   const monthDayOffset = firstDate.getDayOfWeek();
   const monthHeatmapData: (number | null)[][] = [0, 1, 2, 3, 4, 5].map((row) => {
@@ -556,7 +551,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   }).filter((week) => week.findIndex((day) => day !== null) !== -1);
 
   monthDates.forEach((date, index) => {
-    const points = monthDailyPoints[index];
+    const points = monthDatePoints[index];
     const dayIndex = date.day + monthDayOffset - 1;
 
     const row = Math.floor(dayIndex / 7);
@@ -566,17 +561,17 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   });
 
   const daysThisMonth = (isCurrentMonth ? today.day : monthDates.length);
-  const pointsPerDayMonth = monthTotalDailyPoints / daysThisMonth;
+  const pointsPerDayMonth = monthTotalPoints / daysThisMonth;
 
   const cardStyles = createStyles(theme);
   const styles = createMonthSummaryStyles(theme);
 
   return (
-    <Surface style={[cardStyles.card]}>
-      <View style={cardStyles.cardHeader}>
-        <Text style={[cardStyles.cardTitle, styles.title]} variant='titleLarge'>{firstDate.toFormattedMonthYear()}</Text>
+    <Surface style={cardStyles.cardContainer}>
+      <View style={cardStyles.header}>
+        <Text style={[cardStyles.title, styles.title]} variant='titleLarge'>{firstDate.toFormattedMonthYear()}</Text>
         <IconButton
-          style={styles.dateSelectionButton}
+          style={styles.headerButton}
           icon={'chevron-left'}
           size={20}
           onPress={() => {
@@ -584,20 +579,47 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
           }}
         />
         <IconButton
-          style={styles.dateSelectionButton}
+          style={styles.headerButton}
           icon={'chevron-right'}
           size={22}
           onPress={() => {
             setFirstDate(firstDate.getMonthsAgo(-1));
           }}
           disabled={today.year === firstDate.year && today.month === firstDate.month}
+          />
+        <IconButton
+          style={{ ...styles.headerButton, backgroundColor: showOptions ? theme.colors.surfaceDisabled : undefined }}
+          mode={showOptions ? 'contained-tonal' : undefined}
+          iconColor={theme.colors.onSurface}
+          icon={Icons.settings}
+          onPress={() => setShowOptions(!showOptions)}
         />
       </View>
-      <View style={styles.pointsPerDay}>
-        <Points points={pointsPerDayMonth} size='large' decimals={1} />
-        <Text style={styles.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
+      <View style={cardStyles.subheader}>
+        <View style={styles.pointsPerDay}>
+          <Points points={pointsPerDayMonth} size='large' decimals={1} />
+          <Text style={styles.pointsPerDayLabel} variant='bodyLarge'> / day</Text>
+        </View>
       </View>
       <Heatmap data={monthHeatmapData} target={dailyPointTarget} />
+      {showOptions && (
+        <View style={styles.options}>
+          <View style={styles.toggle}>
+            <Text style={styles.toggleLabel} variant='labelMedium'>INCLUDE WEEKLY HABITS</Text>
+            <Switch
+              value={includeWeeklyHabits}
+              onValueChange={(value) => setIncludeWeeklyHabits(value)}
+            />
+          </View>
+          <View style={styles.toggle}>
+            <Text style={styles.toggleLabel} variant='labelMedium'>USE RELATIVE HABITS</Text>
+            <Switch
+              value={useRelativeHabits}
+              onValueChange={(value) => setUseRelativeHabits(value)}
+            />
+          </View>
+        </View>
+      )}
     </Surface>
   )
 };
@@ -605,7 +627,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
 const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
   title: {
   },
-  dateSelectionButton: {
+  headerButton: {
     marginVertical: 0,
   },
   pointsPerDay: {
@@ -615,5 +637,17 @@ const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   pointsPerDayLabel: {
 
+  },
+  options: {
+    marginTop: 16,
+  },
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  toggleLabel: {
+    
   },
 });

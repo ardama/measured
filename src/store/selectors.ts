@@ -98,8 +98,8 @@ export const useHabitsByMeasurement = (measurement: Measurement) => useSelector(
 const selectMeasurementUsage = createSelector(
   [selectMeasurements, selectHabits, selectComputedHabits()],
   (measurements, habits, computedHabits) => {
-    const map: Map<string, { measurements: string[], habits: string[], pastHabits: string[] }> = new Map();
-    const blankUsage = () => ({ measurements: [], habits: [], pastHabits: [] });
+    const map: Map<string, { measurements: string[], habits: string[], pastHabits: string[], any: boolean }> = new Map();
+    const blankUsage = () => ({ measurements: [], habits: [], pastHabits: [], any: false });
     
     measurements.forEach((measurement) => {
       const { comboLeftId, comboRightId, type, id } = measurement;
@@ -108,29 +108,33 @@ const selectMeasurementUsage = createSelector(
       if (comboLeftId) {
         const usage = map.get(comboLeftId) || blankUsage();
         usage.measurements.push(id);
+        usage.any = true;
         map.set(comboLeftId, usage);
       }
       if (comboRightId) {
         const usage = map.get(comboRightId) || blankUsage();
         usage.measurements.push(id);
+        usage.any = true;
         map.set(comboRightId, usage);
       }
     });
-
+    
     computedHabits.forEach(({ id: habitId, conditions }) => {
       conditions.forEach(({ measurementId }) => {
         const usage = map.get(measurementId) || blankUsage();
         usage.habits.push(habitId);
+        usage.any = true;
         map.set(measurementId, usage);
       })
     });
-
+    
     habits.forEach(({ id: habitId, updates }) => {
       updates.forEach(({ conditions }) => {
         conditions?.forEach(({ measurementId }) => {
           const usage = map.get(measurementId) || blankUsage();
           if (usage.habits.indexOf(habitId) === -1) {
             usage.pastHabits.push(habitId);
+            usage.any = true;
             map.set(measurementId, usage);
           }
         });

@@ -17,7 +17,7 @@ interface AuthState {
   user: User | null,
   loading: boolean;
   error: string | null;
-  firstLoadComplete: boolean,
+  initialAuthCheckComplete: boolean,
 }
 
 interface DataState {

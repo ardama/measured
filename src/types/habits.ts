@@ -173,7 +173,7 @@ const habitOperators: HabitOperator[] = [
 ];
 
 type HabitOperatorData = {
-  icon: string, label: string, timeLabel: string,
+  icon: string, label: string, timeLabel: string, boolLabel: string,
 }
 const habitOperatorData: {
   ['>=']: HabitOperatorData,
@@ -183,12 +183,12 @@ const habitOperatorData: {
   ['==']: HabitOperatorData,
   ['!=']: HabitOperatorData,
 } = {
-  ['>=']: { icon: Icons.operatorGte, label: 'At least', timeLabel: 'At the earliest'},
-  ['<=']: { icon: Icons.operatorLte, label: 'At most', timeLabel: 'At the latest'},
-  ['>']: { icon: Icons.operatorGt, label: 'More than', timeLabel: 'After'},
-  ['<']: { icon: Icons.operatorLt, label: 'Less than', timeLabel: 'Before'},
-  ['==']: { icon: Icons.operatorEq, label: 'Exactly', timeLabel: 'At'},
-  ['!=']: { icon: Icons.operatorNot, label: 'Not', timeLabel: 'Not at'},
+  ['>=']: { icon: Icons.operatorGte, label: 'At least', timeLabel: 'At the earliest', boolLabel: ''},
+  ['<=']: { icon: Icons.operatorLte, label: 'At most', timeLabel: 'At the latest', boolLabel: ''},
+  ['>']: { icon: Icons.operatorGt, label: 'More than', timeLabel: 'After', boolLabel: ''},
+  ['<']: { icon: Icons.operatorLt, label: 'Less than', timeLabel: 'Before', boolLabel: ''},
+  ['==']: { icon: Icons.operatorEq, label: 'Exactly', timeLabel: 'At', boolLabel: 'Is'},
+  ['!=']: { icon: Icons.operatorNot, label: 'Not', timeLabel: 'Not at', boolLabel: 'Is not'},
 };
 
 const getHabitOperatorData = (operator: HabitOperator): HabitOperatorData => {
@@ -197,7 +197,11 @@ const getHabitOperatorData = (operator: HabitOperator): HabitOperatorData => {
 
 const getHabitOperatorLabel = (operator: HabitOperator, type: MeasurementType): string => {
   const data = getHabitOperatorData(operator);
-  return type === 'time' ? data.timeLabel : data.label;
+  return (
+    type === 'time' ? data.timeLabel :
+    type === 'bool' ? data.boolLabel :
+    data.label
+  ) || data.label;
 }
 
 type HabitPredicate = 'AND' | 'OR' | string;
@@ -207,6 +211,7 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 
 const getHabitCompletion = (
   habit: ComputedHabit | null, measurements: Measurement[], dates: SimpleDate[],
+  recordingData?: Map<string, Map<string, number>>,
 ): [boolean, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: (number | null)[] = [];
@@ -226,7 +231,7 @@ const getHabitCompletion = (
     };
 
     const measurementValues = dates.map((date) => {
-      return getMeasurementRecordingValue(condition.measurementId, date, measurements);
+      return getMeasurementRecordingValue(condition.measurementId, date, measurements, recordingData);
     }).filter((value) => value !== null);
     
     if (!measurementValues.length) {

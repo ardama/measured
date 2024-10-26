@@ -35,20 +35,17 @@ const createMeasurement = (userId: string, name: string, variant: string, type: 
   recordings: [],
 });
 
-interface MeasurementUnit {
-  id: string;
-  label: string;
-  abbreviation: string;
-  types: MeasurementType[];
-  isDefault: boolean,
-  isDeletable: boolean,
-}
-
-type MeasurementType = 'duration' | 'time' | 'count' | 'bool' | 'combo';
+type MeasurementType = '' | 'duration' | 'time' | 'count' | 'bool' | 'combo';
 
 const measurementTypes: MeasurementType[] = ['duration', 'time', 'count', 'bool', 'combo'];
 
-type MeasurementTypeData = { icon: string, label: string };
+type MeasurementTypeData = {
+  icon: string,
+  label: string,
+  description: string,
+  namePlaceholder: string,
+  variantPlaceholder: string,
+};
 const measurementTypeData: {
   duration: MeasurementTypeData,
   time: MeasurementTypeData,
@@ -56,11 +53,36 @@ const measurementTypeData: {
   bool: MeasurementTypeData,
   combo: MeasurementTypeData,
 } = {
-  duration: { label: 'Duration', icon: Icons.measurementTypeDuration },
-  time: { label: 'Time', icon: Icons.measurementTypeTime },
-  count: { label: 'Count', icon: Icons.measurementTypeCount },
-  bool: { label: 'Yes / No', icon: Icons.measurementTypeBool },
-  combo: { label: 'Combo', icon: Icons.measurementTypeCombo },
+  duration: {
+    label: 'Duration', icon: Icons.measurementTypeDuration,
+    description: 'How much time you spent doing something.',
+    namePlaceholder: '',
+    variantPlaceholder: '',
+  },
+  time: {
+    label: 'Time', icon: Icons.measurementTypeTime,
+    description: 'What time you did something at.',
+    namePlaceholder: '',
+    variantPlaceholder: '',
+  },
+  count: {
+    label: 'Count', icon: Icons.measurementTypeCount,
+    description: 'How much of something you did.',
+    namePlaceholder: ', Eating',
+    variantPlaceholder: '',
+  },
+  bool: {
+    label: 'Yes / No', icon: Icons.measurementTypeBool,
+    description: 'Whether or not you did something.',
+    namePlaceholder: '',
+    variantPlaceholder: '',
+  },
+  combo: {
+    label: 'Combo', icon: Icons.measurementTypeCombo,
+    description: 'Combination of two measurements into one.',
+    namePlaceholder: '',
+    variantPlaceholder: '',
+  },
 };
 
 const getMeasurementTypeData = (type: (MeasurementType | undefined)): MeasurementTypeData => {
@@ -97,25 +119,37 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
 
 type MeasurementRecording = { date: string, value: number };
 
-const getMeasurementRecordingValue = (measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[]): number | null => {
+const getMeasurementRecordingValue = (
+  measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[],
+  recordingData?: Map<string, Map<string, number>>, visited?: string[]
+): number | null => {
+  if (!measurementId) return null;
   const measurement = measurements.find(({ id }) => id === measurementId);
   if (!measurement) return null;
 
+  const recordingDataMap = recordingData || new Map(measurements.map(({ id, recordings }) => [id, new Map(recordings.map(({ date, value }) => [date, value]))]));
+
   const isCombo = measurement.type === 'combo';
   if (isCombo) {
-    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, date, measurements) || 0;
-    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, date, measurements) || 0;
+    if (visited && visited.indexOf(measurementId) >= 0) return null;
+
+    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, date, measurements, recordingDataMap, [...visited || [], measurementId]);
+    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, date, measurements, recordingDataMap, [...visited || [], measurementId]);
+    if (leftValue === null && rightValue === null) return null;
+
+    const left = leftValue || 0;
+    const right = rightValue || 0;
     switch (measurement.comboOperator) {
-      case '+': return leftValue + rightValue;
-      case '-': return leftValue - rightValue;
-      case '*': return leftValue * rightValue;
-      case '/': return leftValue / rightValue;
+      case '+': return left + right;
+      case '-': return left - right;
+      case '*': return left * right;
+      case '/': return left / right;
     }
     return null;
   }
 
-  const data = measurement.recordings.find((recording) => recording.date === date.toString());
-  return data?.value === undefined ? null : data.value;
+  const value = recordingDataMap.get(measurementId)?.get(date.toString());
+  return value === undefined ? null : value;
 }
 
 const getDateRecordings = (measurements: Measurement[], date: SimpleDate): MeasurementRecording[] => {

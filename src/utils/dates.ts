@@ -69,9 +69,9 @@ export class SimpleDate {
     return `${months[this.month - 1]}`;
   }
 
-  getPreviousDay() {
+  getDaysAgo(delta: number = 1) {
     const previousDate = new Date(this.year, this.month - 1, this.day);
-    previousDate.setDate(previousDate.getDate() - 1);
+    previousDate.setDate(previousDate.getDate() - delta);
     return SimpleDate.fromDate(previousDate);
   }
 
@@ -136,6 +136,33 @@ export class SimpleDate {
   getDayOfWeek() {
     const date = this.toDate();
     return date.getDay();
+  }
+
+  getDayOfWeekLabel(abbreviated: boolean = true) {
+    const date = this.toDate();
+    return abbreviated
+      ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+      : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+  }
+
+  equals(date: SimpleDate): boolean {
+    return this.day === date.day && this.month === date.month && this.year === date.year;
+  }
+
+  after(date: SimpleDate): boolean {
+    if (this.year > date.year) return true;
+    if (this.year < date.year) return false;
+    if (this.month > date.month) return true;
+    if (this.month < date.month) return false;
+    return this.day > date.day;
+  }
+
+  before(date: SimpleDate): boolean {
+    if (this.year > date.year) return false;
+    if (this.year < date.year) return true;
+    if (this.month > date.month) return false;
+    if (this.month < date.month) return true;
+    return this.day < date.day;
   }
   
   static isLeapYear(year: number) {
@@ -203,6 +230,15 @@ export class SimpleDate {
       date.setDate(date.getDate() + 1);
     }
 
+    return dates;
+  }
+
+  static generateWeek(date: SimpleDate): SimpleDate[] {
+    const firstDayOfWeek = date.getDaysAgo(date.getDayOfWeek());
+    const dates: SimpleDate[] = [firstDayOfWeek];
+    for (let i = 1; i < 7; i++) {
+      dates.push(firstDayOfWeek.getDaysAgo(-i));
+    }
     return dates;
   }
 }

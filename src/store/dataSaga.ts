@@ -1,4 +1,4 @@
-import { all, call, cancel, fork, put, take, takeEvery } from 'redux-saga/effects';
+import { all, call, cancel, delay, fork, put, race, select, take, takeEvery } from 'redux-saga/effects';
 import {
   setHabits,
   setMeasurements,
@@ -16,51 +16,88 @@ import {
   callUpdateHabitStatus,
   callDeleteHabit,
   callDeleteHabitStatus,
+  callUpdateMeasurements,
+  callUpdateHabits,
 } from './dataReducer';
 import type { ActionCreatorWithPayload, PayloadAction } from '@reduxjs/toolkit';
 import { computeHabit, constructHabitUpdate, isEmptyHabitUpdate, type ComputedHabit, type Habit } from '@t/habits';
 import Status from '@u/constants/Status';
 import { SimpleDate } from '@u/dates';
 import { removeUndefined } from '@u/helpers';
-import { signInSuccess, signOutSuccess, signUpSuccess } from '@s/authReducer';
+import { initialAuthCheckComplete, signInSuccess, signOutRequest, signOutSuccess, signUpSuccess } from '@s/authReducer';
 import { collection, deleteDoc, doc, DocumentReference, onSnapshot, Query, query, setDoc, updateDoc, where, WriteBatch, writeBatch, type DocumentData } from 'firebase/firestore';
 import { auth, firestore } from '@/firebase';
 import { END, eventChannel, type EventChannel, type Task } from 'redux-saga';
 import type { Measurement } from '@t/measurements';
 import { Collections } from '@u/constants/Firestore';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { serializeUser } from '@t/users';
+import { createAuthChannel } from '@s/authSaga';
 
 function* watchAuth() {
-  while (true) {
-    yield take([signInSuccess.type, signUpSuccess.type]);
+  let watchFirestoreChannelTasks: Task[] = [];
+  const authChannel: EventChannel<{ user?: User | null, error?: Error | null}> = yield call(createAuthChannel);
 
-    const { uid } = auth.currentUser || {};
-    if (uid) {
-      const watchFirestoreChannelTasks: Task[] = [
-        yield fork(watchFirestoreChannel<Measurement>, Collections.Measurements, setMeasurements, uid),
-        yield fork(watchFirestoreChannel<Habit>, Collections.Habits, setHabits, uid),
-      ];
+  try {
+    while (authChannel) {
+      const authState: { user?: User | null, error?: Error | null}  = yield take(authChannel);
+
+      for (const task of watchFirestoreChannelTasks.filter((task) => task.isRunning())) {
+        yield cancel(task);
+      };
+
+      if (authState?.error) {
+        console.error(`Auth state error: ${authState.error}`);
+        yield put(setMeasurements([]));
+        yield put(setHabits([]));
+        continue;
+      }
+  
+      const user = authState?.user;
+      if (!user) {
+        yield put(setMeasurements([]));
+        yield put(setHabits([]));
+        
+        continue;
+      }
       
-      const watchAllChannelsTask: Task = yield all(watchFirestoreChannelTasks);
-
-      yield take(signOutSuccess.type);
-      yield cancel(watchAllChannelsTask);
+      try {
+        watchFirestoreChannelTasks = [
+          yield fork(watchFirestoreChannel<Measurement>, Collections.Measurements, setMeasurements, user.uid),
+          yield fork(watchFirestoreChannel<Habit>, Collections.Habits, setHabits, user.uid),
+        ];
+        
+        yield all(watchFirestoreChannelTasks);
+        
+      } catch (error) {
+        console.error('Error setting up listeners:', error);
+        yield put(signOutRequest());
+        yield put(setMeasurements([]));
+        yield put(setHabits([]));
+      }
     }
-
-    yield setMeasurements([]);
-    yield setHabits([]);
+  } catch (error) {
+    console.error('Error handing auth channel:', error);
   }
-
+  finally {
+    if (authChannel) {
+      authChannel.close();
+    }
+    for (const task of watchFirestoreChannelTasks.filter((task) => task.isRunning())) {
+      yield cancel(task);
+    };
+  }
 }
 
 function createFirestoreChannel<T>(collectionName: string, setAction: ActionCreatorWithPayload<T[], string>, uid: string): EventChannel<PayloadAction<T[]>> {
   const q: Query<DocumentData> = query(collection(firestore, collectionName), where('userId', '==', uid));
-
+  
   return eventChannel(emit => {
     const unsubscribe = onSnapshot(q, snapshot => {
       const data: T[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
       emit(setAction(data));
     });
-
+    
     return () => {
       unsubscribe();
       emit(END);
@@ -70,14 +107,16 @@ function createFirestoreChannel<T>(collectionName: string, setAction: ActionCrea
 
 function* watchFirestoreChannel<T>(collectionName: string, setAction: ActionCreatorWithPayload<T[], string>, uid: string) {
   const channel: EventChannel<PayloadAction<T[]>> = yield call(createFirestoreChannel<T>, collectionName, setAction, uid);
-
+  
   try {
     while (true) {
       const action: PayloadAction<T[]> = yield take(channel);
       yield put(action);
     }
+  } catch (error) {
+    console.error(`Error listening to ${collectionName} channel:`, error);
   } finally {
-
+    channel.close();
   }
 }
 
@@ -126,6 +165,20 @@ function* replaceFirestoreDocumentSaga<T extends FirestoreDocument>(
 ) {
   const documentReference = doc(firestore, collectionName, document.id);
   yield call(performFirebaseOperation, setDoc, documentReference, removeId(document));
+}
+
+function* replaceManyFirestoreDocumentSaga<T extends FirestoreDocument>(
+  documents: T[],
+  collectionName: string,
+) {
+  const batch = writeBatch(firestore);
+  const replaceOperations = documents.map(document => {
+    const documentReference = doc(firestore, collectionName, document.id);
+    return call(batchFirebaseOperation, batch, batch.set, documentReference, removeId(document));
+  })
+
+  yield all(replaceOperations);
+  yield call([batch, batch.commit]);
 }
 
 
@@ -184,6 +237,18 @@ function* updateMeasurementSaga(action: PayloadAction<Measurement>) {
   }
 }
 
+function* updateMeasurementsSaga(action: PayloadAction<Measurement[]>) {
+  yield put(callUpdateMeasurementStatus(Status.IN_PROGRESS));
+
+  try {
+    yield call(replaceManyFirestoreDocumentSaga, action.payload, Collections.Measurements);
+    yield put(callUpdateMeasurementStatus(Status.SUCCESS));
+  } catch (error) {
+    console.error(error);
+    yield put(callUpdateMeasurementStatus(Status.ERROR));
+  }
+}
+
 function* deleteMeasurementSaga(action: PayloadAction<Measurement>) {
   yield put(callDeleteMeasurementStatus(Status.IN_PROGRESS));
   try {
@@ -201,7 +266,7 @@ function* createHabitSaga(action: PayloadAction<ComputedHabit>) {
   try {
     const computedHabit = action.payload;
     const today = SimpleDate.today();
-    const yesterday = today.getPreviousDay();
+    const yesterday = today.getDaysAgo();
   
     const previousHabit = computeHabit(computedHabit, yesterday);
     const newHabitUpdate = constructHabitUpdate(computedHabit, previousHabit, today);
@@ -223,7 +288,7 @@ function* updateHabitSaga(action: PayloadAction<ComputedHabit>) {
   try {
     const computedHabit = action.payload;
     const today = SimpleDate.today();
-    const yesterday = today.getPreviousDay();
+    const yesterday = today.getDaysAgo();
   
     const previousHabit = computeHabit(computedHabit, yesterday);
     const nextHabitUpdate = constructHabitUpdate(computedHabit, previousHabit, today);
@@ -253,6 +318,46 @@ function* updateHabitSaga(action: PayloadAction<ComputedHabit>) {
   }
 }
 
+function* updateHabitsSaga(action: PayloadAction<ComputedHabit[]>) {
+  yield put(callUpdateHabitStatus(Status.IN_PROGRESS));
+  
+  try {
+    const nextHabits: Habit[] = [];
+
+    const computedHabits = action.payload;
+    const today = SimpleDate.today();
+    const yesterday = today.getDaysAgo();
+
+    computedHabits.forEach((computedHabit) => {
+      const previousHabit = computeHabit(computedHabit, yesterday);
+      const nextHabitUpdate = constructHabitUpdate(computedHabit, previousHabit, today);
+      
+      const nextUpdates = [...computedHabit.updates];
+      const todayUpdateIndex = computedHabit.updates.findIndex(({ date }) => date === today.toString());
+      if (todayUpdateIndex >= 0) {
+        if (isEmptyHabitUpdate(nextHabitUpdate)) {
+          nextUpdates.splice(todayUpdateIndex, 1);
+        } else {
+          nextUpdates[todayUpdateIndex] = nextHabitUpdate;
+        }
+      } else {
+        nextUpdates.push(nextHabitUpdate);
+      }
+  
+      nextHabits.push({
+        id: computedHabit.id,
+        userId: computedHabit.userId,
+        updates: nextUpdates,
+      });
+    })
+
+    yield call(replaceManyFirestoreDocumentSaga, nextHabits, Collections.Habits);
+    yield put(callUpdateHabitStatus(Status.SUCCESS));
+  } catch (error) {
+    yield put(callUpdateHabitStatus(Status.ERROR));
+  }
+}
+
 function* deleteHabitSaga(action: PayloadAction<ComputedHabit>) {
   yield put(callDeleteHabitStatus(Status.IN_PROGRESS));
   try {
@@ -267,12 +372,14 @@ export function* dataSaga() {
   yield all([
     takeEvery(callCreateMeasurement.type, createMeasurementSaga),
     takeEvery(callUpdateMeasurement.type, updateMeasurementSaga),
+    takeEvery(callUpdateMeasurements.type, updateMeasurementsSaga),
     takeEvery(callDeleteMeasurement.type, deleteMeasurementSaga),
 
     takeEvery(callCreateHabit.type, createHabitSaga),
     takeEvery(callUpdateHabit.type, updateHabitSaga),
+    takeEvery(callUpdateHabits.type, updateHabitsSaga),
     takeEvery(callDeleteHabit.type, deleteHabitSaga),
 
-    watchAuth(),
+    fork(watchAuth),
   ])
 }

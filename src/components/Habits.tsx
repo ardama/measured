@@ -1,71 +1,37 @@
 import { useRef, useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, Animated } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 
-import { useComputedHabits, useHabits, useMeasurements, useMeasurementsByIds, useDataState, useAuthState } from "@/store/selectors";
+import { useComputedHabits, useMeasurements, useMeasurementsByIds } from "@/store/selectors";
 import { useDispatch } from "react-redux";
-import { createInitialHabit, getHabitPredicateIcon, getHabitPredicateLabel, habitOperators, getHabitOperatorData, type ComputedHabit, type HabitOperator, getHabitOperatorLabel, type HabitUpdate, computeHabit } from "@/types/habits";
-import { Button, Icon, IconButton, Menu, Text, TextInput, useTheme, type MD3Theme, Modal, List, TouchableRipple, SegmentedButtons, Dialog, Portal } from 'react-native-paper';
-import { formatNumber, formatTime } from '@u/helpers';
-import { createMeasurement, getMeasurementTypeData } from '@t/measurements';
-import { EmptyError, NoError } from '@u/constants/Errors';
+import { getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit, getHabitOperatorLabel } from "@/types/habits";
+import { Button, Icon, Text, useTheme, type MD3Theme, TouchableRipple, Dialog, Portal } from 'react-native-paper';
+import { formatValue } from '@u/helpers';
+import { getMeasurementTypeData } from '@t/measurements';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import useAnimatedSlideIn from '@u/hooks/useAnimatedSlideIn';
-import { useDispatchMultiple } from '@u/hooks/useDispatchMultiple';
-import { callCreateHabit, callCreateMeasurement, callDeleteHabit, callUpdateHabit } from '@s/dataReducer';
-
-type FormHabit = {
-  id: string;
-  userId: string;
-  updates: HabitUpdate[],
-  
-  name: string;
-  isWeekly: boolean;
-  points: string;
-  daysPerWeek: string;
-  archived: boolean;
-  conditions: FormHabitCondition[],
-  predicate: string,
-  priority: number,
-};
-
-type FormHabitCondition = {
-  measurementId: string;
-  operator: HabitOperator;
-  target: string;
-}
+import { callDeleteHabit, callUpdateHabit, callUpdateHabits } from '@s/dataReducer';
+import { router } from 'expo-router';
+import Header from '@c/Header';
+import DraggableFlatList, { NestableDraggableFlatList, NestableScrollContainer, ScaleDecorator } from 'react-native-draggable-flatlist';
 
 const Habits = () => {
   const dispatch = useDispatch();
-  const dispatchMultiple = useDispatchMultiple();
   const habits = useComputedHabits();
-  const auth = useAuthState();
-  const measurements = useMeasurements();
 
   const theme = useTheme();
-  const formStyles = createFormStyles(theme);
-
-  const [formType, setFormType] = useState<'create' | 'edit' | null>(null);
-  const [formHabit, setFormHabit] = useState<FormHabit | null>(null);
   
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [deletionTarget, setDeletionTarget] = useState<ComputedHabit | null>(null);
 
   const [isReordering, setIsReordering] = useState(false);
-  const [movingHabit, setMovingHabit] = useState(-1);
+  const [priorityOverrides, setPriorityOverrides] = useState<string[] | null>(null);
+  const [expandedHabits, setExpandedHabits] = useState<Set<string>>(new Set());
 
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  const scrollToEnd = () => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  };
-
-  const handleEditHabit = (habit: ComputedHabit) => dispatch(callUpdateHabit(habit));
   const handleDeleteHabit = (habit: ComputedHabit) => {
     setDeletionTarget(habit);
     setIsDialogVisible(true);
-
   };
+
   const handleConfirmDeleteHabit = (habit: ComputedHabit | null) => {
     if (habit) dispatch(callDeleteHabit(habit))
     
@@ -76,735 +42,220 @@ const Habits = () => {
     dispatch(callUpdateHabit({ ...habit, archived }));
   };
 
-  const handleAddHabit = (newHabit: ComputedHabit) => {
-    dispatch(callCreateHabit(newHabit));
-    setTimeout(() => {
-      scrollToEnd();
-    }, 0);
-  }
-
-  const getInitialFormHabit = (habit: ComputedHabit): FormHabit => ({
-    ...habit,
-    daysPerWeek: habit.daysPerWeek?.toString(),
-    points: habit.points?.toString(),
-    conditions: (habit.conditions || []).map((condition) => ({
-      ...condition,
-      target: condition.target?.toString(),
-    })),
-  });
-
   const handleAddHabitPress = () => {
-    let measurement = measurements.length ? measurements[0] : null;
-    if (!measurement) {
-      measurement = createMeasurement(auth?.user?.uid || '', 'New measurement', 'New variant', 'duration', 'min', 15, 1);
-      dispatch(callCreateMeasurement(measurement));
-    }
-
-    const priority = 1 + (habits[habits.length - 1]?.priority || 0);
-    const habit = createInitialHabit(auth?.user?.uid || '', 'New habit', [{ measurementId: measurement.id, operator: '>', target: 0 }], priority);
-    const formHabit = computeHabit(habit);
-    setFormHabit(getInitialFormHabit(formHabit));
-    setFormType('create');
+    router.push(`/habit/create`);
+  }
+  const handleEditHabit = (habit: ComputedHabit) => {
+    router.push(`/habit/${habit.id}`);
   }
 
-  const handleHabitPress = (habit: ComputedHabit) => {
-    setFormType('edit');
-    setFormHabit(getInitialFormHabit(habit));
-  }
+  const handleSubmitReorderedHabits = (nextPriorities: string[] | null) => {
+    if (!nextPriorities || !nextPriorities.length) return;
 
-  const hideForm = () => {
-    setFormType(null);
-    setTimeout(() => {
-      setFormHabit(null);
-    }, 250);
-  }
+    const updatedHabits: ComputedHabit[] = [];
+    habits.forEach((habit) => {
+      const nextPriority = nextPriorities.findIndex((id) => id === habit.id);
+      if (habit.priority === nextPriority) return;
 
-  const handleReorderHabit = (startIndex: number, shift: number): void => {
-    const habit = habits[startIndex];
-    if (!habit) return;
-
-    const nextPriorities: number[] = [];
-    habits.forEach((h, i) => {
-      if (i === 0) nextPriorities[i] = h.priority;
-      else nextPriorities[i] = Math.max(h.priority, nextPriorities[i - 1] + 1)
+      updatedHabits.push({ ...habit, priority: nextPriority });
     });
 
-    const index = habits.findIndex(({ id: id }) => id === habit.id);
-    if (index < 0) return;
-
-    const nextIndex = index + shift;
-    if (nextIndex < 0 || nextIndex >= habits.length) return;
-
-    const temp = nextPriorities[index];
-    nextPriorities[index] = nextPriorities[nextIndex];
-    nextPriorities[nextIndex] = temp;
-
-    const actions = habits.map((h, i) => {
-      const priority = nextPriorities[i];
-      if (h.priority === priority) return null;
-      return callUpdateHabit({ ...h, priority });
-    }).filter((a) => a !== null);
-
-    setMovingHabit(nextIndex);
-    dispatchMultiple(actions);
+    if (!updatedHabits.length) return;
+    dispatch(callUpdateHabits(updatedHabits));
   }
 
-  const [measurementMenuVisibilities, setMeasurementMenuVisibilities] = useState<boolean[]>([]);
-  const [operatorMenuVisibilities, setOperatorMenuVisibilities] = useState<boolean[]>([]);
-  const [isDaysPerWeekMenuVisible, setIsDaysPerWeekMenuVisible] = useState(false);
-  const [isPointsMenuVisible, setIsPointsMenuVisible] = useState(false);
-  const renderForm = () => {
-    if (!formHabit) return;
-    const isNew = formType === 'create';
+  const orderedHabits = priorityOverrides?.length
+    ? priorityOverrides
+      .map((overrideId) => habits.find(({ id }) => id === overrideId))
+      .filter((m) => !!m)
+    : habits;
+  const activeHabits = orderedHabits.filter(({ archived }) => !archived);
+  const archivedHabits = orderedHabits.filter(({ archived }) => archived);
 
-    const formMeasurementIds = formHabit.conditions?.map(({ measurementId }) => measurementId) || [];
-    const formMeasurements = formMeasurementIds.map((id) => measurements.find((measurement) => measurement.id === id));
-    
-    if (formHabit === null) return;
-    const unusedMeasurements = measurements.filter((m) => !formHabit.conditions.find(({ measurementId }) => m.id === measurementId));
+  const targetPoints = activeHabits.reduce((current, { isWeekly, daysPerWeek, points }) => {
+    return current + (isWeekly ? 1 : daysPerWeek) * points;
+  }, 0);
 
-    const handleFormEdit = (nextHabit: FormHabit) => {
-      setFormHabit(nextHabit);
-    }
-  
-    const handleSave = () => {
-      if (hasErrors()) return;
-    
-      const nextHabit = {
-        ...formHabit,
-        name: formHabit.name.trim(),
-        daysPerWeek: formHabit.daysPerWeek ? parseInt(formHabit.daysPerWeek) : 7,
-        points: formHabit.points ? parseInt(formHabit.points) : 1,
-        conditions: formHabit.conditions.map((condition) => ({
-          ...condition,
-          target: parseFloat(condition.target) || 0,
-        })),
-      };
-
-      if (isNew) handleAddHabit(nextHabit);
-      else handleEditHabit(nextHabit);
-
-      hideForm();
-    };
-    
-    const handleCancel = () => {
-      hideForm()
-    }
-  
-    const hasErrors = () => {
-      if (getNameErrors().hasError) return true;
-      if (getTargetErrors().hasError) return true;
-      return false
-    }
-  
-    const getNameErrors = () => {
-      if (!formHabit.name || !formHabit.name.trim()) return EmptyError;
-      return NoError;
-    }
-  
-    const getTargetErrors = () => {
-
-      // if (isBool) return NoError;
-      // if (formHabit.conditions.find(({ target }) => !target)) return EmptyError;
-
-      // if (formHabit.conditions.find((condition) => {
-      //   const target = parseFloat(condition.target);
-      //   return (isNaN(target) || !isFinite(target) || target < 0);
-      // })) {
-      //   return Error('Invalid target');
-      // }
-
-      return NoError;
-    }
-
-    return (
-      <>
-        <View style={formStyles.header}>
-          <Text variant='titleLarge' style={formStyles.title} >{`${isNew ? 'Create' : 'Edit'} habit`}</Text>
-          <IconButton style={formStyles.closeButton} icon={'window-close'} onPress={() => hideForm() } />
-        </View>
-        <SegmentedButtons
-          style={formStyles.scopeButtons}
-          value={formHabit.isWeekly ? 'weekly' : 'daily'}
-          onValueChange={(value) => {
-            const nextHabit = { ...formHabit, isWeekly: value === 'weekly' };
-            handleFormEdit(nextHabit);
-          }}
-          buttons={[
-            {
-              value: 'daily',
-              label: 'Daily',
-              icon: 'sync',
-              style: formStyles.scopeButton,
-              labelStyle: formStyles.scopeButtonLabel,
-              disabled: !isNew && formHabit.isWeekly,
-            },
-            {
-              value: 'weekly',
-              label: 'Weekly',
-              icon: 'calendar-sync',
-              style: formStyles.scopeButton,
-              labelStyle: formStyles.scopeButtonLabel,
-              disabled: !isNew && !formHabit.isWeekly,
-            }
-          ]}
-        />
-        <View style={formStyles.formRow}>
-          <TextInput
-            label="Name"
-            mode='outlined'
-            style={formStyles.input}
-            value={formHabit.name || ' '}
-            onChangeText={(text) => {
-              const nextHabit = { ...formHabit, name: text };
-              handleFormEdit(nextHabit);
-            }}
-          />
-        </View>
-        <View style={formStyles.formRow}>
-          <View style={formStyles.inputPartial}>
-            <Menu
-              visible={isDaysPerWeekMenuVisible}
-              onDismiss={() => setIsDaysPerWeekMenuVisible(false)}
-              anchor={
-                <Pressable onPress={() => { setIsDaysPerWeekMenuVisible(true); }}>
-                  <TextInput
-                    mode='outlined'
-                    style={formStyles.inputDropdown}
-                    readOnly
-                    value={formHabit.isWeekly ? '--' : formHabit.daysPerWeek}
-                    right={<TextInput.Affix text="/week" />}
-                    disabled={formHabit.isWeekly}
-                    />
-                </Pressable>
-              }
-              anchorPosition='bottom'
-              >
-              {
-                [1, 2, 3, 4, 5, 6, 7].map((num) => (
-                  <Menu.Item
-                    key={num}
-                    title={num}
-                    onPress={() => {
-                      const nextHabit = { ...formHabit, daysPerWeek: num.toString() };
-                      handleFormEdit(nextHabit);
-                      
-                      setIsDaysPerWeekMenuVisible(false);
-                    }}
-                  />
-                ))
-              }
-            </Menu>
-          </View>
-          <View style={formStyles.inputPartial}>
-            <Menu
-              visible={isPointsMenuVisible}
-              onDismiss={() => setIsPointsMenuVisible(false)}
-              anchor={
-                <Pressable onPress={() => { setIsPointsMenuVisible(true); }}>
-                  <TextInput
-                    style={formStyles.inputDropdown}
-                    mode='outlined'
-                    readOnly
-                    value={formHabit.points}
-                    right={<TextInput.Affix text={parseInt(formHabit.points) === 1 ? 'point' : 'points'} />}
-                  />
-                </Pressable>
-              }
-              anchorPosition='bottom'
-            >
-              {
-                [1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <Menu.Item
-                    key={num}
-                    title={num}
-                    onPress={() => {
-                      const nextHabit = { ...formHabit, points: num.toString() };
-                      handleFormEdit(nextHabit);
-
-                      setIsPointsMenuVisible(false);
-                    }}
-                  />
-                ))
-              }
-            </Menu>
-          </View>
-        </View>
-        <View style={formStyles.conditions}>
-          <Button
-            style={formStyles.addConditionButton}
-            labelStyle={formStyles.addConditionButtonLabel}
-            mode='text'
-            onPress={() => {
-              const nextHabit = { ...formHabit };
-              const m = unusedMeasurements.length ? unusedMeasurements[0] : measurements[0];
-              nextHabit.conditions.push({
-                measurementId: m.id,
-                operator: '>=',
-                target: '0',
-              })
-              handleFormEdit(nextHabit);
-            }}
-          >
-            <Icon source={'plus'} size={14} color={theme.colors.primary} />
-            Add condition
-          </Button>
-          <SegmentedButtons
-            style={formStyles.predicateButtons}
-            value={formHabit.predicate}
-            density='small'
-            onValueChange={(value) => {
-              const nextHabit = { ...formHabit, predicate: value };
-              handleFormEdit(nextHabit);
-            }}
-            buttons={[
-              {
-                value: 'AND',
-                label: 'All',
-                icon: getHabitPredicateIcon('AND'),
-                style: formStyles.predicateButton,
-                labelStyle: formStyles.predicateButtonLabel,
-              },
-              {
-                value: 'OR',
-                label: 'Any',
-                icon: getHabitPredicateIcon('OR'),
-                style: formStyles.predicateButton,
-                labelStyle: formStyles.predicateButtonLabel,
-              }
-            ]}
-          />
-          {formHabit.conditions.map((condition, index) => {
-            const formMeasurement = formMeasurements[index];
-            if (!formMeasurement) return;
-
-            const typeData = getMeasurementTypeData(formMeasurement.type);
-
-            const isBool = formMeasurement.type === 'bool';
-            const isTime = formMeasurement.type === 'time';
-            const isMeasurementMenuVisible = measurementMenuVisibilities[index];
-            const isOperatorMenuVisible = operatorMenuVisibilities[index];
-
-            return (
-              <View key={index} style={formStyles.condition}>
-                <View style={{ flexShrink: 1 }}>
-                  <Menu
-                    style={{ maxWidth: 600 }}
-                    contentStyle={{ maxWidth: 600 }}
-                    visible={isMeasurementMenuVisible}
-                    onDismiss={() => {
-                      const nextVisibilities = [...measurementMenuVisibilities];
-                      nextVisibilities[index] = false;
-                      setMeasurementMenuVisibilities(nextVisibilities);
-                    }}
-                    anchor={
-                      <TouchableRipple
-                        style={formStyles.dropdownButton}
-                        // labelStyle={formStyles.dropdownButtonLabel}
-                        // mode='contained-tonal'
-                        // compact
-                        onPress={() => {
-                          const nextVisibilities = [...measurementMenuVisibilities];
-                          nextVisibilities[index] = true;
-                          setMeasurementMenuVisibilities(nextVisibilities);
-                        }}
-                      >
-                        <>
-                          <Icon source={typeData.icon} size={16} />
-                          <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={formStyles.measurementActivity}>
-                            {formMeasurement.name}
-                          </Text>
-                          {formMeasurement.variant ? <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={formStyles.measurementVariant}> : {formMeasurement.variant}</Text> : null}
-                        </>
-                      </TouchableRipple>
-                    }
-                    anchorPosition='bottom'
-                  >
-                    {
-                      measurements.map((measurement) => (
-                        <Menu.Item
-                          style={{ maxWidth: 600 }}
-                          contentStyle={{ maxWidth: 600 }}
-                          key={measurement.id}
-                          title={`${measurement.name}${measurement.variant ? ` : ${measurement.variant}` : ''}`}
-                          leadingIcon={getMeasurementTypeData(measurement.type).icon}
-                          onPress={() => {
-                            const nextHabit = { ...formHabit };
-                            nextHabit.conditions[index].measurementId = measurement.id;
-                            if (measurement.type === 'bool') {
-                              nextHabit.conditions[index].operator = '>';
-                              nextHabit.conditions[index].target = '0';
-                            }
-
-                            handleFormEdit(nextHabit);
-                            const nextVisibilities = [...measurementMenuVisibilities];
-                            nextVisibilities[index] = false;
-                            setMeasurementMenuVisibilities(nextVisibilities);
-                          }}
-                        />
-                      ))
-                    }
-                  </Menu>
-                </View>
-                {formMeasurement.type !== 'bool' ? (
-                  <>
-                    <Menu
-                      visible={isOperatorMenuVisible}
-                      onDismiss={() => {
-                        const nextVisibilities = [...operatorMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setOperatorMenuVisibilities(nextVisibilities);
-                      }}
-                      anchor={
-                        <TouchableRipple
-                          style={formStyles.dropdownButton}
-                          // labelStyle={formStyles.dropdownButtonLabel}
-                          // mode='contained-tonal'
-                          // compact
-                          onPress={() => {
-                            const nextVisibilities = [...operatorMenuVisibilities];
-                            nextVisibilities[index] = true;
-                            setOperatorMenuVisibilities(nextVisibilities);
-                          }}
-                          disabled={isBool}
-                        >
-                          <Text variant='titleSmall'>
-                            {condition.operator}
-                          </Text>
-                        </TouchableRipple>
-                      }
-                      anchorPosition='bottom'
-                    >
-                      {
-                        habitOperators.map((operator) => {
-                          const { icon, label, timeLabel } = getHabitOperatorData(operator);
-                          return (
-                            <Menu.Item
-                              key={operator}
-                              title={formMeasurement.type === 'time' ? timeLabel : label}
-                              leadingIcon={icon}
-                              onPress={() => {
-                                const nextHabit = { ...formHabit };
-                                nextHabit.conditions[index].operator = operator;
-                                handleFormEdit(nextHabit);
-                                
-                                const nextVisibilities = [...operatorMenuVisibilities];
-                                nextVisibilities[index] = false;
-                                setOperatorMenuVisibilities(nextVisibilities);
-                              }}
-                            />
-                          );
-                        })
-                      }
-                    </Menu>
-                    <TextInput
-                      mode='outlined'
-                      style={formStyles.targetInput}
-                      contentStyle={formStyles.targetInputContent}
-                      dense
-                      placeholder='0'
-                      error={!!getTargetErrors().hasError}
-                      value={isBool ? '--' : condition.target.toString()}
-                      onChangeText={(text) => {
-                        const nextHabit = { ...formHabit };
-                        nextHabit.conditions[index].target = text;
-                        handleFormEdit(nextHabit);
-                      }}
-                      right={<TextInput.Affix text={isTime ? `(${formatTime(parseFloat(condition.target || '0'))})` : (formMeasurement.unit || '')} />}
-                      keyboardType="numeric"
-                      disabled={isBool}
-                    />
-                  </>
-                ) : null}
-                {formHabit.conditions.length > 1 ? (
-                  <IconButton
-                    icon={'delete-outline'}
-                    style={formStyles.deleteButton}
-                    size={20}
-                    onPress={() => {
-                      const nextHabit = { ...formHabit };
-                      nextHabit.conditions.splice(index, 1);
-                      handleFormEdit(nextHabit);
-                    }}
-                  />
-                ) : null}
-              </View>
-            )
-          })}
-        </View>
-        <View style={formStyles.buttons}>
-          <Button
-            mode="text"
-            style={formStyles.button}
-            labelStyle={formStyles.buttonLabel}
-            onPress={() => handleCancel()}
-          >
-            <Text variant='labelLarge' style={formStyles.buttonText}>Cancel</Text>
-          </Button>
-          <Button
-            mode="contained-tonal"
-            style={formStyles.button}
-            labelStyle={formStyles.buttonLabel}
-            onPress={() => handleSave()}
-            disabled={hasErrors()}
-          >
-            <Text variant='labelLarge' style={formStyles.buttonText}>Save</Text>
-          </Button>
-        </View>
-      </>
-    );
-  }
-
-  const activeHabits = habits.filter(({ archived }) => !archived);
-  const archivedHabits = habits.filter(({ archived }) => archived);
-
-  const [showActiveOverride, setShowActiveOverride] = useState(0);
-  const showActiveHabits = showActiveOverride !== -1;
-  const [showArchivedOverride, setShowArchivedOverride] = useState(0);
-  const showArchivedHabits = showArchivedOverride === 1;
-
-  const listStyles = createListStyles(theme);
-  const moveUpButtonSlide = useAnimatedSlideIn({ slideDistance: 120 });
-  const moveDownButtonSlide = useAnimatedSlideIn({ slideDistance: 64 });
+  const styles = createListStyles(theme);
 
   return (
-    <View style={listStyles.container}>
-      <ScrollView ref={scrollViewRef} style={listStyles.scrollContainer}>
-        <View style={listStyles.habitsContainer}>
-          {isReordering ? (
-            <List.Accordion
-              title={
-                <>
-                <View style={listStyles.sectionHeaderTitle}>
-                  <View style={listStyles.sectionHeaderTitleIcon}>
-                    <Icon source='sync' size={18} color={theme.colors.primary} />
-                  </View>
-                  <Text style={listStyles.sectionHeaderText} variant='titleMedium'> / </Text>
-                  <View style={listStyles.sectionHeaderTitleIcon}>
-                    <Icon source='calendar-sync' size={18} color={theme.colors.primary} />
-                  </View>
-                  <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`All${showActiveHabits ? '' : ` (${habits.length})`}`}</Text>
-                </View>
-                </>
+    <>
+      <Header title='Habits' actionButton={
+        (
+          <Button
+            mode='text'
+            textColor={theme.colors.onSurface}
+            buttonColor={isReordering ? theme.colors.surfaceDisabled : 'transparent'}
+            onPress={() => {
+              setIsReordering(!isReordering);
+
+              if (isReordering) {
+                handleSubmitReorderedHabits(priorityOverrides);
+              } else {
+                setPriorityOverrides(habits.map(({ id }) => id));
               }
-              expanded={showActiveHabits}
-              onPress={() => setShowActiveOverride(showActiveHabits ? -1 : 1)}
-              style={listStyles.sectionHeader}
-              right={() => (
-                <View style={listStyles.sectionHeaderIcon}>
-                  <Icon source={showActiveHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-                </View>
-              )}
-            >
-              {showActiveHabits ? (
-                <>
-                  {habits.length ? (
-                    habits.map((habit, index) => (
-                      <HabitItem
+            }}
+          >
+            {isReordering ? 'SAVE ORDER' : 'SET ORDER'}
+          </Button>
+        )
+      }/>
+      <View style={styles.container}>
+        <NestableScrollContainer style={styles.scrollContainer}>
+          <View style={styles.habitsContainer}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderTitle}>
+                <Text style={styles.sectionHeaderText} variant='labelMedium'>{`${isReordering ? 'ALL' : 'ACTIVE'} HABITS (${activeHabits.length})`}</Text>
+                {isReordering ? null : (
+                  <View style={styles.targetPoints}>
+                    <Text variant='bodySmall'>Target: </Text>
+                    <Points size='small' points={targetPoints} color={theme.colors.onSurface} />
+                    <Text variant='bodySmall'>/WEEK</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            {activeHabits.length ? (
+              <>
+                {isReordering ? (
+                  <NestableDraggableFlatList
+                    data={priorityOverrides || []}
+                    onDragEnd={({ data }) => {
+                      setPriorityOverrides(data);
+                    }}
+                    keyExtractor={(id) => id}
+                    activationDistance={1}
+                    renderItem={({ item: habitId, drag, isActive }) => {
+                      const habit = habits.find(({ id }) => id === habitId);
+                      if (!habit) return;
+
+                      return (
+                        <TouchableRipple
+                          onPressIn={() => isReordering && drag()}
+                          disabled={isActive}
+                        >
+                          <HabitItem
+                            habit={habit}
+                            onEdit={handleEditHabit}
+                            onArchive={handleArchiveHabit}
+                            onDelete={handleDeleteHabit}
+                          />
+                        </TouchableRipple>
+                      );
+                    }}
+                  />
+                ) : (
+                  <>
+                    {activeHabits.map((habit, index) => (
+                      <TouchableRipple
                         key={habit.id}
-                        habit={habit}
-                        onPress={() => setMovingHabit(index)}
-                        onArchive={handleArchiveHabit}
-                        onDelete={handleDeleteHabit}
-                        selected={movingHabit === index}
-                      />
-                    ))
-                  ) : (
-                    <View style={listStyles.noData}>
-                      <View style={listStyles.noDataIcon}>
-                        <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                      </View>
-                      <Text style={listStyles.noDataText} variant='bodyLarge'>No active habits</Text>
-                    </View>
-                  )}
-                </>
-              ) : null}
-            </List.Accordion>
-          ) : (
-            <>
-              <List.Accordion
-                title={
-                  <>
-                  <View style={listStyles.sectionHeaderTitle}>
-                    <View style={listStyles.sectionHeaderTitleIcon}>
-                      <Icon source='sync' size={18} color={theme.colors.primary} />
-                    </View>
-                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'> / </Text>
-                    <View style={listStyles.sectionHeaderTitleIcon}>
-                      <Icon source='calendar-sync' size={18} color={theme.colors.primary} />
-                    </View>
-                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Active${showActiveHabits ? '' : ` (${activeHabits.length})`}`}</Text>
-                  </View>
-                  </>
-                }
-                expanded={showActiveHabits}
-                onPress={() => setShowActiveOverride(showActiveHabits ? -1 : 1)}
-                style={listStyles.sectionHeader}
-                right={() => (
-                  <View style={listStyles.sectionHeaderIcon}>
-                    <Icon source={showActiveHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-                  </View>
-                )}
-              >
-                {showActiveHabits ? (
-                  <>
-                    {activeHabits.length ? (
-                      activeHabits.map((habit) => (
+                        onPress={() => {
+                          const nextExpandedHabits = new Set([...expandedHabits]);
+                          nextExpandedHabits.has(habit.id)
+                            ? nextExpandedHabits.delete(habit.id)
+                            : nextExpandedHabits.add(habit.id);
+                          setExpandedHabits(nextExpandedHabits);
+                        }}
+                      >
                         <HabitItem
-                          key={habit.id}
                           habit={habit}
-                          onPress={handleHabitPress}
+                          onEdit={handleEditHabit}
                           onArchive={handleArchiveHabit}
                           onDelete={handleDeleteHabit}
+                          expanded={expandedHabits.has(habit.id)}
                         />
-                      ))
-                    ) : (
-                      <View style={listStyles.noData}>
-                        <View style={listStyles.noDataIcon}>
-                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                        </View>
-                        <Text style={listStyles.noDataText} variant='bodyLarge'>No active habits</Text>
-                      </View>
-                    )}
+                      </TouchableRipple>
+                    ))}
                   </>
-                ) : null}
-              </List.Accordion>
-              <List.Accordion
-                title={
-                  <View style={listStyles.sectionHeaderTitle}>
-                    <View style={listStyles.sectionHeaderTitleIcon}>
-                      <Icon source={Icons.hide} size={18} color={theme.colors.primary} />
-                    </View>
-                    <Text style={listStyles.sectionHeaderText} variant='titleMedium'>{`Hidden${showArchivedHabits ? '' : ` (${archivedHabits.length})`}`}</Text>
-                  </View>
-                }
-                expanded={showArchivedHabits}
-                onPress={() => setShowArchivedOverride(showArchivedHabits ? -1 : 1)}
-                style={listStyles.sectionHeader}
-                titleStyle={listStyles.sectionHeaderText}
-                right={() => (
-                  <View style={listStyles.sectionHeaderIcon}>
-                    <Icon source={showArchivedHabits ? 'chevron-up' : 'chevron-down'} size={24} color={theme.colors.primary} />
-                  </View>
                 )}
-                >
-                {showArchivedHabits ? (
-                  <>
-                    {archivedHabits.length ? (
-                      archivedHabits.map((habit) => (
-                        <HabitItem
-                          key={habit.id}
-                          habit={habit}
-                          onPress={handleHabitPress}
-                          onArchive={handleArchiveHabit}
-                          onDelete={handleDeleteHabit}
-                        />
-                      ))
-                    ) : (
-                      <View style={listStyles.noData}>
-                        <View style={listStyles.noDataIcon}>
-                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                        </View>
-                        <Text style={listStyles.noDataText} variant='bodyLarge'>No hidden habits</Text>
-                      </View>
-                    )}
-                  </>
-                ) : null}
-              </List.Accordion>
-            </>
-          )}
-        </View>
-      </ScrollView>
-      <View style={listStyles.createButtonContainer}>
-        <Button
-          style={listStyles.createButton}
-          onPress={() => handleAddHabitPress()}
-          icon={Icons.habit}
-          mode='elevated'
-          buttonColor={theme.colors.secondaryContainer}
-          contentStyle={{ height: 56}}
-        >
-          <Text variant='labelLarge' style={listStyles.createButtonText}>Create habit</Text>  
-        </Button>
-        {moveUpButtonSlide.isVisible ? (
-          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonUp, moveUpButtonSlide.slideStyle]}>
-            <IconButton
-              style={[listStyles.reorderIconButton]}
-              icon={Icons.moveUp}
-              iconColor={theme.colors.onPrimary}
-              onPress={(e) => {
-                handleReorderHabit(movingHabit, -1);
-                e.stopPropagation();
-              }}
-              />
-          </Animated.View>
-        ) : null}
-        {moveDownButtonSlide.isVisible ? (
-          <Animated.View style={[listStyles.reorderIconButtonContainer, listStyles.reorderIconButtonDown, moveDownButtonSlide.slideStyle]}>
-            <IconButton
-              style={[listStyles.reorderIconButton]}
-              icon={Icons.moveDown}
-              iconColor={theme.colors.onPrimary}
-              onPress={(e) => {
-                handleReorderHabit(movingHabit, 1);
-                e.stopPropagation();
-              }}
-            />
-          </Animated.View>
-        ) : null}
-        <Button
-          style={listStyles.reorderButton}
-          onPress={() => {
-            setIsReordering(!isReordering);
-            if (isReordering) {
-              moveUpButtonSlide.hide();
-              moveDownButtonSlide.hide();
-            } else {
-              moveUpButtonSlide.show();
-              moveDownButtonSlide.show();
-              setMovingHabit(measurements.length ? 0 : -1);
-            }
-          }}
-          mode='elevated'
-          buttonColor={isReordering ? theme.colors.primary : theme.colors.secondaryContainer}
-          contentStyle={{ height: 56 }}
-        >
-          <View style={{ marginHorizontal: -4 }}>
-            <Icon source={isReordering ? Icons.close : Icons.move} size={24} color={isReordering ? theme.colors.onPrimary : theme.colors.primary} />
+              </>
+            ) : (
+              <View style={styles.noData}>
+                <View style={styles.noDataIcon}>
+                  <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                </View>
+                <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
+              </View>
+            )}
+            {archivedHabits.length ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderTitle}>
+                    <View style={styles.sectionHeaderTitleIcon}>
+                      <Icon source={Icons.hide} size={14} color={theme.colors.onSurface} />
+                    </View>
+                    <Text style={styles.sectionHeaderText} variant='labelMedium'>{`HIDDEN HABITS (${archivedHabits.length})`}</Text>
+                  </View>
+                </View>
+                {archivedHabits.map((habit) => (
+                  <TouchableRipple
+                    key={habit.id}
+                    onPress={() => {
+                      const nextExpandedHabits = new Set([...expandedHabits]);
+                      nextExpandedHabits.has(habit.id)
+                        ? nextExpandedHabits.delete(habit.id)
+                        : nextExpandedHabits.add(habit.id);
+                      setExpandedHabits(nextExpandedHabits);
+                    }}
+                  >
+                    <HabitItem
+                      habit={habit}
+                      onEdit={handleEditHabit}
+                      onArchive={handleArchiveHabit}
+                      onDelete={handleDeleteHabit}
+                      expanded={expandedHabits.has(habit.id)}
+                    />
+                  </TouchableRipple>
+                ))}
+              </>
+            ) : null}
           </View>
-        </Button>
+        </NestableScrollContainer>
+        <View style={styles.createButtonContainer}>
+          <TouchableRipple
+            style={styles.createButton}
+            onPress={() => handleAddHabitPress()}
+          >
+            <View style={styles.createButtonContent}>
+              <Icon source={Icons.add} size={16} color={theme.colors.inverseOnSurface} />  
+              <Text variant='titleSmall' style={styles.createButtonText}>CREATE HABIT</Text>
+            </View>
+          </TouchableRipple>
+        </View>
+        <Portal>
+          <Dialog
+            visible={isDialogVisible}
+            onDismiss={() => setIsDialogVisible(false) }
+            dismissable
+          >
+            <Dialog.Title>Delete Habit</Dialog.Title>
+            <Dialog.Content>
+              <Text variant='bodyMedium'>
+                Are you sure you want to delete this habit? This action cannot be undone.
+              </Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button
+                contentStyle={styles.dialogButton}
+                onPress={() => setIsDialogVisible(false)}
+                mode='text'
+                textColor={theme.colors.onSurface}
+              >
+                CANCEL
+              </Button>
+              <Button
+                contentStyle={styles.dialogButton}  
+                onPress={() => handleConfirmDeleteHabit(deletionTarget)}
+                mode='text'
+                textColor={theme.colors.error}
+              >
+                DELETE
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </View>
-      <Portal>
-        <Modal
-          visible={!!formType}
-          onDismiss={() => {
-            hideForm();
-          }}
-          contentContainerStyle={formStyles.container}
-          dismissable={false}
-        >
-          {renderForm()}
-        </Modal>
-      </Portal>
-      <Portal>
-        <Dialog
-          visible={isDialogVisible}
-          onDismiss={() => setIsDialogVisible(false) }
-          dismissable
-        >
-          <Dialog.Title>Delete Habit</Dialog.Title>
-          <Dialog.Content>
-            <Text variant='bodyMedium'>
-              Are you sure you want to delete this habit? This action cannot be undone.
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setIsDialogVisible(false)}>Cancel</Button>
-            <Button onPress={() => handleConfirmDeleteHabit(deletionTarget) }>Delete</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    </View>
+    </>
   );
 };
 
@@ -820,71 +271,61 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingBottom: 88,
   },
   sectionHeader: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 24,
     paddingTop: 0,
     paddingBottom: 0,
-    backgroundColor: theme.colors.secondaryContainer,
+    backgroundColor: theme.colors.elevation.level3,
+    minHeight: 48,
+    flexDirection: 'row',
   },
   sectionHeaderTitle: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexGrow: 1,
     gap: 8
   },
   sectionHeaderTitleIcon: {
-
+    
   },
   sectionHeaderText: {
-    color: theme.colors.primary,
+    color: theme.colors.onSurface,
+    flexGrow: 1,
   },
   sectionHeaderIcon: {
     marginRight: 8,
   },
+  targetPoints: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    flexGrow: 1,
+    gap: 2,
+  },
   createButtonContainer: {
     position: 'absolute',
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    padding: 16,
-    gap: 16,
+    bottom: 24,
+    right: 24,
   },
   createButton: {
-    borderRadius: 12,
-    flex: 1,
-    maxWidth: 600,
+    borderRadius: 100,
+    backgroundColor: theme.colors.inverseSurface,
     shadowRadius: 5,
     shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 2 },
   },
+  createButtonContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
   createButtonText: {
-    color: theme.colors.primary,
-    fontSize: 16,
+    color: theme.colors.inverseOnSurface,
   },
   reorderButton: {
-    borderRadius: 12,
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 6,
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  reorderIconButtonContainer: {
-    opacity: 1,
-    position: 'absolute',
-    right: 22,
-  },
-  reorderIconButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 16,
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 6,
-    shadowOpacity: .3,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  reorderIconButtonUp: {
-    bottom: 132,
-  },
-  reorderIconButtonDown: {
-    bottom: 80,
+
   },
   noData: {
     flexDirection: 'row',
@@ -899,371 +340,236 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   noDataIcon: {
     marginRight: 8,
   },
-})
-
-const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
-  container: {
-    marginHorizontal: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    borderRadius: 12,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    lineHeight: 40,
-  },
-  closeButton: {
-    margin: 0,
-  },
-  formRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginBottom: 12,
-  },
-  input: {
-    flex: 1,
-  },
-  inputPartial: {
-    flex: 1,
-  },
-  inputDropdown: {
-  },
-  typeIcon: {
-    height: 56,
-    width: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 4,
-    
-    backgroundColor: theme.colors.elevation.level3,
-  },
-  weeklyButton: {
-    
-  },
-  weeklyButtonText: {
-    
-  },
-  scopeButtons: {
-    marginBottom: 16,
-  },
-  scopeButton: {
-
-  },
-  scopeButtonLabel: {
-
-  },
-  buttons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 32,
-  },
-  button: {
-    borderRadius: 40,
-  },
-  buttonLabel: {
+  dialogButton: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-
-  },
-  buttonText: {
-    color: theme.colors.primary,
-  },
-  conditions: {
-    marginTop: 4,
-    gap: 12
-  },
-  condition: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    justifyContent: 'space-between',
-  },
-  dropdownButton: {
-    backgroundColor: theme.colors.surfaceVariant,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    borderRadius: 4,
-    flexShrink: 1,
-  },
-  dropdownButtonLabel: {
-    marginVertical: 10,
-    marginHorizontal: 12,
-    borderRadius: 4,
-    flexShrink: 1,
-  },
-  measurementActivity: {
-    marginLeft: 4,
-    flexShrink: 2,
-  },
-  measurementVariant: {
-    color: theme.colors.outline,
-    flexShrink: 1,
-  },
-  targetInput: {
-    flex: 1,
-    minWidth: 120,
-    padding: 0,
-    height: 40,
-  },
-  targetInputContent: {
-    margin: 0,
-    padding: 0,
-  },
-  addConditionButton: {
-    marginTop: 8,
-  },
-  addConditionButtonLabel: {
-  },
-  predicateButtons: {
-    
-  },
-  predicateButton: {
-    
-  },
-  predicateButtonLabel: {
-    
-  },
-  deleteButton: {
-    margin: 0,
-  },
-})
+  }
+});
 
 type HabitItemProps = {
   habit: ComputedHabit;
-  selected?: boolean,
-  onPress: (habit: ComputedHabit) => void;
+  onEdit: (habit: ComputedHabit) => void;
   onArchive: (habit: ComputedHabit, archived: boolean) => void;
   onDelete: (habit: ComputedHabit) => void;
+  expanded?: boolean
 };
 
-const HabitItem = ({ habit, selected, onPress, onArchive, onDelete }: HabitItemProps): JSX.Element | null => {
+const HabitItem = (props: HabitItemProps): JSX.Element | null => {
+  const {
+    habit,
+    onEdit,
+    onArchive,
+    onDelete,
+    expanded,
+  } = props;
+
   const measurements = useMeasurementsByIds(habit.conditions.map(({ measurementId }) => measurementId ));
   
   const theme = useTheme();
-  const itemStyles = createItemStyles(theme);
-  
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const styles = createItemStyles(theme);
 
   return (
-    <TouchableRipple style={[itemStyles.container, selected ? itemStyles.selectedContainer : {}]} onPress={() => onPress(habit)}>
-      <>
-        <View style={itemStyles.content}>
-          <View style={itemStyles.header}>
-            <Text variant='titleMedium' ellipsizeMode='tail' numberOfLines={1}  style={itemStyles.name}>{habit.name}</Text>
-            {/* {habit.isWeekly ? null : (
-              <>
-              <View style={itemStyles.frequencyDivider}>
-              <Icon source='close' size={14} />
-              </View>
-              <Text variant='bodyLarge' style={itemStyles.frequencyValue}>{habit.daysPerWeek}</Text>
-              </>
-              )} */}
+    <View style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.labelContainer}>
+          <Text variant='titleMedium' ellipsizeMode='tail' numberOfLines={1} style={styles.name}>
+            {habit.name}
+          </Text>
+        </View>
+        <View style={styles.pointsContainer}>
+          <View style={styles.scopeTag}>
+            <Text variant='bodySmall' style={styles.scopeTagText}>
+              {habit.isWeekly ? 'WEEKLY' : `DAILY x${habit.daysPerWeek}`}
+            </Text>
           </View>
-          {habit.conditions.length > 1 ? (
-              <View style={itemStyles.predicateContainer}>
-                <Icon source={getHabitPredicateIcon(habit.predicate)} size={12} color={theme.colors.outline} />
-                <Text variant='titleSmall' ellipsizeMode='tail' numberOfLines={1} style={itemStyles.predicate}>{getHabitPredicateLabel(habit.predicate)}</Text>
+          <Points points={habit.points} />
+        </View>
+      </View>
+      {expanded ? (
+        <View style={styles.expandedContent}>
+          <View style={styles.conditionsContainer}>
+            {habit.conditions.length > 1 ? (
+              <View style={styles.predicate}>
+                <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={theme.colors.onSurface} />
+                <Text variant='bodyMedium' ellipsizeMode='tail' numberOfLines={1} style={styles.predicateLabel}>{getHabitPredicateLabel(habit.predicate)}</Text>
               </View>
             ) : null}
-          {/* <View style={itemStyles.daysPerWeek}>
-            <Icon source={`numeric-${habit.daysPerWeek}`} size={30} />
-            </View>
-            <View style={itemStyles.daysPerWeekMultiply}>
-            <Icon source={`alpha-x`} size={26} />
-            </View>
-            <View style={itemStyles.points}>
-            <Text style={itemStyles.pointsText} variant='titleSmall'>{habit.points}</Text>
-            <View style={itemStyles.pointsIcon}>
-            <Icon source={`star-four-points`} size={16} color={theme.colors.onPrimary} />
-            </View>
-            </View> */}
-          {habit.conditions.map((condition, index) => {
-            const measurement = measurements[index];
-            if (!measurement) return null;
+            {habit.conditions.map((condition, index) => {
+              const measurement = measurements[index];
+              if (!measurement) return null;
 
-            const isBool = measurement.type === 'bool';
-            const isTime = measurement.type === 'time';
-            const isCountable = !isBool && !isTime;
+              const isDuration = measurement.type === 'duration';
+              const isBool = measurement.type === 'bool';
+              const isTime = measurement.type === 'time';
+              const isCountable = !isBool && !isTime;
 
-            const operatorLabel = getHabitOperatorLabel(condition.operator, measurement.type).toLowerCase();
-            const typeData = getMeasurementTypeData(measurement.type);
+              const valueString = formatValue(condition.target, measurement.type);
+              const operatorLabel = getHabitOperatorLabel(condition.operator, measurement.type).toLowerCase();
+              const typeData = getMeasurementTypeData(measurement.type);
 
-            let conditionLabel = null;
-            if (isTime) {
-              conditionLabel = (
-                <>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitOperator}>{operatorLabel}</Text>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitDaily}>{formatTime(condition.target)}</Text>
-                </>
-              )
-            } else if (isCountable) {
-              conditionLabel = (
-                <>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitOperator}>{operatorLabel}</Text>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitDaily}>{formatNumber(condition.target)}</Text>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.measurementUnit}>{measurement.unit}</Text>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitScope}>/</Text>
-                  <Text variant='bodyMedium' numberOfLines={1} style={itemStyles.habitScope}>{habit.isWeekly ? 'week' : 'day'}</Text>
-                </>
-              )
-            }
-            return (
-              <View key={index} style={itemStyles.description}>
-                <View style={itemStyles.measurement}>
-                  <Icon source={typeData.icon} size={16} />
-                  <Text numberOfLines={1} ellipsizeMode='tail' variant='titleSmall' style={itemStyles.measurementActivity}>
-                    {measurement.name}
-                  </Text>
-                  {measurement.variant ? <Text numberOfLines={1} ellipsizeMode='tail' variant='bodyMedium' style={itemStyles.measurementVariant}> : {measurement.variant}</Text> : null}
-                </View>
-                {conditionLabel}
-              </View>
-            )
-          })}
-        </View>
-        <View style={habit.conditions.length === 1 ? itemStyles.rightContainerCentered : itemStyles.rightContainer}>
-          <View style={itemStyles.rightContainerInner}>
-            <Points points={habit.points * (habit.isWeekly ? 1 : habit.daysPerWeek)} />
-            <Text>/ week</Text>
-            <Menu
-              visible={isMenuVisible}
-              onDismiss={() => setIsMenuVisible(false)}
-              anchor={
-                <IconButton
-                  style={{ margin: 0 }} icon='dots-vertical' size={24}
-                  onPress={() => { setIsMenuVisible(true); }}
-                  onResponderRelease={(e) => { e.preventDefault(); }}
-                />
+
+              let conditionLabel = null;
+              if (!isCountable) {
+                conditionLabel = (
+                  <>
+                    <Text variant='bodyMedium' numberOfLines={1} style={styles.conditionOperator}>{operatorLabel}</Text>
+                    <Text variant='labelLarge' numberOfLines={1} style={styles.conditionValue}>{valueString}</Text>
+                  </>
+                )
+              } else if (isCountable) {
+                conditionLabel = (
+                  <>
+                    <Text variant='bodyMedium' numberOfLines={1} style={styles.conditionOperator}>{operatorLabel}</Text>
+                    <Text variant='labelLarge' numberOfLines={1} style={styles.conditionValue}>{valueString}</Text>
+                    {isDuration || !measurement.unit ? null : <Text variant='labelLarge' numberOfLines={1} style={styles.measurementUnit}>{measurement.unit}</Text>}
+                  </>
+                )
               }
-              anchorPosition='bottom'
+              return (
+                <View key={index} style={styles.condition}>
+                  <View style={styles.conditionMeasurement}>
+                    <Icon source={typeData.icon} size={14} />
+                    <Text numberOfLines={1} ellipsizeMode='tail' variant='titleSmall'>
+                      {measurement.name}
+                    </Text>
+                    {measurement.variant ? (
+                      <>
+                        <Text numberOfLines={1} ellipsizeMode='tail' variant='bodyMedium'>:</Text>
+                        <Text numberOfLines={1} ellipsizeMode='tail' variant='bodyMedium'>{measurement.variant}</Text>
+                      </>
+                    ) : null}
+                  </View>
+                  {conditionLabel}
+                </View>
+              )
+            })}
+          </View>
+          <View style={styles.controlContainer}>
+            <Button
+              contentStyle={styles.controlButton}
+              mode='text'
+              textColor={theme.colors.onSurface}
+              onPress={() => onEdit(habit)}
             >
-              <Menu.Item
-                leadingIcon={habit.archived ? Icons.show : Icons.hide}
-                onPress={() => { onArchive(habit, !habit.archived); }}
-                title={habit.archived ? 'Show' : 'Hide'}
-              />
-              <Menu.Item
-                leadingIcon='delete-outline'
-                onPress={() => { onDelete(habit); setIsMenuVisible(false); }}
-                title="Delete"
-              />
-            </Menu>
+              EDIT
+            </Button>
+            <Button
+              contentStyle={styles.controlButton}
+              mode='text'
+              textColor={theme.colors.onSurface}
+              onPress={() => onArchive(habit, !habit.archived)}
+            >
+              {habit.archived ? 'SHOW' : 'HIDE'}
+            </Button>
+            <Button
+              contentStyle={styles.controlButton}
+              mode='text'
+              textColor={theme.colors.error}
+              onPress={() => onDelete(habit)}
+            >
+              DELETE
+            </Button>
           </View>
         </View>
-      </>
-    </TouchableRipple>
+      ) : null}
+    </View>
   );
 };
 
 const createItemStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 16,
-    gap: 6,
-  },
-  selectedContainer: {
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primary,
-    paddingLeft: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+    marginTop: -1,
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    borderColor: theme.colors.surfaceVariant,
+    backgroundColor: theme.colors.surface,
   },
   content: {
     flexGrow: 1,
-    flexShrink: 1,
-  },
-  // leftIcon: {
-  //   marginRight: 8,
-  //   marginLeft: 4,
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  // },
-  header: {
     flexDirection: 'row',
-    flexGrow: 1,
-    flexShrink: 0,
     alignItems: 'center',
-    width: '100%',
+    gap: 6,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   name: {
   },
-  predicateContainer: {
+  pointsContainer: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',  
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  scopeTag: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.surfaceDisabled,
+    borderRadius: 10,
+  },
+  scopeTagText: {
+    color: theme.colors.outline,
+  },
+  expandedContent: {
+    gap: 8,
+  },
+  conditionsContainer: {
+    gap: 8,
   },
   predicate: {
-    color: theme.colors.outline,
-    marginLeft: 4,
-  },
-  rightContainer: {
-    alignSelf: 'flex-start',
-  },
-  rightContainerCentered: {
-    alignSelf: 'center',
-    justifyContent: 'center',
-  },
-  rightContainerInner: {
     flexDirection: 'row',
-    alignItems: 'center',
-    height: 56,
+    alignItems: 'center',  
     gap: 4,
   },
-  description: {
+  predicateLabel: {
+    textTransform: 'uppercase',
+  },
+  condition: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
     flexWrap: 'nowrap',
     gap: 4,
   },
-  measurement: {
+  conditionMeasurement: {
     flexShrink: 1,
     backgroundColor: theme.colors.surfaceVariant,
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: 10,
     flexDirection: 'row',
     flexWrap: 'nowrap',
     alignItems: 'center',
-  },
-  measurementIcon: {
+    gap: 4,
   },
   measurementActivity: {
-    marginLeft: 4,
-
   },
   measurementVariant: {
-    color: theme.colors.outline,
   },
-  habitOperator: {
+  conditionOperator: {
     flexShrink: 0,
     marginLeft: 2,
   },
-  habitDaily: {
+  conditionValue: {
     flexShrink: 0,
-    fontWeight: 'bold',
   },
   measurementUnit: {
     flexShrink: 0,
-    fontWeight: 'bold',
   },
-  habitScope: {
-    flexShrink: 0,
-    fontWeight: 'bold',
+  controlContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  controlButton: {
+    paddingHorizontal: 8,
   },
 });
 

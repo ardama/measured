@@ -11,7 +11,7 @@ const initialState: AuthState = {
   user: null,
   loading: true,
   error: null,
-  firstLoadComplete: false,
+  initialAuthCheckComplete: false,
 };
 
 const authSlice = createSlice({
@@ -19,7 +19,7 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     initialAuthCheckComplete: (state) => {
-      state.firstLoadComplete = true;
+      state.initialAuthCheckComplete = true;
     },
     signUpRequest: (state, _: PayloadAction<AuthCredentials>) => {
       state.loading = true;

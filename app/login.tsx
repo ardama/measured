@@ -134,7 +134,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
   },
   title: {
-    fontWeight: 'bold',
     
   },
   subtitle: {

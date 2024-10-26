@@ -58,28 +58,20 @@ const TabLayout = () => {
         header: ({ layout, options, route, navigation }) => {
           const { title } = options
           return (
-            <Header title={title || ''} />
+            <Header showMenuButton title={title || ''} />
           )
         },
       }}
       tabBar={renderTabBar}
     >
       <Tabs.Screen
-        name="recordings"
-        options={{
-          title: 'Recordings',
-          tabBarIcon: ({ color, focused, size }) => (
-            <Icon source={focused ? 'format-list-checks' : 'format-list-checks'} color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="measurements"
         options={{
           title: 'Measurements',
           tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.measurementMultiple : Icons.measurementMultiple} color={color} size={size} />
+            <Icon source={focused ? Icons.measurementFilled : Icons.measurement} color={color} size={size} />
           ,
+          headerShown: false,
         }}
         />
       <Tabs.Screen
@@ -87,16 +79,36 @@ const TabLayout = () => {
         options={{
           title: 'Habits',
           tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.habitMultiple : Icons.habitMultiple } color={color} size={size} />
+            <Icon source={focused ? Icons.habitFilled : Icons.habit } color={color} size={size} />
+          ,
+          headerShown: false,
+        }}
+        />
+      <Tabs.Screen
+        name="recordings"
+        options={{
+          title: 'Recordings',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Icon source={focused ? Icons.recordingFilled : Icons.recording} color={color} size={size} />
+          ),
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'Data',
+          tabBarIcon: ({ color, focused, size }) => 
+            <Icon source={focused ? Icons.chartFilled : Icons.chart} color={color} size={size} />
           ,
         }}
         />
       <Tabs.Screen
-        name="history"
+        name="settings"
         options={{
-          title: 'History',
+          title: 'Settings',
           tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? 'chart-box-outline' : 'chart-box-outline'} color={color} size={size} />
+            <Icon source={focused ? Icons.accountFilled : Icons.account} color={color} size={size} />
           ,
         }}
         />
