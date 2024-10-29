@@ -35,6 +35,20 @@ const createMeasurement = (userId: string, name: string, variant: string, type: 
   recordings: [],
 });
 
+const emptyMeasurement = (): Measurement => ({
+  id: '',
+  userId: '',
+  type: '',
+  name: '',
+  variant: '',
+  unit: '',
+  step: 0,
+  initial: 0,
+  priority: 0,
+  archived: false,
+  recordings: [],
+})
+
 type MeasurementType = '' | 'duration' | 'time' | 'count' | 'bool' | 'combo';
 
 const measurementTypes: MeasurementType[] = ['duration', 'time', 'count', 'bool', 'combo'];
@@ -162,6 +176,7 @@ const getDateRecordings = (measurements: Measurement[], date: SimpleDate): Measu
 export {
   type Measurement,
   createMeasurement,
+  emptyMeasurement,
 
   type MeasurementType,
   measurementTypes,

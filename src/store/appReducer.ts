@@ -1,6 +1,5 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { ComputedHabit } from '@t/habits';
-import { createAppState, type AppState } from '@type/redux';
+import { createSlice } from '@reduxjs/toolkit';
+import { type AppState } from '@type/redux';
 
 const initialState: AppState = {
   darkMode: false,

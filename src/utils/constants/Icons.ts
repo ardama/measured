@@ -36,8 +36,8 @@ export const Icons = {
   warning: 'alert-circle-outline',
 
   move: 'unfold-more-horizontal',
-  moveUp: 'chevron-up',
-  moveDown: 'chevron-down',
+  up: 'chevron-up',
+  down: 'chevron-down',
   
   close: 'window-close',
   hide: 'eye-off-outline',

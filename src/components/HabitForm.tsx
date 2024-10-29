@@ -1,8 +1,9 @@
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
+import OptionButton from '@c/OptionButton';
 import { callCreateHabit, callUpdateHabit } from '@s/dataReducer';
 import { useMeasurements } from '@s/selectors';
 import { getHabitOperatorData, getHabitOperatorLabel, getHabitPredicateIcon, habitOperators, type ComputedHabit, type HabitOperator, type HabitUpdate } from '@t/habits';
-import { getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
+import { createMeasurement, emptyMeasurement, getMeasurementTypeData, getMeasurementTypeIcon, type Measurement } from '@t/measurements';
 import { EmptyError, NoError } from '@u/constants/Errors';
 import { Icons } from '@u/constants/Icons';
 import { formatValue } from '@u/helpers';
@@ -28,9 +29,9 @@ type FormHabit = {
 };
 
 type FormHabitCondition = {
-  measurementId: string;
-  operator: HabitOperator;
-  target: string;
+  measurementId?: string;
+  operator?: HabitOperator;
+  target?: string;
 }
 
 type HabitFormProps = {
@@ -62,7 +63,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const formMeasurements = formMeasurementIds.map((id) => measurements.find((measurement) => measurement.id === id));
   
   if (formHabit === null) return;
-  const unusedMeasurements = measurements.filter((m) => !formHabit.conditions.find(({ measurementId }) => m.id === measurementId));
 
   const handleFormEdit = (nextHabit: FormHabit) => {
     setFormHabit(nextHabit);
@@ -96,8 +96,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
       daysPerWeek: formHabit.daysPerWeek || 7,
       points: formHabit.points || 1,
       conditions: formHabit.conditions.map((condition) => ({
-        ...condition,
-        target: parseFloat(condition.target) || 0,
+        measurementId: condition.measurementId || '',
+        operator: condition.operator || '>=',
+        target: parseFloat(condition.target || '0') || 0,
       })),
     };
 
@@ -165,49 +166,28 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             </Text>
           </View>
           <View style={s.formSection}>
-            {(isNew || !formHabit.isWeekly) && (
-              <TouchableRipple
-                style={{ ...s.optionSelection, backgroundColor: !formHabit.isWeekly ? theme.colors.surfaceDisabled : theme.colors.surface }}
-                onPress={() => {
-                  const nextHabit = { ...formHabit, isWeekly: false };
-                  handleFormEdit(nextHabit);
-                }}
-              >
-                <>
-                  <Icon
-                    source={Icons.repeatDaily}
-                    color={theme.colors.onSurface}
-                    size={24}
-                    />
-                  <View style={s.optionSelectionText}>
-                    <Text variant='labelLarge'>DAILY</Text>
-                    <Text variant='bodySmall'>Evaluated daily based on the measurement values for each day.</Text>
-                  </View>
-                </>
-              </TouchableRipple>
-            )}
-            {(isNew || formHabit.isWeekly) && (
-              <TouchableRipple
-                style={{ ...s.optionSelection, backgroundColor: formHabit.isWeekly ? theme.colors.surfaceDisabled : theme.colors.surface }}
-                onPress={() => {
-                  const nextHabit = { ...formHabit, isWeekly: true };
-                  handleFormEdit(nextHabit);
-                }}
-                >
-                <>
-                  <Icon
-                    source={Icons.repeatWeekly}
-                    color={theme.colors.onSurface}
-                    size={24}
-                    />
-                  <View style={s.optionSelectionText}>
-                    <Text variant='labelLarge'>WEEKLY</Text>
-                    <Text variant='bodySmall'>Evaluated weekly based on all measurement values from the week.</Text>
-                  </View>
-
-                </>
-              </TouchableRipple>
-            )}
+            <OptionButton
+              selected={!formHabit.isWeekly}
+              onPress={() => {
+                const nextHabit = { ...formHabit, isWeekly: false };
+                handleFormEdit(nextHabit);
+              }}
+              icon={Icons.repeatDaily}
+              title='DAILY'
+              subtitle='Evaluated daily based on the measurement values for each day.'
+              disabled={!isNew && formHabit.isWeekly}
+            />
+            <OptionButton
+              selected={formHabit.isWeekly}
+              onPress={() => {
+                const nextHabit = { ...formHabit, isWeekly: true };
+                handleFormEdit(nextHabit);
+              }}
+              icon={Icons.repeatWeekly}
+              title='WEEKLY'
+              subtitle='Evaluated weekly based on all measurement values from the week.'
+              disabled={!isNew && !formHabit.isWeekly}
+            />
             {!formHabit.isWeekly && (
               <BottomDrawer
                 visible={isDaysPerWeekMenuVisible}
@@ -287,136 +267,176 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
           </View>
           <Divider style={s.formSectionDivider} />
           <View style={s.formSectionHeader}>
-            <Text variant='labelMedium' style={s.labelTitle}>CONDITIONS</Text>
+            <Text variant='labelMedium' style={s.labelTitle}>MEASUREMENTS</Text>
             <Text variant='bodySmall' style={s.labelSubtitle}>
               {`Configure the measurement targets that need to be hit to consider this habit completed.`}
             </Text>
           </View>
           <View style={s.formSection}>
             {formHabit.conditions.map((condition, index) => {
-              const formMeasurement = formMeasurements[index];
-              if (!formMeasurement) return;
+              const conditionMeasurement = formMeasurements[index] || emptyMeasurement();
 
-              const typeData = getMeasurementTypeData(formMeasurement.type);
+              const typeData = getMeasurementTypeData(conditionMeasurement.type);
 
-              const isDuration = formMeasurement.type === 'duration';
-              const isBool = formMeasurement.type === 'bool';
-              const isTime = formMeasurement.type === 'time';
+              const isDuration = conditionMeasurement.type === 'duration';
+              const isBool = conditionMeasurement.type === 'bool';
+              const isTime = conditionMeasurement.type === 'time';
               const isMeasurementMenuVisible = measurementMenuVisibilities[index];
               const isOperatorMenuVisible = operatorMenuVisibilities[index];
 
-              const selectedMeasurementItem = measurementItems.find((item) => item.value === formMeasurement.id);
+              const selectedMeasurementItem = measurementItems.find((item) => item.value === conditionMeasurement.id);
               
               const operatorItems: BottomDrawerItem<string>[] = habitOperators.map((operator) => ({
                 value: operator,
                 icon: getHabitOperatorData(operator).icon,
-                title: getHabitOperatorLabel(operator, formMeasurement.type),
+                title: getHabitOperatorLabel(operator, conditionMeasurement.type),
                 disabled: isBool && (operator !== '==' && operator !== '!='),
               }));
               const selectedOperatorItem = operatorItems.find(({ value }) => value === condition.operator);
+              const suggestedTarget = conditionMeasurement.initial + conditionMeasurement.step;
 
               return (
                 <View key={index} style={s.condition}>
-                  <View style={{ flexShrink: 1 }}>
-                    <BottomDrawer<string>
-                      anchor={(
+                  <BottomDrawer<string>
+                    anchor={(
+                      <View style={{
+                        ...s.dropdownButton,
+                        flexGrow: condition.measurementId ? 0 : 1,
+                      }}>
                         <TouchableRipple
-                          style={s.dropdownButton}
                           onPress={() => {
                             const nextVisibilities = [...measurementMenuVisibilities];
                             nextVisibilities[index] = true;
                             setMeasurementMenuVisibilities(nextVisibilities);
                           }}
                         >
-                          <>
-                            <Icon source={typeData.icon} size={16} />
-                            <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementActivity}>
-                              {formMeasurement.name}
-                            </Text>
-                            {formMeasurement.variant ? <Text ellipsizeMode='tail' numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {formMeasurement.variant}</Text> : null}
-                          </>
+                          <View style={s.dropdownButtonContent}>
+                            {condition.measurementId ? (
+                              <>
+                                <Icon source={typeData.icon} size={16} />
+                                <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementActivity}>
+                                  {conditionMeasurement.name}
+                                </Text>
+                                {conditionMeasurement.variant ? (
+                                  <>
+                                    <Text numberOfLines={1} variant='bodyMedium'>:</Text>
+                                    <Text ellipsizeMode='tail' numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}>
+                                      {conditionMeasurement.variant}
+                                    </Text>
+                                  </>
+                                ) : null}
+                              </>
+                            ) : (
+                              <>
+                                <Text variant='labelMedium'>
+                                  Choose measurement
+                                </Text>
+                                {/* <View style={{ width: 4000, flexShrink: 1 }} /> */}
+                                <Icon source={Icons.down} size={16} />
+                              </>
+                            )}
+                          </View>
                         </TouchableRipple>
-                      )}
-                      items={measurementItems}
-                      selectedItem={selectedMeasurementItem || null}
-                      onDismiss={() => {
-                        const nextVisibilities = [...measurementMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setMeasurementMenuVisibilities(nextVisibilities);
-                      }}
-                      onSelect={(item) => {
-                        const nextHabit = { ...formHabit };
-                        const selectedMeasurement = measurements.find(({ id }) => id === item.value);
-                        nextHabit.conditions[index].measurementId = item.value;
-                        if (selectedMeasurement?.type === 'bool') {
-                          nextHabit.conditions[index].operator = '==';
-                          nextHabit.conditions[index].target = '1';
-                        }
-
-                        handleFormEdit(nextHabit);
-                        const nextVisibilities = [...measurementMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setMeasurementMenuVisibilities(nextVisibilities);
-                      }}
-                      visible={isMeasurementMenuVisible}
-                    />
-                  </View>
-                    <BottomDrawer<string>
-                      anchor={
+                      </View>
+                    )}
+                    items={measurementItems}
+                    selectedItem={selectedMeasurementItem || null}
+                    onDismiss={() => {
+                      const nextVisibilities = [...measurementMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setMeasurementMenuVisibilities(nextVisibilities);
+                    }}
+                    onSelect={(item) => {
+                      const nextHabit = { ...formHabit };
+                      const selectedMeasurement = measurements.find(({ id }) => id === item.value);
+                      nextHabit.conditions[index].measurementId = item.value;
+                      if (selectedMeasurement?.type === 'bool') {
+                        nextHabit.conditions[index].operator = '==';
+                        nextHabit.conditions[index].target = '1';
+                      }
+    
+                      handleFormEdit(nextHabit);
+                      const nextVisibilities = [...measurementMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setMeasurementMenuVisibilities(nextVisibilities);
+                    }}
+                    visible={isMeasurementMenuVisible}
+                  />
+                  {condition.measurementId && <BottomDrawer<string>
+                    anchor={
+                      <View style={{
+                        ...s.dropdownButton,
+                        flexGrow: condition.operator ? 0 : 1,
+                        flexShrink: condition.operator ? 0 : 1,
+                      }}>
                         <TouchableRipple
-                          style={{ ...s.dropdownButton, paddingVertical: 13}}
                           onPress={() => {
                             const nextVisibilities = [...operatorMenuVisibilities];
                             nextVisibilities[index] = true;
                             setOperatorMenuVisibilities(nextVisibilities);
                           }}
+                          disabled={!condition.measurementId}
                         >
-                          <Icon source={getHabitOperatorData(condition.operator).icon} size={14} />
-                          {/* <Text variant='titleSmall'>
-                            {condition.operator}
-                          </Text> */}
+                          <View style={s.dropdownButtonContent}>
+                            {
+                              condition.operator ? (
+                                <Icon source={getHabitOperatorData(condition.operator).icon} size={14} />
+                              ) : (
+                                  <>
+                                <Text variant='labelMedium' ellipsizeMode='tail' numberOfLines={1} style={{ color: !condition.measurementId ? theme.colors.onSurfaceDisabled : undefined}}>
+                                  Choose operator
+                                </Text>
+                                <Icon source={Icons.down} size={16} color={!condition.measurementId ? theme.colors.onSurfaceDisabled : undefined} />
+                                </>
+                              )
+                            }
+                          </View>
                         </TouchableRipple>
-                      }
-                      visible={isOperatorMenuVisible}
-                      onDismiss={() => {
-                        const nextVisibilities = [...operatorMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setOperatorMenuVisibilities(nextVisibilities);
-                      }}
-                      items={operatorItems}
-                      selectedItem={selectedOperatorItem || null}
-                      onSelect={(item) => {
-                        const nextHabit = { ...formHabit };
-                        nextHabit.conditions[index].operator = item.value as HabitOperator;
-                        handleFormEdit(nextHabit);
-                        
-                        const nextVisibilities = [...operatorMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setOperatorMenuVisibilities(nextVisibilities);
-                      }}
-                    />
+                      </View>
+                    }
+                    visible={isOperatorMenuVisible}
+                    onDismiss={() => {
+                      const nextVisibilities = [...operatorMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setOperatorMenuVisibilities(nextVisibilities);
+                    }}
+                    items={operatorItems}
+                    selectedItem={selectedOperatorItem || null}
+                    onSelect={(item) => {
+                      const nextHabit = { ...formHabit };
+                      nextHabit.conditions[index].operator = item.value as HabitOperator;
+                      handleFormEdit(nextHabit);
+                      
+                      const nextVisibilities = [...operatorMenuVisibilities];
+                      nextVisibilities[index] = false;
+                      setOperatorMenuVisibilities(nextVisibilities);
+                    }}
+                  />}
+                  {condition.measurementId && condition.operator && 
                     <TextInput
                       mode='outlined'
-                      style={s.targetInput}
+                      style={{ ...s.targetInput, marginTop: -5}}
                       contentStyle={s.targetInputContent}
+                      label='Target'
+                      placeholder={suggestedTarget.toString()}
                       placeholderTextColor={theme.colors.onSurfaceDisabled}
                       dense
-                      placeholder='Target'
                       error={saveAttempted && getTargetErrors().hasError}
-                      value={isBool ? 'Yes' : condition.target.toString()}
+                      value={isBool ? 'Yes' : condition.target}
                       onChangeText={(text) => {
                         const nextHabit = { ...formHabit };
                         nextHabit.conditions[index].target = text;
                         handleFormEdit(nextHabit);
                       }}
-                      right={condition.target ? (
+                      right={(
                         <TextInput.Affix
-                          text={isTime || isDuration ? `(${formatValue(parseFloat(condition.target), formMeasurement.type)})` : (formMeasurement.unit || '')}
+                          text={isTime || isDuration ? `(${formatValue(parseFloat(condition.target || suggestedTarget.toString()), conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
                         />
-                      ) : null}
+                      )}
                       keyboardType="numeric"
                       disabled={isBool}
                     />
+                  }
                   {formHabit.conditions.length > 1 ? (
                     <IconButton
                       icon={'delete-outline'}
@@ -438,21 +458,20 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               mode='text'
               onPress={() => {
                 const nextHabit = { ...formHabit };
-                const m = unusedMeasurements.length ? unusedMeasurements[0] : measurements[0];
-                nextHabit.conditions.push({
-                  measurementId: m.id,
-                  operator: '>=',
-                  target: '0',
-                })
+
+                nextHabit.conditions.push({});
                 handleFormEdit(nextHabit);
               }}
               textColor={theme.colors.onSurface}
               buttonColor={theme.colors.surfaceDisabled}
+              compact
             >
-              <Icon source={'plus'} size={14} color={theme.colors.onSurface} />
-              <Text variant='labelMedium'>
-                ADD CONDITION
-              </Text>
+              <View style={s.addConditionButtonContent}>
+                <Icon source={'plus'} size={14} color={theme.colors.onSurface} />
+                <Text variant='labelMedium'>
+                  ADD CONDITION
+                </Text>
+              </View>
             </Button>
           </View>
           {formHabit.conditions.length > 1 && (
@@ -465,45 +484,26 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 </Text>
               </View>
               <View style={s.formSection}>
-                <TouchableRipple
-                  style={{ ...s.optionSelection, backgroundColor: formHabit.predicate === 'AND'  ? theme.colors.surfaceDisabled : theme.colors.surface }}
+                <OptionButton
+                  selected={formHabit.predicate === 'AND'}
                   onPress={() => {
                     const nextHabit = { ...formHabit, predicate: 'AND' };
                     handleFormEdit(nextHabit);
                   }}
-                >
-                  <>
-                    <Icon
-                      source={Icons.repeatDaily}
-                      color={theme.colors.onSurface}
-                      size={24}
-                      />
-                    <View style={s.optionSelectionText}>
-                      <Text variant='labelLarge'>ALL</Text>
-                      <Text variant='bodySmall'>Every condition must be satisfied.</Text>
-                    </View>
-                  </>
-                </TouchableRipple>
-                <TouchableRipple
-                  style={{ ...s.optionSelection, backgroundColor: formHabit.predicate !== 'AND'  ? theme.colors.surfaceDisabled : theme.colors.surface }}
+                  icon={Icons.predicateAnd}
+                  title='ALL'
+                  subtitle='Every condition must be satisfied.'
+                  />
+                <OptionButton
+                  selected={formHabit.predicate === 'OR'}
                   onPress={() => {
-                    const nextHabit = { ...formHabit, predicate: 'ANY' };
+                    const nextHabit = { ...formHabit, predicate: 'OR' };
                     handleFormEdit(nextHabit);
                   }}
-                  >
-                  <>
-                    <Icon
-                      source={Icons.repeatWeekly}
-                      color={theme.colors.onSurface}
-                      size={24}
-                      />
-                    <View style={s.optionSelectionText}>
-                      <Text variant='labelLarge'>ANY</Text>
-                      <Text variant='bodySmall'>At least one condition must be satisfied.</Text>
-                    </View>
-
-                  </>
-                </TouchableRipple>
+                  icon={Icons.predicateOr}
+                  title='ANY'
+                  subtitle='At least one condition must be satisfied.'
+                />
               </View>
             </>
           )}
@@ -598,33 +598,35 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   condition: {
     flexDirection: 'row',
+    flexGrow: 1,
+    flexShrink: 1,
+    maxWidth: '100%',
     alignItems: 'center',
     gap: 8,
     marginTop: 4,
-    justifyContent: 'space-between',
   },
   dropdownButton: {
-    backgroundColor: theme.colors.surfaceVariant,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceDisabled,
     borderRadius: 4,
+    overflow: 'hidden',
     flexShrink: 1,
+    flexGrow: 1,
   },
-  dropdownButtonLabel: {
-    marginVertical: 10,
-    marginHorizontal: 12,
-    borderRadius: 4,
+  dropdownButtonContent: {
     flexShrink: 1,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+    height: 42,
+    paddingHorizontal: 10,
   },
   measurementActivity: {
-    marginLeft: 4,
-    flexShrink: 2,
+    flexShrink: 4,
   },
   measurementVariant: {
-    color: theme.colors.outline,
+    color: theme.colors.onSurface,
     flexShrink: 1,
   },
   targetInput: {
@@ -641,6 +643,12 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
     marginTop: 12,
   },
   addConditionButtonLabel: {
+  },
+  addConditionButtonContent: {
+    height: 20,
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   predicateButtons: {
     

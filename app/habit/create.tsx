@@ -14,12 +14,12 @@ const HabitCreateScreen = () => {
 
   let measurement = measurements.length ? measurements[0] : null;
   if (!measurement) {
-    measurement = createMeasurement(auth?.user?.uid || '', 'New measurement', 'New variant', 'duration', 'min', 15, 1);
+    measurement = createMeasurement(auth?.user?.uid || '', 'Sample measurement', '', 'duration', 'min', 15, 1);
     dispatch(callCreateMeasurement(measurement));
   }
 
   const priority = 1 + (habits[habits.length - 1]?.priority || 0);
-  const habit = createInitialHabit(auth?.user?.uid || '', 'New habit', [{ measurementId: measurement.id, operator: '>', target: 0 }], priority);
+  const habit = createInitialHabit(auth?.user?.uid || '', '', [], priority);
   const computedHabit = computeHabit(habit);
 
   return (

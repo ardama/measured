@@ -15,8 +15,15 @@ type HeaderProps = {
   showBackButton?: boolean,
   showMenuButton?: boolean,
   actionButton?: JSX.Element | null,
+  bordered?: boolean,
 }
-export default function Header({ title, showBackButton, showMenuButton, actionButton }: HeaderProps) {
+export default function Header({
+  title,
+  showBackButton,
+  showMenuButton,
+  actionButton,
+  bordered,
+}: HeaderProps) {
   const dispatch = useDispatch();
   const theme = useTheme();
   const navigation = useNavigation<DrawerNavigationProp<ParamListBase>>();
@@ -24,17 +31,27 @@ export default function Header({ title, showBackButton, showMenuButton, actionBu
   const styles = createStyles(theme);
 
   return (
-    <Appbar.Header style={{ backgroundColor: theme.colors.elevation.level3 }}>
+    <Appbar.Header
+      style={[
+        styles.container,
+        bordered ? styles.containerBordered : {},
+      ]}>
       {/* {showMenuButton ? <Appbar.Action icon={'menu'} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} /> : null} */}
       {showBackButton ? <Appbar.Action icon={'chevron-left'} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
       <Appbar.Content title={title} />
       {actionButton || null}
-      <Appbar.Action icon="theme-light-dark" onPress={() => { dispatch(toggleDarkMode())}} />
     </Appbar.Header>
   );
 }
 
 const createStyles = (theme: MD3Theme) => StyleSheet.create({
+  container: {
+    backgroundColor: theme.colors.elevation.level3,
+  },
+  containerBordered: {
+    borderBottomWidth: 1,
+    borderColor: theme.colors.surfaceVariant,
+  },
   title: {
     textTransform: 'uppercase',
     fontFamily: getFontFamily(400),

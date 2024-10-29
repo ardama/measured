@@ -83,8 +83,10 @@ const Measurements = () => {
 
   return (
     <>
-      <Header title='Measurements' actionButton={
-        (
+      <Header
+        title='Measurements'
+        bordered
+        actionButton={(
           <Button
             mode='text'
             textColor={theme.colors.onSurface}
@@ -101,8 +103,8 @@ const Measurements = () => {
           >
             {isReordering ? 'SAVE ORDER' : 'SET ORDER'}
           </Button>
-        )
-      }/>
+        )}
+      />
       <View style={styles.container}>
         <NestableScrollContainer style={styles.scrollContainer}>
           <View style={styles.measurementsContainer}>
@@ -276,7 +278,7 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingBottom: 88
   },
   sectionHeader: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: theme.colors.elevation.level3,
@@ -295,9 +297,6 @@ const createListStyles = (theme: MD3Theme) => StyleSheet.create({
   sectionHeaderText: {
     color: theme.colors.onSurface,
     flexGrow: 1,
-  },
-  sectionHeaderIcon: {
-    marginRight: 8,
   },
   createButtonContainer: {
     position: 'absolute',

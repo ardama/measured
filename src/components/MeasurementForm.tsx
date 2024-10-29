@@ -1,4 +1,5 @@
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
+import OptionButton from '@c/OptionButton';
 import { CommonActions } from '@react-navigation/native';
 import { callCreateMeasurement, callUpdateMeasurement } from '@s/dataReducer';
 import { useMeasurements } from '@s/selectors';
@@ -192,14 +193,12 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
               const selected = type === formMeasurement.type;
               const disabled = !isNew && !selected;
 
-              const backgroundColor = selected ? theme.colors.surfaceDisabled : isUnset ? theme.colors.elevation.level2 : theme.colors.surface;
-              return !disabled && (
-                <TouchableRipple
+              return (
+                <OptionButton
                   key={type}
-                  style={{ ...s.typeSelection, backgroundColor }}
                   onPress={() => {
                     if (type === formMeasurement.type) return;
-
+  
                     const nextMeasurement = { ...formMeasurement, type: type };
                     if (type === 'combo') {
                       nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
@@ -214,21 +213,13 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                     }
                     handleFormEdit(nextMeasurement);
                   }}
+                  selected={selected}
+                  unselected={isUnset}
                   disabled={disabled}
-                >
-                  <>
-                    <Icon
-                      source={typeData.icon}
-                      color={disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
-                      size={24}
-                    />
-                    <View style={s.typeSelectionText}>
-                      <Text variant='labelLarge'>{typeData.label.toUpperCase()}</Text>
-                      <Text variant='bodySmall'>{typeData.description}</Text>
-                    </View>
-
-                  </>
-                </TouchableRipple>
+                  icon={typeData.icon}
+                  title={typeData.label.toUpperCase()}
+                  subtitle={typeData.description}
+                />
               );
             })}
           </View>
