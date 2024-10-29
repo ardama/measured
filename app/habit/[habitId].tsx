@@ -1,5 +1,7 @@
 import HabitForm from '@c/HabitForm';
+import Header from '@c/Header';
 import { useHabit } from '@s/selectors';
+import { withAuth } from '@u/hocs/withAuth';
 import { router, useLocalSearchParams } from 'expo-router';
 
 const HabitEditScreen = () => {
@@ -12,8 +14,11 @@ const HabitEditScreen = () => {
     return null;
   }
   return (
-    <HabitForm habit={habit} formType={'edit'} />
+    <>
+      <Header showBackButton title={habit.name} />
+      <HabitForm habit={habit} formType={'edit'} />
+    </>
   )
 }
 
-export default HabitEditScreen;
+export default withAuth(HabitEditScreen);

@@ -1,7 +1,8 @@
 import Recordings from '@c/Recordings';
+import { withAuth } from '@u/hocs/withAuth';
 
 const RecordingsScreen = () => {
   return <Recordings />
 };
 
-export default RecordingsScreen;
+export default withAuth(RecordingsScreen);

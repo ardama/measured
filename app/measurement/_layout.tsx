@@ -1,30 +1,22 @@
 import Header from '@c/Header';
+import { withAuth } from '@u/hocs/withAuth';
 import { Stack } from 'expo-router';
 
-export default function MeasurementsLayout() {
+function MeasurementsLayout() {
   return (
     <Stack
       screenOptions={{
-        header: ({ options }) => {
-          const { title } = options;
-          return (
-            <Header showBackButton title={title} />
-          )
-        }
+        headerShown: false,
       }}
     >      
       <Stack.Screen
         name="create"
-        options={{
-          title: 'Create measurement',
-        }}
       />               
       <Stack.Screen
         name="[measurementId]"
-        options={{
-          title: 'Edit measurement',
-        }}
       />               
     </Stack>
   )
 };
+
+export default withAuth(MeasurementsLayout);

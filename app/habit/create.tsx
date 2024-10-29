@@ -1,8 +1,10 @@
 import HabitForm from '@c/HabitForm';
+import Header from '@c/Header';
 import { callCreateMeasurement } from '@s/dataReducer';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
 import { computeHabit, createInitialHabit } from '@t/habits';
 import { createMeasurement } from '@t/measurements';
+import { withAuth } from '@u/hocs/withAuth';
 import { useAuth } from '@u/hooks/useAuth';
 import { useDispatch } from 'react-redux';
 
@@ -23,8 +25,11 @@ const HabitCreateScreen = () => {
   const computedHabit = computeHabit(habit);
 
   return (
-    <HabitForm habit={computedHabit} formType={'create'} />
+    <>
+      <Header showBackButton title={'Create habit'} />
+      <HabitForm habit={computedHabit} formType={'create'} />
+    </>
   )
 }
 
-export default HabitCreateScreen;
+export default withAuth(HabitCreateScreen);

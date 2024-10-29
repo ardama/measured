@@ -1,6 +1,8 @@
+import Header from '@c/Header';
 import MeasurementForm from '@c/MeasurementForm';
 import { useMeasurements } from '@s/selectors';
 import { createMeasurement } from '@t/measurements';
+import { withAuth } from '@u/hocs/withAuth';
 import { useAuth } from '@u/hooks/useAuth';
 
 const MeasurementCreateScreen = () => {
@@ -9,8 +11,11 @@ const MeasurementCreateScreen = () => {
 
   let measurement = createMeasurement(auth?.user?.uid || '', '', '', '', 'minutes', 15, (measurements[measurements.length - 1]?.priority || 0) + 1)
   return (
-    <MeasurementForm measurement={measurement} formType={'create'} />
+    <>
+      <Header showBackButton title={'Create measurement'} />
+      <MeasurementForm measurement={measurement} formType={'create'} />
+    </>
   )
 }
 
-export default MeasurementCreateScreen;
+export default withAuth(MeasurementCreateScreen);

@@ -12,8 +12,8 @@ export const Icons = {
   operatorEq: 'equal',
   operatorNot: 'not-equal-variant',
   
-  habit: 'checkbox-multiple-outline',
-  habitFilled: 'checkbox-multiple-marked',
+  habit: 'bullseye-arrow',
+  habitFilled: 'bullseye-arrow',
   pastHabit: 'history',
   
   measurement: 'beaker-outline',

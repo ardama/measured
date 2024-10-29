@@ -11,4 +11,4 @@ const RootRedirect = () => {
   return <Redirect href={'/home/'} />;
 }
 
-export default withAuth(RootRedirect, true);
+export default withAuth(RootRedirect);

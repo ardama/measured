@@ -14,8 +14,9 @@ import { getMeasurementRecordingValue, getMeasurementTypeIcon } from '@t/measure
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
 import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
+import { withAuth } from '@u/hocs/withAuth';
 
-export default function HistoryScreen() {
+function HistoryScreen() {
   const theme = useTheme();
   const s = createStyles(theme);
   
@@ -651,3 +652,5 @@ const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
     
   },
 });
+
+export default withAuth(HistoryScreen);

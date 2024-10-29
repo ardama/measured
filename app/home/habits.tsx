@@ -1,4 +1,5 @@
 import Habits from '@c/Habits'
+import { withAuth } from '@u/hocs/withAuth';
 
 const HabitsScreen = () => {
   return (
@@ -6,4 +7,4 @@ const HabitsScreen = () => {
   )
 }
 
-export default HabitsScreen;
+export default withAuth(HabitsScreen);

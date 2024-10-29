@@ -1,5 +1,7 @@
+import Header from '@c/Header';
 import MeasurementForm from '@c/MeasurementForm';
 import { useMeasurement } from '@s/selectors';
+import { withAuth } from '@u/hocs/withAuth';
 import { router, useLocalSearchParams } from 'expo-router';
 
 const MeasurementEditScreen = () => {
@@ -11,9 +13,17 @@ const MeasurementEditScreen = () => {
     router.canGoBack() ? router.back() : router.replace('/');
     return null;
   }
+
   return (
-    <MeasurementForm measurement={measurement} formType={'edit'} />
+    <>
+      <Header
+        showBackButton
+        title={`${measurement.name}`}
+        subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
+      />
+      <MeasurementForm measurement={measurement} formType={'edit'} />
+    </>
   )
 }
 
-export default MeasurementEditScreen;
+export default withAuth(MeasurementEditScreen);

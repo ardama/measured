@@ -14,7 +14,7 @@ import Animated, {
 
 type BottomDrawerProps<T> = {
   anchor: JSX.Element,
-  selectedItem: BottomDrawerItem<T> | null,
+  selectedItem?: BottomDrawerItem<T> | null,
   items: BottomDrawerItem<T>[],
   visible: boolean,
   showSearchbar?: boolean,
@@ -25,6 +25,7 @@ type BottomDrawerProps<T> = {
 
 export type BottomDrawerItem<T> = {
   title: string,
+  subtitle?: string,
   value: T,
   icon?: string,
   disabled?: boolean,
@@ -188,12 +189,22 @@ function BottomDrawerItem<T>({ item, selected, onSelect }: BottomDrawerItemProps
         style={[styles.itemContent, selected ? styles.itemContentSelected : {}, item.disabled ? styles.itemContentDisabled : {}]}
       >
         {item.icon ? <Icon source={item.icon} size={18} color={item.disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} /> : null}
-        <Text
-          variant={selected ? 'titleMedium': 'bodyLarge'}
-          style={[styles.itemLabel, selected ? styles.itemSelectedLabel : {}, item.disabled ? styles.itemDisabledLabel : {}]}
-        >
-          {item.title}
-        </Text>
+        <View style={styles.itemTextContent}>
+          <Text
+            variant={selected || !!item.subtitle ? 'titleMedium': 'bodyLarge'}
+            style={[styles.itemTitle, selected ? styles.itemSelectedTitle : {}, item.disabled ? styles.itemDisabledTitle : {}]}
+          >
+            {item.title}
+          </Text>
+          {!!item.subtitle && (
+            <Text
+              variant={selected ? 'bodyMedium': 'bodyMedium'}
+              style={[styles.itemSubtitle, selected ? styles.itemSelectedSubtitle : {}, item.disabled ? styles.itemDisabledSubtitle : {}]}
+            >
+              {item.subtitle}
+            </Text>
+          )}
+        </View>
       </View>
     </TouchableRipple>
   )
@@ -270,13 +281,23 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   itemContentDisabled: {
 
   },
-  itemLabel: {
-    marginLeft: 12,
+  itemTextContent: {
+    marginLeft: 16,
+    flexGrow: 1,
+    flexShrink: 1,
   },
-  itemSelectedLabel: {
+  itemTitle: {
   },
-  itemDisabledLabel: {
+  itemSelectedTitle: {
+  },
+  itemDisabledTitle: {
     color: theme.colors.onSurfaceDisabled,
-
+  },
+  itemSubtitle: {
+  },
+  itemSelectedSubtitle: {
+  },
+  itemDisabledSubtitle: {
+    color: theme.colors.onSurfaceDisabled,
   },
 });

@@ -1,4 +1,5 @@
 import Measurements from '@c/Measurements'
+import { withAuth } from '@u/hocs/withAuth';
 
 const MeasurementsScreen = () => {
   return (
@@ -6,4 +7,4 @@ const MeasurementsScreen = () => {
   )
 }
 
-export default MeasurementsScreen;
+export default withAuth(MeasurementsScreen);

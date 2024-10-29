@@ -461,7 +461,8 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     width: '100%',
-    height: '100%',
+    flexGrow: 1,
+    flexShrink: 1,
     backgroundColor: theme.colors.background,
     flexDirection: 'row',
     justifyContent: 'center',

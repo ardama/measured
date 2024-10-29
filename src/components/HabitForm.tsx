@@ -537,7 +537,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
 const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     width: '100%',
-    height: '100%',
+    flexGrow: 1,
+    flexShrink: 1,
     backgroundColor: theme.colors.surface,
     flexDirection: 'row',
     justifyContent: 'center',

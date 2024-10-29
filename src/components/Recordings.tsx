@@ -6,11 +6,13 @@ import { useEffect, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { formatValue, intersection, range } from '@u/helpers';
+import { formatNumber, formatValue, intersection, range } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import { callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
+import { router } from 'expo-router';
+import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
 
 const Recordings = () => {
   const measurements = useMeasurements();
@@ -20,15 +22,32 @@ const Recordings = () => {
   const weeklyHabits = habits.filter((h) => h.isWeekly);
 
   const today = SimpleDate.today();
-
+  
   const [selectedDate, setSelectedDate] = useState(today);
   const selectedWeekDates = SimpleDate.generateWeek(selectedDate);
   const previousWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(7));
   const nextWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(-7));
-
+  const isToday = SimpleDate.daysBetween(today, selectedDate) === 0;
+  
   const theme = useTheme();
   const styles = createStyles(theme);
 
+  const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
+  const addMenuItems: BottomDrawerItem<string>[] = [
+    {
+      icon: Icons.measurement,
+      title: 'Create measurement',
+      subtitle: 'Measurements are simple tracked values that you can record and monitor over time.',
+      value: 'measurement',
+    },
+    {
+      icon: Icons.habit,
+      title: 'Create habit',
+      value: 'habit',
+      subtitle: 'Habits are recurring measurement targets that help you define your goals and maintain consistency.',
+      disabled: measurements.length === 0,
+    }
+  ];
 
   const [tempRecordingsMap, setTempRecordingsMap] = useState<Map<string, Map<string, number>>>(new Map());
   const mergedRecordingsMap = new Map(measurements.map(({ id, recordings}) => [
@@ -169,8 +188,9 @@ const Recordings = () => {
     <>
       <Header
         showMenuButton
-        title={'Recordings'}
-        actionButton={SimpleDate.daysBetween(today, selectedDate) ? (
+        title='Recordings'
+        subtitle={` : ${isToday ? 'Today' : selectedDate.toFormattedString(true, false, true)}`}
+        actionButton={!isToday ? (
           <Button
             mode='text'
             textColor={theme.colors.onSurface}
@@ -264,7 +284,7 @@ const Recordings = () => {
         <ScrollView style={styles.content}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderTitle} variant='labelMedium'>MEASUREMENTS</Text>
-            <Button mode='text'
+            {!!measurements.length && (<Button mode='text'
               textColor={theme.colors.onSurface}
               onPress={() => {
                 const nextExpandedMeasurements = new Set(areAllMeasurementsExpanded ? [] : displayedMeasurementIds);
@@ -272,7 +292,7 @@ const Recordings = () => {
               }}
             >
               <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllMeasurementsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
-            </Button>
+            </Button>)}
             {displayedMeasurements.length ? (
               <View style={styles.dailyMeasurementsStatusContainer}>
                 {selectedWeekDates.map((date, index) => {
@@ -314,7 +334,7 @@ const Recordings = () => {
                     key={id}
                     index={index}
                     measurement={measurement}
-                    date={selectedDate}
+                    currentDate={selectedDate}
                     weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
                     expanded={displayedExpandedMeasurements.has(id)}
                     onValueChange={(nextValue: number) => queueRecordingUpdate(nextValue, id, selectedDate.toString())}
@@ -322,6 +342,9 @@ const Recordings = () => {
                       const nextExpandedMeasurements = new Set([...expandedMeasurements]);
                       nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
                       setExpandedMeasurements(nextExpandedMeasurements);
+                    }}
+                    onLongPress={(id) => {
+                      router.push(`/measurement/${id}`);
                     }}
                   />
                 );
@@ -337,7 +360,7 @@ const Recordings = () => {
           </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderTitle} variant='labelMedium'>HABITS</Text>
-            <Button mode='text'
+            {!!habits.length && (<Button mode='text'
               textColor={theme.colors.onSurface}
               onPress={() => {
                 const nextExpandedHabits = new Set(areAllHabitsExpanded ? [] : displayedHabitIds);
@@ -345,7 +368,16 @@ const Recordings = () => {
               }}
             >
               <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllHabitsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
-            </Button>
+            </Button>)}
+            {!!habits.length && (<Button mode='text'
+              textColor={theme.colors.onSurface}
+              onPress={() => {
+                const nextExpandedHabits = new Set(areAllHabitsExpanded ? [] : displayedHabitIds);
+                setExpandedHabits(nextExpandedHabits);
+              }}
+            >
+              <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllHabitsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
+            </Button>)}
             {displayedHabits.length ? (
               <>
                 <View style={styles.progressContainer}>
@@ -385,6 +417,13 @@ const Recordings = () => {
                     />
                   </View>
                 </View>
+                <View style={styles.weekProgressMarkers}>
+                  {range(0, 7).map((i) => (
+                    <View key={i} style={styles.weekProgressMarker}>
+                      {i !== 0 && <View style={styles.weekProgressMarkerInner} />}
+                    </View>
+                  ))}
+                </View>
                 <View style={styles.weekPointsContainer}>
                   <Text style={styles.weekPointsLabel}>Week:</Text>
                   <Text variant='titleMedium'>{selectedWeekPointTotal}</Text>
@@ -392,6 +431,7 @@ const Recordings = () => {
                   <Text style={styles.weekPointsDivider}>/</Text>
                   <Points size={'medium'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
                   {/* <Text style={styles.weekPointsTarget}> / week</Text> */}
+                  {/* <Text style={styles.weekPointsDivider}>({formatNumber(100 * selectedWeekPointTotal / perWeekPointTarget)}%)</Text> */}
                 </View>
                 <View style={styles.dailyPointTotalContainer}>
                   {selectedWeekDates.map((date, index) => {
@@ -428,7 +468,7 @@ const Recordings = () => {
               </>
             ) : null}
           </View>
-          <View style={styles.sectionContent}>
+          <View style={{ ...styles.sectionContent, marginBottom: 88 }}>
             <View style={styles.recordingView}>
               {
                 displayedHabits.length ? displayedHabits.map((habit, index) => {
@@ -448,6 +488,9 @@ const Recordings = () => {
                         nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
                         setExpandedHabits(nextExpandedHabits);
                       }}
+                      onLongPress={(id) => {
+                        router.push(`/habit/${id}`);
+                      }}
                     />
                   );
                 }) : (
@@ -462,6 +505,31 @@ const Recordings = () => {
             </View>
           </View>
         </ScrollView>
+      </View>
+      <View style={styles.createButtonContainer}>
+        <BottomDrawer
+          visible={isAddMenuVisible}
+          onDismiss={() => setIsAddMenuVisible(false)}
+          anchor={
+            <Surface style={styles.createButton} elevation={2}>
+              <TouchableRipple
+                onPress={() => setIsAddMenuVisible(true)}
+              >
+                <View style={styles.createButtonContent}>
+                  <Icon source={Icons.add} size={24} color={theme.colors.inverseOnSurface} />  
+                  {/* <Text variant='titleSmall' style={styles.createButtonText}>CREATE MEASUREMENT</Text> */}
+                </View>
+              </TouchableRipple>
+            </Surface>
+          }
+          items={addMenuItems}
+          onSelect={(item) => {
+            setIsAddMenuVisible(false);
+            setTimeout(() => {
+              router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
+            }, 0);
+          }}
+        />
       </View>
     </>
   );
@@ -576,6 +644,30 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  weekProgressMarkers: {
+    width: '100%',
+    height: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    gap: 2,
+    marginTop: -8,
+  },
+  weekProgressMarker: {
+    position: 'relative',
+    bottom: 8,
+    flexGrow: 1,
+    width: 2,
+    height: 16,
+    transform: [{ translateX: -2 }],
+  },
+  weekProgressMarkerInner: {
+    position: 'relative',
+    left: -1,
+    width: 2,
+    height: 16,
+    backgroundColor: theme.colors.elevation.level3,
+  },
   overlapProgress: {
     height: '100%',
     borderRadius: 8,
@@ -587,8 +679,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     height: '100%',
     borderRadius: 8,
     flexGrow: 0,
-
-    backgroundColor: theme.colors.surfaceDisabled,
   },
   weekPointsContainer: {
     flexGrow: 1,
@@ -605,7 +695,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     color: theme.colors.onSurface,
   },
   content: {
-    paddingTop: 0,
+
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -615,6 +705,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
     backgroundColor: theme.colors.elevation.level3,
+    minHeight: 52,
   },
   sectionHeaderIcon: {
     marginLeft: 8
@@ -675,6 +766,33 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   noDataIcon: {
     marginRight: 8,
   },
+  createButtonContainer: {
+    position: 'absolute',
+    bottom: 16,
+    right: 24,
+  },
+  createButton: {
+    borderRadius: 24,
+    backgroundColor: theme.colors.inverseSurface,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 16,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    overflow: 'hidden',
+  },
+  createButtonContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    // paddingHorizontal: 24,
+    // paddingVertical: 20,
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    gap: 4,
+  },
+  createButtonText: {
+    color: theme.colors.inverseOnSurface,
+  },
 });
 
 export default Recordings;
@@ -682,14 +800,25 @@ export default Recordings;
 type RecordingMeasurementItemProps = {
   index: number,
   measurement: Measurement,
-  date: SimpleDate,
+  currentDate: SimpleDate,
   weekMeasurementValues: (number | null)[],
   expanded: boolean,
   onValueChange: (nextValue: number) => void,
   onPress: (id: string) => void,
+  onLongPress: (id: string) => void,
 }
 
-const RecordingMeasurementItem = ({ index, measurement, date: currentDate, weekMeasurementValues, expanded, onValueChange, onPress } : RecordingMeasurementItemProps) : JSX.Element | null  => {
+const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
+  const {
+    index,
+    measurement,
+    currentDate,
+    weekMeasurementValues,
+    expanded,
+    onValueChange,
+    onPress,
+    onLongPress,
+  } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
   if (!typeData) return null;
@@ -845,6 +974,8 @@ const RecordingMeasurementItem = ({ index, measurement, date: currentDate, weekM
     <TouchableRipple
       style={styles.container}
       onPress={() => onPress(measurement.id)}
+      onLongPress={() => onLongPress(measurement.id)}
+      delayLongPress={600}
     >
       <>
         <View style={styles.content}>
@@ -961,10 +1092,11 @@ type RecordingDataHabitProps = {
   expanded: boolean,
   recordingData:  Map<string, Map<string, number>>,
   onPress: (id: string) => void,
+  onLongPress: (id: string) => void,
 }
 
 const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | null => {
-  const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress } = props;
+  const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress, onLongPress } = props;
 
   const theme = useTheme();
   const styles = createHabitStyles(theme, index);
@@ -1096,6 +1228,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     <TouchableRipple
       style={styles.container}
       onPress={() => onPress(habit.id)}
+      onLongPress={() => onLongPress(habit.id)}
+      delayLongPress={600}
     >
       <>
         <View style={styles.content}>
@@ -1201,29 +1335,22 @@ const createHabitStyles = (theme: MD3Theme, index: number) => StyleSheet.create(
     alignItems: 'center',
     rowGap: 4,
     paddingVertical: 4,
+    justifyContent: 'space-between',
   },
   conditionMeasurement: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  conditionProgress: {
-    width: '100%',
-  },
-  conditionProgressBar: {
-    height: 6,
-    borderRadius: 200,
-  },
   conditionProgressBarComplete: {
   },
   conditionProgressLabel: {
-    flexGrow: 1,
+    // flexGrow: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   conditionProgressCurrent: {
-    flex: 1,
     textAlign: 'right',
   },
   conditionProgressDivider: {
@@ -1231,6 +1358,13 @@ const createHabitStyles = (theme: MD3Theme, index: number) => StyleSheet.create(
   },
   conditionProgressTarget: {
 
+  },
+  conditionProgress: {
+    width: '100%',
+  },
+  conditionProgressBar: {
+    height: 6,
+    borderRadius: 200,
   },
   completionContent: {
     flexDirection: 'row',

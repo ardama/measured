@@ -17,7 +17,7 @@ export class SimpleDate {
     return `${this.year}-${String(this.month).padStart(2, '0')}-${String(this.day).padStart(2, '0')}`;
   }
 
-  toFormattedString(useOrdinal = false) {
+  toFormattedString(useOrdinal = false, withYear = false, full = false,) {
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -41,8 +41,8 @@ export class SimpleDate {
     const dayWithSuffix = useOrdinal ? `${this.day}${getOrdinalSuffix(this.day)}` : this.day;
     
     const currentYear = SimpleDate.today().year;
-    if (this.year !== currentYear) {
-      const monthName = monthsAbbr[this.month - 1];
+    if (withYear || this.year !== currentYear) {
+      const monthName = (full ? months : monthsAbbr)[this.month - 1];
       return `${monthName} ${dayWithSuffix}, ${this.year}`
     } 
     
