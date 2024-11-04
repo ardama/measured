@@ -22,7 +22,7 @@ const TabLayout = () => {
       <BottomNavigation.Bar
         navigationState={state}
         safeAreaInsets={insets}
-        labeled={false}
+        labeled
         activeIndicatorStyle={{ backgroundColor: theme.colors.surfaceDisabled }}
         onTabPress={({ route, preventDefault }) => {
           const event = navigation.emit({
@@ -67,44 +67,24 @@ const TabLayout = () => {
       initialRouteName='index'
     >
       <Tabs.Screen
-        name="measurements"
-        options={{
-          title: 'Measurements',
-          tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.measurementFilled : Icons.measurement} color={color} size={size} />
-          ,
-          headerShown: false,
-        }}
-        />
-      <Tabs.Screen
-        name="habits"
-        options={{
-          title: 'Habits',
-          tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.habitFilled : Icons.habit } color={color} size={size} />
-          ,
-          headerShown: false,
-        }}
-        />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Recordings',
-          tabBarIcon: ({ color, focused, size }) => (
-            <Icon source={focused ? Icons.recordingFilled : Icons.recording} color={color} size={size} />
-          ),
-          headerShown: false,
-        }}
-        />
-      <Tabs.Screen
         name="history"
         options={{
-          title: 'Data',
+          title: 'History',
           tabBarIcon: ({ color, focused, size }) => 
             <Icon source={focused ? Icons.chartFilled : Icons.chart} color={color} size={size} />
           ,
         }}
         />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Measure',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Icon source={focused ? Icons.recordingFilled : Icons.recording} color={color} size={size} />
+          ),
+          headerShown: false,
+        }}
+      />
       <Tabs.Screen
         name="settings"
         options={{

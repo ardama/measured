@@ -129,3 +129,8 @@ export const range = (start: number, end: number) => {
 export const intersection = (setA: Set<any>, setB: Set<any>) => {
   return new Set([...setA].filter(element => setB.has(element)));
 }
+
+export const round = (number: number, places: number = 0) => {
+  const base = 10 ** places;
+  return Math.round(number * base) / base;
+}

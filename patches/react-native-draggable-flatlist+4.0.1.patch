@@ -1,0 +1,24 @@
+diff --git a/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx b/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
+index 6ff1ed5..c615753 100644
+--- a/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
+@@ -89,6 +89,19 @@ function useSetupAnimatedValues<T>() {
+     return isTouchActiveNative.value && activeIndexAnim.value >= 0;
+   }, []);
+ 
++  useAnimatedReaction(
++    () => {
++      return outerScrollOffset.value;
++    },
++    (cur, prev) => {
++      if (isDraggingCell.value) {
++        return;
++      }
++      outerScrollInit.value = cur;
++    },
++    [outerScrollInit, isDraggingCell]
++  );
++
+   const autoScrollDistance = useDerivedValue(() => {
+     if (!isDraggingCell.value) return 0;
+     const innerScrollDiff = scrollOffset.value - scrollInit.value;

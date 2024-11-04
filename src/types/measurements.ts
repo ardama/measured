@@ -93,7 +93,7 @@ const measurementTypeData: {
   },
   combo: {
     label: 'Combo', icon: Icons.measurementTypeCombo,
-    description: 'Combination of two measurements into one.',
+    description: 'Combination of multiple measurements into one.',
     namePlaceholder: '',
     variantPlaceholder: '',
   },

@@ -184,7 +184,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
           <View style={s.formSectionHeader}>
             <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
             <Text variant='bodySmall' style={s.labelSubtitle}>
-              {`${isNew ? 'Select what' : 'The'} kind of data this measurement represents.`}
+              {`${isNew ? 'Select the' : 'The'} kind of data this measurement represents.`}
             </Text>
           </View>
           <View style={s.formSection}>

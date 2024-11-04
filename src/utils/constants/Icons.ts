@@ -35,7 +35,7 @@ export const Icons = {
 
   warning: 'alert-circle-outline',
 
-  move: 'unfold-more-horizontal',
+  move: 'priority-low',
   up: 'chevron-up',
   down: 'chevron-down',
   
@@ -51,15 +51,19 @@ export const Icons = {
   progressPartial: (percent: number) => `circle-slice-${Math.max(Math.floor(percent * 8) % 9, 1)}`,
   progressComplete: 'circle-slice-8',
   
-  collapse: 'chevron-up',
-  expand: 'chevron-down',
+  collapse: 'format-vertical-align-center',
+  expand: 'arrow-expand-vertical',
+
 
   repeatDaily: 'cached',
   repeatWeekly: 'calendar-sync',
 
-  settings: 'tune-variant',
   account: 'account-cog-outline',
   accountFilled: 'account-cog',
 
+  settings: 'tune',
+  menu: 'dots-vertical',
+
   add: 'plus',
+
 }

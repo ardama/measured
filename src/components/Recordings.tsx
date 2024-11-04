@@ -6,13 +6,16 @@ import { useEffect, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { formatNumber, formatValue, intersection, range } from '@u/helpers';
+import { formatNumber, formatValue, forWeb, intersection, range, round } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callUpdateMeasurements } from '@s/dataReducer';
+import { callUpdateHabits, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
+import AnimatedView from '@c/AnimatedView';
+import { Easing } from 'react-native-reanimated';
+import DraggableFlatList, { NestableDraggableFlatList, NestableScrollContainer, ScaleDecorator } from 'react-native-draggable-flatlist';
 
 const Recordings = () => {
   const measurements = useMeasurements();
@@ -32,6 +35,129 @@ const Recordings = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
 
+  const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
+  const [showArchivedMeasurements, setShowArchivedMeasurements] = useState(false);
+  const [isReorderingMeasurements, setIsReorderingMeasurements] = useState(false);
+  const [measurementPriorityOverrides, setMeasurementPriorityOverrides] = useState<string[] | null>(null);
+
+  const orderedMeasurements = measurementPriorityOverrides?.length
+  ? measurementPriorityOverrides
+    .map((overrideId) => measurements.find(({ id }) => id === overrideId))
+    .filter((m) => !!m)
+  : measurements;
+
+  const displayedMeasurements = orderedMeasurements
+    .filter(m => !m.archived || showArchivedMeasurements);
+  const [expandedMeasurements, setExpandedMeasurements] = useState(new Set());
+  const displayedMeasurementIds = displayedMeasurements.map(({ id }) => id);
+  const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
+  const areAllMeasurementsExpanded = displayedExpandedMeasurements.size === displayedMeasurements.length;
+
+  const submitMeasurementOrder = () => {
+    if (!measurementPriorityOverrides || !measurementPriorityOverrides.length) return;
+
+    const updatedMeasurements: Measurement[] = [];
+    measurements.forEach((measurement) => {
+      const nextPriority = measurementPriorityOverrides.findIndex((id) => id === measurement.id);
+      if (measurement.priority === nextPriority) return;
+
+      updatedMeasurements.push({ ...measurement, priority: nextPriority });
+    });
+
+    if (!updatedMeasurements.length) return;
+    dispatch(callUpdateMeasurements(updatedMeasurements));
+  }
+
+  const measurementMenuItems: BottomDrawerItem<string>[] = [
+    {
+      icon: Icons.move,
+      title: isReorderingMeasurements ? 'Save measurement order' : 'Reorder measurements',
+      value: 'reorder',
+      subtitle: 'Long press measurements to drag and drop them into your preferred display order.',
+      disabled: measurements.length <= 1,
+    },
+    {
+      icon: Icons.expand,
+      title: `Expand all`,
+      subtitle: `Show expanded content for all measurements.`,
+      value: 'expand',
+      disabled: areAllMeasurementsExpanded,
+    },
+    {
+      icon: Icons.collapse,
+      title: `Collapse all`,
+      subtitle: `Hide expanded content for all measurements.`,
+      value: 'collapse',
+      disabled: expandedMeasurements.size === 0,
+    },
+    {
+      icon: showArchivedMeasurements ? Icons.hide : Icons.show,
+      title: `${showArchivedMeasurements ? 'Hide' : 'Show'} archived measurements`,
+      subtitle: `Toggle the visibility of measurements that you've archived.`,
+      value: 'visibility',
+    },
+  ];
+  const [isHabitMenuVisible, setIsHabitMenuVisible] = useState(false);
+  const [showArchivedHabits, setShowArchivedHabits] = useState(false);
+  const [isReorderingHabits, setIsReorderingHabits] = useState(false);
+  const [habitPriorityOverrides, setHabitPriorityOverrides] = useState<string[] | null>(null);
+
+  const orderedHabits = habitPriorityOverrides?.length
+  ? habitPriorityOverrides
+    .map((overrideId) => habits.find(({ id }) => id === overrideId))
+    .filter((m) => !!m)
+  : habits;
+  const displayedHabits = orderedHabits
+    .filter(h => !h.archived || showArchivedHabits);
+  const [expandedHabits, setExpandedHabits] = useState(new Set());
+  const displayedHabitIds = displayedHabits.map(({ id }) => id);
+  const displayedExpandedHabits = intersection(expandedHabits, new Set(displayedHabitIds));
+  const areAllHabitsExpanded = displayedExpandedHabits.size === displayedHabits.length;
+
+  const submitHabitOrder = () => {
+    if (!habitPriorityOverrides || !habitPriorityOverrides.length) return;
+
+    const updatedHabits: ComputedHabit[] = [];
+    habits.forEach((habit) => {
+      const nextPriority = habitPriorityOverrides.findIndex((id) => id === habit.id);
+      if (habit.priority === nextPriority) return;
+
+      updatedHabits.push({ ...habit, priority: nextPriority });
+    });
+
+    if (!updatedHabits.length) return;
+    dispatch(callUpdateHabits(updatedHabits));
+  }
+
+  const habitMenuItems: BottomDrawerItem<string>[] = [
+    {
+      icon: Icons.move,
+      title: isReorderingHabits ? 'Save habit order' : 'Reorder habits',
+      value: 'reorder',
+      subtitle: 'Long press habits to drag and drop them into your preferred display order.',
+      disabled: habits.length <= 1,
+    },
+    {
+      icon: Icons.expand,
+      title: `Expand all`,
+      subtitle: `Show expanded content for all habits.`,
+      value: 'expand',
+      disabled: areAllHabitsExpanded,
+    },
+    {
+      icon: Icons.collapse,
+      title: `Collapse all`,
+      subtitle: `Hide expanded content for all habits.`,
+      value: 'collapse',
+      disabled: expandedHabits.size === 0,
+    },
+    {
+      icon: showArchivedHabits ? Icons.hide : Icons.show,
+      title: `${showArchivedHabits ? 'Hide' : 'Show'} archived habits`,
+      subtitle: `Toggle the visibility of habits that you've archived.`,
+      value: 'visibility',
+    },
+  ];
   const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
   const addMenuItems: BottomDrawerItem<string>[] = [
     {
@@ -44,10 +170,12 @@ const Recordings = () => {
       icon: Icons.habit,
       title: 'Create habit',
       value: 'habit',
-      subtitle: 'Habits are recurring measurement targets that help you define your goals and maintain consistency.',
+      subtitle: 'Habits are recurring measurement targets that help you define your goals and score your progress.',
       disabled: measurements.length === 0,
     }
   ];
+
+  const scrollRef = useRef(null);
 
   const [tempRecordingsMap, setTempRecordingsMap] = useState<Map<string, Map<string, number>>>(new Map());
   const mergedRecordingsMap = new Map(measurements.map(({ id, recordings}) => [
@@ -168,40 +296,45 @@ const Recordings = () => {
     const nextDelay = Math.max(delay - 25, 100);
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
-
-  const displayedMeasurements = measurements
-    .filter(m => !m.archived);
-  const [expandedMeasurements, setExpandedMeasurements] = useState(new Set());
-  const displayedMeasurementIds = displayedMeasurements.map(({ id }) => id);
-  const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
-  const areAllMeasurementsExpanded = displayedExpandedMeasurements.size === displayedMeasurements.length;
-  
-  const displayedHabits = habits
-    .filter(h => !h.archived)
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0));
-  const [expandedHabits, setExpandedHabits] = useState(new Set());
-  const displayedHabitIds = displayedHabits.map(({ id }) => id);
-  const displayedExpandedHabits = intersection(expandedHabits, new Set(displayedHabitIds));
-  const areAllHabitsExpanded = displayedExpandedHabits.size === displayedHabits.length;
   
   return (
     <>
       <Header
         showMenuButton
-        title='Recordings'
+        title='Measure'
         subtitle={` : ${isToday ? 'Today' : selectedDate.toFormattedString(true, false, true)}`}
-        actionButton={!isToday ? (
-          <Button
-            mode='text'
-            textColor={theme.colors.onSurface}
-            onPress={() => setSelectedDate(today)}
-          >
-            TODAY
-          </Button>
+        actionButton={
+          isReorderingHabits || isReorderingMeasurements ? (
+            <Button
+              mode='text'
+              textColor={theme.colors.onSurface}
+              onPress={() => {
+                if (isReorderingMeasurements) {
+                  submitMeasurementOrder();
+                  setIsReorderingMeasurements(false);
+                }
+                if (isReorderingHabits) {
+                  submitHabitOrder();
+                  setIsReorderingHabits(false);
+                }
+              }}
+            >
+              SAVE ORDER
+            </Button>
+
+          ) :
+          !isToday ? (
+            <Button
+              mode='text'
+              textColor={theme.colors.onSurface}
+              onPress={() => setSelectedDate(today)}
+            >
+              TODAY
+            </Button>
         ) : null}
       />
       <View style={styles.container}>
-        <ScrollView style={styles.timelineContainer}>
+        <View style={styles.timelineContainer}>
           <View style={styles.timelineHeader}>
             <IconButton
               style={styles.timelineHeaderButton}
@@ -238,9 +371,8 @@ const Recordings = () => {
               const isToday = date.equals(today);
 
               return (
-                <Surface
+                <View
                   key={date.toString()}
-                  elevation={isSelected ? 0 : 0}
                   style={[
                     styles.timelineDate,
                     isToday ? styles.timelineDateToday : {},
@@ -248,14 +380,20 @@ const Recordings = () => {
                   ]}
                 >
                   <TouchableRipple
-                    onPress={() => setSelectedDate(date)}
+                    onPressIn={() => setSelectedDate(date)}
                     style={[
-                      styles.timelineDateContent,
-                      isToday ? styles.timelineDateContentToday : {},
-                      isSelected ? styles.timelineDateContentSelected : {},
+                      styles.timelineDateContainer,
+                      isToday ? styles.timelineDateContainerToday : {},
+                      isSelected ? styles.timelineDateContainerSelected : {},
                     ]}
                   >
-                    <>
+                    <View
+                      style={[
+                        styles.timelineDateContent,
+                        isToday ? styles.timelineDateContentToday : {},
+                        isSelected ? styles.timelineDateContentSelected : {},
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.timelineDateDayOfWeek,
@@ -274,25 +412,65 @@ const Recordings = () => {
                         >
                         {date.day}
                       </Text>
-                    </>
+                    </View>
                   </TouchableRipple>
-                </Surface>
+                </View>
               )
             })}
           </View>
-        </ScrollView>
-        <ScrollView style={styles.content}>
+        </View>
+        <NestableScrollContainer style={styles.content} ref={scrollRef}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderTitle} variant='labelMedium'>MEASUREMENTS</Text>
-            {!!measurements.length && (<Button mode='text'
+            <View style={styles.sectionHeaderIcon}>
+              <Icon source={Icons.measurement} size={14} />
+            </View>
+            <Text style={styles.sectionHeaderTitle} variant='labelLarge'>MEASUREMENTS</Text>
+            {!!measurements.length && isReorderingMeasurements && (<Button mode='text'
               textColor={theme.colors.onSurface}
               onPress={() => {
-                const nextExpandedMeasurements = new Set(areAllMeasurementsExpanded ? [] : displayedMeasurementIds);
-                setExpandedMeasurements(nextExpandedMeasurements);
+                submitMeasurementOrder();
+                setIsReorderingMeasurements(!isReorderingMeasurements);
               }}
             >
-              <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllMeasurementsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
+              <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
             </Button>)}
+            {!!measurements.length && <BottomDrawer
+                visible={isMeasurementMenuVisible}
+                onDismiss={() => setIsMeasurementMenuVisible(false)}
+                anchor={
+                  <IconButton
+                    style={styles.sectionHeaderButton}
+                    icon={Icons.settings}
+                    size={16}
+                    onPress={() => {
+                      setIsMeasurementMenuVisible(true);
+                    }}
+                  />
+                }
+                items={measurementMenuItems}
+                onSelect={({ value }) => {
+                  switch (value) {
+                    case 'reorder':
+                      if (isReorderingMeasurements) submitMeasurementOrder()
+                      else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
+                      setIsReorderingMeasurements(!isReorderingMeasurements);
+                      break;
+                    case 'expand':
+                      setExpandedMeasurements(new Set(displayedMeasurementIds));
+                      break;
+                    case 'collapse':
+                      setExpandedMeasurements(new Set());
+                      break;
+                    case 'visibility':
+                      setShowArchivedMeasurements(!showArchivedMeasurements);
+                      break;
+                    default:
+                      break;
+                  }
+                  setIsMeasurementMenuVisible(false);
+                }}
+              />
+            }
             {displayedMeasurements.length ? (
               <View style={styles.dailyMeasurementsStatusContainer}>
                 {selectedWeekDates.map((date, index) => {
@@ -326,185 +504,298 @@ const Recordings = () => {
             ) : null}
           </View>
           <View style={styles.sectionContent}>
-            {
-              displayedMeasurements.length ? displayedMeasurements.map((measurement, index) => {
-                const { id } = measurement;
-                return (
-                  <RecordingMeasurementItem
-                    key={id}
-                    index={index}
-                    measurement={measurement}
-                    currentDate={selectedDate}
-                    weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                    expanded={displayedExpandedMeasurements.has(id)}
-                    onValueChange={(nextValue: number) => queueRecordingUpdate(nextValue, id, selectedDate.toString())}
-                    onPress={() => {
-                      const nextExpandedMeasurements = new Set([...expandedMeasurements]);
-                      nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
-                      setExpandedMeasurements(nextExpandedMeasurements);
-                    }}
-                    onLongPress={(id) => {
-                      router.push(`/measurement/${id}`);
-                    }}
-                  />
-                );
-              }) : (
+            <View style={styles.recordingView}>
+              {displayedMeasurements.length ? (
+                <>
+                  {isReorderingMeasurements ? (
+                    <NestableDraggableFlatList
+                      data={measurementPriorityOverrides || []}
+                      onDragEnd={({ data }) => {
+                        console.log('drag end');
+                        setMeasurementPriorityOverrides(data);
+                      }}
+                      onDragBegin={(index) => {
+                        console.log('drag begin', index);
+                        
+                      }}
+                      onRelease={(index) => {
+                        console.log('release', index);
+                        
+                      }}
+                      keyExtractor={(id) => id}
+                      activationDistance={forWeb(1, 20)}
+                      simultaneousHandlers={scrollRef}
+                      renderItem={({ item: measurementId, getIndex, drag, isActive }) => {
+                        const measurement = measurements.find(({ id }) => id === measurementId);
+                        if (!measurement) return;
+  
+                        return (
+                          <ScaleDecorator>
+                            <RecordingMeasurementItem
+                              index={getIndex() || 0}
+                              measurement={measurement}
+                              currentDate={selectedDate}
+                              weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                              onLongPress={() => isReorderingMeasurements && drag()}
+                              disabled={isActive}
+                              reordering
+                            />
+                          </ScaleDecorator>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {displayedMeasurements.map((measurement, index) => {
+                        const { id } = measurement;
+                        return (
+                          <RecordingMeasurementItem
+                            key={id}
+                            index={index}
+                            measurement={measurement}
+                            currentDate={selectedDate}
+                            weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                            expanded={displayedExpandedMeasurements.has(id)}
+                            onValueChange={(nextValue: number) => queueRecordingUpdate(nextValue, id, selectedDate.toString())}
+                            onPress={() => {
+                              const nextExpandedMeasurements = new Set([...expandedMeasurements]);
+                              nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
+                              setExpandedMeasurements(nextExpandedMeasurements);
+                            }}
+                            onLongPress={(id) => {
+                              router.push(`/measurement/${id}`);
+                            }}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
+                </>
+              ) : (
                 <View style={styles.noData}>
                   <View style={styles.noDataIcon}>
                     <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
                   </View>
                   <Text style={styles.noDataText} variant='bodyLarge'>No active measurements</Text>
                 </View>
-              )
-            }
+              )}
+            </View>
           </View>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderTitle} variant='labelMedium'>HABITS</Text>
-            {!!habits.length && (<Button mode='text'
+            <View style={styles.sectionHeaderIcon}>
+              <Icon source={Icons.habit} size={14} />
+            </View>
+            <Text style={styles.sectionHeaderTitle} variant='labelLarge'>HABITS</Text>
+            {!!habits.length && isReorderingHabits && (<Button mode='text'
               textColor={theme.colors.onSurface}
               onPress={() => {
-                const nextExpandedHabits = new Set(areAllHabitsExpanded ? [] : displayedHabitIds);
-                setExpandedHabits(nextExpandedHabits);
+                submitHabitOrder();
+                setIsReorderingHabits(!isReorderingHabits);
               }}
             >
-              <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllHabitsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
+              <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
             </Button>)}
-            {!!habits.length && (<Button mode='text'
-              textColor={theme.colors.onSurface}
-              onPress={() => {
-                const nextExpandedHabits = new Set(areAllHabitsExpanded ? [] : displayedHabitIds);
-                setExpandedHabits(nextExpandedHabits);
-              }}
-            >
-              <Text variant='labelMedium' style={{ marginLeft: 4 }}>{areAllHabitsExpanded ? 'COLLAPSE' : 'EXPAND'} ALL</Text>
-            </Button>)}
-            {displayedHabits.length ? (
-              <>
-                <View style={styles.progressContainer}>
-                  <View style={styles.weekProgressBar}>
-                    <ProgressBar
-                      progress={(selectedWeekPointTotal) / weekProgressTarget || 0}
-                      style={styles.baseProgress}
-                      color={theme.colors.elevation.level1}
-                    />
-                  </View>
-                  <View style={styles.weekProgressBar}>
-                    <ProgressBar
-                      progress={(selectedWeekPointTotal) / weekProgressTarget || 0}
-                      style={styles.overlapProgress}
-                      color={theme.colors.onSurfaceDisabled}
-                    />
-                  </View>
-                  <View style={styles.weekProgressBar}>
-                    <ProgressBar
-                      progress={selectedDateCumulativePointTotal / weekProgressTarget || 0}
-                      style={styles.overlapProgress}
-                      color={theme.colors.onSurface}
-                    />
-                  </View>
-                  <View style={styles.weekProgressBar}>
-                    <ProgressBar
-                      progress={(selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0}
-                      style={styles.overlapProgress}
-                      color={theme.colors.elevation.level1}
-                    />
-                  </View>
-                  <View style={styles.weekProgressBar}>
-                    <ProgressBar
-                      progress={(selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0}
-                      style={styles.overlapProgress}
-                      color={theme.colors.onSurfaceDisabled}
-                    />
-                  </View>
-                </View>
-                <View style={styles.weekProgressMarkers}>
-                  {range(0, 7).map((i) => (
-                    <View key={i} style={styles.weekProgressMarker}>
-                      {i !== 0 && <View style={styles.weekProgressMarkerInner} />}
+            {!!habits.length && <BottomDrawer
+                visible={isHabitMenuVisible}
+                onDismiss={() => setIsHabitMenuVisible(false)}
+                anchor={
+                  <IconButton
+                    style={styles.sectionHeaderButton}
+                    icon={Icons.settings}
+                    size={16}
+                    onPress={() => {
+                      setIsHabitMenuVisible(true);
+                    }}
+                  />
+                }
+                items={habitMenuItems}
+                onSelect={({ value }) => {
+                  setTimeout(() => {
+                    switch (value) {
+                      case 'reorder':
+                        if (isReorderingHabits) submitHabitOrder();
+                        else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
+                        setIsReorderingHabits(!isReorderingHabits);
+                        break;
+                      case 'expand':
+                        setExpandedHabits(new Set(displayedHabitIds));
+                        break;
+                      case 'collapse':
+                        setExpandedHabits(new Set());
+                        break;
+                      case 'visibility':
+                        setShowArchivedHabits(!showArchivedHabits);
+                        break;
+                      default:
+                        break;
+                    }
+                  }, 150);
+                  setIsHabitMenuVisible(false);
+                }}
+              />
+            }
+            {
+              displayedHabits.length ? (
+                <>
+                  <View style={styles.progressContainer}>
+                    <View style={styles.weekProgressBar}>
+                      <ProgressBar
+                        animatedValue={round(selectedWeekPointTotal / weekProgressTarget || 0, 2)}
+                        style={styles.baseProgress}
+                        color={theme.colors.elevation.level1}
+                      />
                     </View>
-                  ))}
-                </View>
-                <View style={styles.weekPointsContainer}>
-                  <Text style={styles.weekPointsLabel}>Week:</Text>
-                  <Text variant='titleMedium'>{selectedWeekPointTotal}</Text>
-                  {/* <Points size={'medium'} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} /> */}
-                  <Text style={styles.weekPointsDivider}>/</Text>
-                  <Points size={'medium'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                  {/* <Text style={styles.weekPointsTarget}> / week</Text> */}
-                  {/* <Text style={styles.weekPointsDivider}>({formatNumber(100 * selectedWeekPointTotal / perWeekPointTarget)}%)</Text> */}
-                </View>
-                <View style={styles.dailyPointTotalContainer}>
-                  {selectedWeekDates.map((date, index) => {
-                    const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                    const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                    const total = daily + weekly;
-                    const isSelected = index === selectedDate.getDayOfWeek();
-                    const isFuture = date.after(today);
-                    
-                    const color = isSelected ? theme.colors.onSurface : theme.colors.onSurfaceDisabled;
-                    return (
-                      <TouchableRipple
-                        key={date.toString()}
-                        style={[styles.dailyPoints, isSelected ? styles.dailyPointsSelected : {}]}
-                        onPress={() => setSelectedDate(date)}
-                      >
-                        <>
-                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                          {isFuture ? (
-                            <Icon source={'circle-small'} size={20} color={color} />
-                          ) : (
-                            <Points
-                              style={styles.dailyPointTotal}
-                              points={total}
-                              size='small'
-                              disabled={!isSelected}
-                            />
-                          )}
-                        </>
-                      </TouchableRipple>
-                    )
-                  })}
-                </View>
-              </>
-            ) : null}
+                    <View style={styles.weekProgressBar}>
+                      <ProgressBar
+                        animatedValue={round(selectedWeekPointTotal / weekProgressTarget || 0, 2)}
+                        style={styles.overlapProgress}
+                        color={theme.colors.onSurfaceDisabled}
+                      />
+                    </View>
+                    <View style={styles.weekProgressBar}>
+                      <ProgressBar
+                        animatedValue={round(selectedDateCumulativePointTotal / weekProgressTarget || 0, 2)}
+                        style={styles.overlapProgress}
+                        color={theme.colors.onSurface}
+                      />
+                    </View>
+                    <View style={styles.weekProgressBar}>
+                      <ProgressBar
+                        animatedValue={round((selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0, 2)}
+                        style={styles.overlapProgress}
+                        color={theme.colors.elevation.level1}
+                      />
+                    </View>
+                    <View style={styles.weekProgressBar}>
+                      <ProgressBar
+                        animatedValue={round((selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0, 2)}
+                        style={styles.overlapProgress}
+                        color={theme.colors.onSurfaceDisabled}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.weekProgressMarkers}>
+                    {range(0, 7).map((i) => (
+                      <View key={i} style={styles.weekProgressMarker}>
+                        {i !== 0 && <View style={styles.weekProgressMarkerInner} />}
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.weekPointsContainer}>
+                    <Text style={styles.weekPointsLabel}>Week:</Text>
+                    <Text variant='titleMedium'>{selectedWeekPointTotal}</Text>
+                    <Text style={styles.weekPointsDivider}>/</Text>
+                    <Points size={'medium'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+                  </View>
+                  <View style={styles.dailyPointTotalContainer}>
+                    {selectedWeekDates.map((date, index) => {
+                      const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                      const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+                      const total = daily + weekly;
+                      const isSelected = index === selectedDate.getDayOfWeek();
+                      const isFuture = date.after(today);
+                      
+                      const color = isSelected ? theme.colors.onSurface : theme.colors.onSurfaceDisabled;
+                      return (
+                        <TouchableRipple
+                          key={date.toString()}
+                          style={[styles.dailyPoints, isSelected ? styles.dailyPointsSelected : {}]}
+                          onPress={() => setSelectedDate(date)}
+                        >
+                          <>
+                            <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+                            {isFuture ? (
+                              <Icon source={'circle-small'} size={20} color={color} />
+                            ) : (
+                              <Points
+                                style={styles.dailyPointTotal}
+                                points={total}
+                                size='small'
+                                disabled={!isSelected}
+                              />
+                            )}
+                          </>
+                        </TouchableRipple>
+                      )
+                    })}
+                  </View>
+                </>
+              ) : null
+            }
           </View>
           <View style={{ ...styles.sectionContent, marginBottom: 88 }}>
             <View style={styles.recordingView}>
-              {
-                displayedHabits.length ? displayedHabits.map((habit, index) => {
-                  const { id } = habit;
-                  return (
-                    <RecordingDataHabit
-                      key={habit.id}
-                      index={index}
-                      habit={habit}
-                      date={selectedDate}
-                      weekDates={selectedWeekDates}
-                      measurements={measurements}
-                      expanded={expandedHabits.has(id)}
-                      recordingData={mergedRecordingsMap}
-                      onPress={() => {
-                        const nextExpandedHabits = new Set([...expandedHabits]);
-                        nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
-                        setExpandedHabits(nextExpandedHabits);
+              {displayedHabits.length ? (
+                <>
+                  {isReorderingHabits ? (
+                    <NestableDraggableFlatList
+                      data={habitPriorityOverrides || []}
+                      onDragEnd={({ data }) => {
+                        setHabitPriorityOverrides(data);
                       }}
-                      onLongPress={(id) => {
-                        router.push(`/habit/${id}`);
+                      keyExtractor={(id) => id}
+                      activationDistance={forWeb(1, 20)}
+                      simultaneousHandlers={scrollRef}
+                      renderItem={({ item: habitId, getIndex, drag, isActive }) => {
+                        const habit = habits.find(({ id }) => id === habitId);
+                        if (!habit) return;
+  
+                        return (
+                          <ScaleDecorator>
+                            <RecordingDataHabit
+                              index={getIndex() || 0}
+                              habit={habit}
+                              date={selectedDate}
+                              weekDates={selectedWeekDates}
+                              measurements={measurements}
+                              recordingData={mergedRecordingsMap}
+                              onLongPress={() => isReorderingHabits && drag()}
+                              disabled={isActive}
+                              reordering
+                            />
+                          </ScaleDecorator>
+                        );
                       }}
                     />
-                  );
-                }) : (
-                  <View style={styles.noData}>
-                    <View style={styles.noDataIcon}>
-                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                    </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
+                  ) : (
+                    <>
+                      {displayedHabits.map((habit, index) => {
+                        const { id } = habit;
+                        return (
+                          <RecordingDataHabit
+                            key={habit.id}
+                            index={index}
+                            habit={habit}
+                            date={selectedDate}
+                            weekDates={selectedWeekDates}
+                            measurements={measurements}
+                            expanded={expandedHabits.has(id)}
+                            recordingData={mergedRecordingsMap}
+                            onPress={() => {
+                              const nextExpandedHabits = new Set([...expandedHabits]);
+                              nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
+                              setExpandedHabits(nextExpandedHabits);
+                            }}
+                            onLongPress={(id) => {
+                              router.push(`/habit/${id}`);
+                            }}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
+                </>
+              ) : (
+                <View style={styles.noData}>
+                  <View style={styles.noDataIcon}>
+                    <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
                   </View>
-                )
-              }
+                  <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
+                </View>
+              )}
             </View>
           </View>
-        </ScrollView>
+        </NestableScrollContainer>
       </View>
       <View style={styles.createButtonContainer}>
         <BottomDrawer
@@ -517,7 +808,6 @@ const Recordings = () => {
               >
                 <View style={styles.createButtonContent}>
                   <Icon source={Icons.add} size={24} color={theme.colors.inverseOnSurface} />  
-                  {/* <Text variant='titleSmall' style={styles.createButtonText}>CREATE MEASUREMENT</Text> */}
                 </View>
               </TouchableRipple>
             </Surface>
@@ -574,34 +864,52 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexShrink: 1,
     alignItems: 'center',
     borderRadius: 16,
-    gap: 8,
   },
   timelineDateToday: {
+    borderRadius: 16,
   },
   timelineDateSelected: {
   },
-  timelineDateContent: {
+  timelineDateContainer: {
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 2,
+    padding: 2,
+    // paddingVertical: 12,
+    // paddingHorizontal: 2,
     
     alignSelf: 'stretch',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 4,
     
     borderColor: 'transparent',
   },
-  timelineDateContentToday: {
-    paddingVertical: 11,
+  timelineDateContainerToday: {
+    // paddingVertical: 11,
+    // paddingHorizontal: 1,
+    // borderWidth: 1,
+    // borderColor: theme.colors.surfaceDisabled,
+  },
+  timelineDateContainerSelected: {
+    // transform: [{ scale: 1.1 }],
+    // transitionProperty: 'transform',
+    // transitionDuration: '250ms',
+    // paddingHorizontal: 2,
+    borderWidth: 0,
+    backgroundColor: theme.colors.surfaceDisabled,
+  },
+  timelineDateContent: {
+    borderRadius: 14,
+    paddingVertical: 9,
     paddingHorizontal: 1,
+    borderWidth: 0,
+  },
+  timelineDateContentToday: {
     borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
     borderColor: theme.colors.surfaceDisabled,
   },
   timelineDateContentSelected: {
-    paddingVertical: 12,
-    paddingHorizontal: 2,
-    borderWidth: 0,
-    backgroundColor: theme.colors.surfaceDisabled,
+    borderColor: theme.colors.elevation.level3,
   },
   timelineDateDayOfWeek: {
     textAlign: 'center',
@@ -705,15 +1013,20 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
     backgroundColor: theme.colors.elevation.level3,
-    minHeight: 52,
   },
   sectionHeaderIcon: {
-    marginLeft: 8
+    marginLeft: 8,
   },
   sectionHeaderTitle: {
-    marginLeft: 12,
     borderRadius: 16,
     flex: 1,
+  },
+  sectionHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    margin: 0,
+    marginRight: 8,
   },
   sectionContent: {
   },
@@ -802,10 +1115,13 @@ type RecordingMeasurementItemProps = {
   measurement: Measurement,
   currentDate: SimpleDate,
   weekMeasurementValues: (number | null)[],
-  expanded: boolean,
-  onValueChange: (nextValue: number) => void,
-  onPress: (id: string) => void,
-  onLongPress: (id: string) => void,
+  expanded?: boolean,
+  onValueChange?: (nextValue: number) => void,
+  onPress?: (id: string) => void,
+  onLongPress?: (id: string) => void,
+  onPressIn?: (id: string) => void,
+  disabled?: boolean,
+  reordering?: boolean,
 }
 
 const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
@@ -818,6 +1134,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     onValueChange,
     onPress,
     onLongPress,
+    onPressIn,
+    disabled,
+    reordering,
+    
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -839,11 +1159,13 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   }, [value]);
 
   const handleLongPressLeft = () => {
+    if (!onValueChange) return;
     longPressLeftInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current - measurement.step);
     }, 125);
   }
   const handleLongPressRight = () => {
+    if (!onValueChange) return;
     longPressRightInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current + measurement.step);
     }, 125);
@@ -857,13 +1179,24 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           <Text style={styles.value} variant='titleMedium'> </Text>
           <View style={styles.controls}>
             <IconButton
-              style={styles.controlButton} size={18} mode={value === 0 ? 'contained' : undefined} iconColor={theme.colors.onSurface} icon='window-close' onPress={() => {
-              onValueChange(0);
-            }}/>
+              style={styles.controlButton}
+              size={18}
+              mode={value === 0 ? 'contained' : undefined}
+              iconColor={theme.colors.onSurface}
+              icon='window-close'
+              onPress={() => {
+                onValueChange ? onValueChange(0) : null;
+              }}
+              />
             <IconButton
-              style={styles.controlButton} size={18} mode={value ? 'contained' : undefined} iconColor={theme.colors.onSurface} icon='check' onPress={() => {
-              onValueChange(1);
-            }}/>
+              style={styles.controlButton}
+              size={18}
+              mode={value ? 'contained' : undefined}
+              iconColor={theme.colors.onSurface} icon='check'
+              onPress={() => {
+                onValueChange ? onValueChange(1) : null;
+              }}
+            />
           </View>
         </>
       );
@@ -878,9 +1211,9 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                 style={styles.controlButton}
                 size={18}
                 icon='minus'
-                disabled={!isTime && !value}
+                disabled={(!isTime && !value)}
                 onPress={() => {
-                  onValueChange(value === null ? measurement.initial : value - measurement.step);
+                  onValueChange ? onValueChange(value === null ? measurement.initial : value - measurement.step) : null;
                 }}
                 onLongPress={() => {
                   handleLongPressLeft();
@@ -897,7 +1230,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                 size={18}
                 icon='plus'
                 onPress={() => {
-                  onValueChange(value === null ? measurement.initial : value + measurement.step);
+                  onValueChange ? onValueChange(value === null ? measurement.initial : value + measurement.step) : null;
                 }}
                 onLongPress={() => {
                   handleLongPressRight();
@@ -973,12 +1306,14 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   return (
     <TouchableRipple
       style={styles.container}
-      onPress={() => onPress(measurement.id)}
-      onLongPress={() => onLongPress(measurement.id)}
+      onPress={() => onPress ? onPress(measurement.id) : null}
+      onLongPress={() => onLongPress ? onLongPress(measurement.id) : null}
+      onPressIn={() => onPressIn ? onPressIn(measurement.id) : null}
       delayLongPress={600}
+      disabled={disabled}
     >
       <>
-        <View style={styles.content}>
+        <View style={[styles.content, reordering ? { opacity: 0.4 } : {}]}>
           <View style={styles.typeIconContainer}>
             <Icon source={typeData.icon} size={20} />
           </View>
@@ -1005,8 +1340,10 @@ const createMeasurementStyles = (theme: MD3Theme, index: number) => StyleSheet.c
     paddingVertical: 12,
     borderColor: theme.colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderTopWidth: index ? 0 : 1,
+    borderTopWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
     gap: 8,
+    backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',
@@ -1089,14 +1426,17 @@ type RecordingDataHabitProps = {
   date: SimpleDate,
   weekDates: SimpleDate[],
   measurements: Measurement[],
-  expanded: boolean,
+  expanded?: boolean,
   recordingData:  Map<string, Map<string, number>>,
-  onPress: (id: string) => void,
-  onLongPress: (id: string) => void,
+  onPress?: (id: string) => void,
+  onPressIn?: (id: string) => void,
+  onLongPress?: (id: string) => void,
+  disabled?: boolean,
+  reordering?: boolean,
 }
 
 const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | null => {
-  const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress, onLongPress } = props;
+  const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress, onPressIn, onLongPress, disabled, reordering } = props;
 
   const theme = useTheme();
   const styles = createHabitStyles(theme, index);
@@ -1213,7 +1553,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
               <View style={styles.conditionProgress}>
                 <ProgressBar
                   style={[styles.conditionProgressBar, conditionCompletion ? styles.conditionProgressBarComplete : {}]}
-                  progress={conditionProgress || 0}
+                  animatedValue={conditionProgress || 0}
                   color={progressColor}
                 />
               </View>
@@ -1227,12 +1567,14 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   return (
     <TouchableRipple
       style={styles.container}
-      onPress={() => onPress(habit.id)}
-      onLongPress={() => onLongPress(habit.id)}
+      onPress={() => onPress ? onPress(habit.id) : null}
+      onPressIn={() => onPressIn ? onPressIn(habit.id) : null}
+      onLongPress={() => onLongPress ? onLongPress(habit.id) : null}
       delayLongPress={600}
+      disabled={disabled}
     >
       <>
-        <View style={styles.content}>
+        <View style={[styles.content, reordering ? { opacity: 0.5 } : {}]}>
           <Text variant='titleMedium'>{habit.name}</Text>
           <View style={styles.scopeTag}>
             <Text variant='bodySmall' style={styles.scopeTagText}>
@@ -1280,8 +1622,10 @@ const createHabitStyles = (theme: MD3Theme, index: number) => StyleSheet.create(
     paddingVertical: 12,
     borderColor: theme.colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderTopWidth: index ? 0 : 1,
+    borderTopWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
     gap: 8,
+    backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',

@@ -1,0 +1,53 @@
+diff --git a/node_modules/react-native-responsive-linechart/lib/Area.js b/node_modules/react-native-responsive-linechart/lib/Area.js
+index b630448..0b95821 100644
+--- a/node_modules/react-native-responsive-linechart/lib/Area.js
++++ b/node_modules/react-native-responsive-linechart/lib/Area.js
+@@ -50,7 +50,7 @@ var Area = function (props) {
+         { x: lastPoint.x, y: dimensions.height },
+         { x: firstPoint.x, y: dimensions.height },
+     ]);
+-    return (React.createElement(react_native_svg_1.G, { translateX: viewportOrigin.x, translateY: viewportOrigin.y, mask: "url(#Mask)" },
++    return (React.createElement(react_native_svg_1.G, { translate: [viewportOrigin.x, viewportOrigin.y] },
+         React.createElement(react_native_svg_1.Defs, null,
+             React.createElement(react_native_svg_1.LinearGradient, { id: "grad" + randomGradientRef, x1: "0%", y1: "0%", x2: "0%", y2: "100%" },
+                 React.createElement(react_native_svg_1.Stop, { offset: "0%", stopColor: gradient.from.color, stopOpacity: gradient.from.opacity }),
+diff --git a/node_modules/react-native-responsive-linechart/lib/Chart.d.ts b/node_modules/react-native-responsive-linechart/lib/Chart.d.ts
+index abf6932..89c5c53 100644
+--- a/node_modules/react-native-responsive-linechart/lib/Chart.d.ts
++++ b/node_modules/react-native-responsive-linechart/lib/Chart.d.ts
+@@ -18,6 +18,7 @@ declare type Props = {
+     disableGestures?: boolean;
+     /** Padding of the chart. Use this instead of setting padding in the `style` prop. */
+     padding?: Padding;
++    children?: (JSX.Element | null)[]
+ };
+ export declare type ChartHandle = {
+     setViewportOrigin: (origin: XYValue) => void;
+diff --git a/node_modules/react-native-responsive-linechart/lib/Chart.js b/node_modules/react-native-responsive-linechart/lib/Chart.js
+index 9b08b87..a60c269 100644
+--- a/node_modules/react-native-responsive-linechart/lib/Chart.js
++++ b/node_modules/react-native-responsive-linechart/lib/Chart.js
+@@ -143,7 +143,7 @@ var Chart = React.memo(React.forwardRef(function (props, ref) {
+                                 lastTouch: lastTouch,
+                             } },
+                             React.createElement(react_native_svg_1.default, { width: dimensions.width, height: dimensions.height },
+-                                React.createElement(react_native_svg_1.G, { translateX: padding.left, translateY: padding.top },
++                                React.createElement(react_native_svg_1.G, { translate: [padding.left, padding.top] },
+                                     otherComponents,
+                                     React.createElement(react_native_svg_1.Defs, null,
+                                         React.createElement(react_native_svg_1.Mask, { id: "Mask", x: 0, y: 0, width: dataDimensions.width, height: dataDimensions.height },
+diff --git a/node_modules/react-native-responsive-linechart/lib/Line.js b/node_modules/react-native-responsive-linechart/lib/Line.js
+index 60483ec..83bbad9 100644
+--- a/node_modules/react-native-responsive-linechart/lib/Line.js
++++ b/node_modules/react-native-responsive-linechart/lib/Line.js
+@@ -89,8 +89,8 @@ var Line = React.forwardRef(function Line(props, ref) {
+     var points = Line_utils_1.adjustPointsForThickStroke(scaledPoints, stroke);
+     var path = utils_1.svgPath(points, smoothing, tension);
+     return (React.createElement(React.Fragment, null,
+-        React.createElement(react_native_svg_1.G, { translateX: viewportOrigin.x, translateY: viewportOrigin.y },
+-            React.createElement(react_native_svg_1.Path, { d: path, fill: "none", strokeLinecap: "round", strokeDasharray: stroke.dashArray.length > 0 ? stroke.dashArray.join(',') : undefined, stroke: stroke.color, strokeWidth: stroke.width, strokeOpacity: stroke.opacity, mask: "url(#Mask)" }),
++        React.createElement(react_native_svg_1.G, { translate: [viewportOrigin.x, viewportOrigin.y] },
++            React.createElement(react_native_svg_1.Path, { d: path, fill: "none", strokeLinecap: "round", strokeDasharray: stroke.dashArray.length > 0 ? stroke.dashArray.join(',') : undefined, stroke: stroke.color, strokeWidth: stroke.width, strokeOpacity: stroke.opacity }),
+             points.map(function (p, i) {
+                 var shape = i === tooltipIndex ? deepmerge_1.default(scatter.default, scatter.selected) : scatter.default;
+                 // Don't render if point falls out of viewport

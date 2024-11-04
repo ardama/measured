@@ -1,3 +1,4 @@
+import AnimatedView from '@c/AnimatedView';
 import { Icons } from '@u/constants/Icons';
 import { forWeb } from '@u/helpers';
 import { useEffect, useRef, useState } from 'react';
@@ -114,9 +115,9 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
           contentContainerStyle={styles.container}
           dismissable
           onDismiss={handleDismiss}
+          
         >
-            <Animated.View style={[styles.content, animatedStyles]}>
-
+            <AnimatedView style={styles.content} isEnd={visible} startY={50} isSpring>
             {isSearchbarVisible ? (
               <View style={styles.searchbarContainer}>
                 <Searchbar
@@ -163,7 +164,7 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                 );
               })}
             </ScrollView>
-            </Animated.View>
+            </AnimatedView>
         </Modal>
       </Portal>
     </>
@@ -188,7 +189,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect }: BottomDrawerItemProps
       <View
         style={[styles.itemContent, selected ? styles.itemContentSelected : {}, item.disabled ? styles.itemContentDisabled : {}]}
       >
-        {item.icon ? <Icon source={item.icon} size={18} color={item.disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} /> : null}
+        {item.icon ? <Icon source={item.icon} size={!!item.subtitle ? 22 : 18} color={item.disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} /> : null}
         <View style={styles.itemTextContent}>
           <Text
             variant={selected || !!item.subtitle ? 'titleMedium': 'bodyLarge'}
