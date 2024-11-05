@@ -38,10 +38,13 @@ export const Icons = {
   move: 'priority-low',
   up: 'chevron-up',
   down: 'chevron-down',
+  left: 'chevron-left',
+  right: 'chevron-right',
   
   close: 'window-close',
   hide: 'eye-off-outline',
   show: 'eye-off-outline',
+  delete: 'delete-alert-outline',
   
   chart: 'chart-box-outline',
   chartFilled: 'chart-box',
@@ -63,7 +66,13 @@ export const Icons = {
 
   settings: 'tune',
   menu: 'dots-vertical',
+  back: 'chevron-left',
 
   add: 'plus',
+  subtract: 'minus',
+
+  complete: 'check',
+  incomplete: 'window-close',
+  indeterminate: 'circle-small',
 
 }

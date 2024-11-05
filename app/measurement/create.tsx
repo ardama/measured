@@ -12,7 +12,6 @@ const MeasurementCreateScreen = () => {
   let measurement = createMeasurement(auth?.user?.uid || '', '', '', '', 'minutes', 15, (measurements[measurements.length - 1]?.priority || 0) + 1)
   return (
     <>
-      <Header showBackButton title={'Create measurement'} />
       <MeasurementForm measurement={measurement} formType={'create'} />
     </>
   )

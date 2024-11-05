@@ -14,7 +14,7 @@ export function withAuth<P extends object>(
 
       setTimeout(() => {
         if (requireAuth && !user) {
-          router.replace('/login');
+          router.replace('/auth');
         } else if (!requireAuth && user) {
           router.replace('/home/');
         }

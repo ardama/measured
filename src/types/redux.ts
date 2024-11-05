@@ -1,65 +1,65 @@
 import Status from '@u/constants/Status';
 import type { Measurement } from '@t/measurements';
 import type { Habit } from '@t/habits';
-import type { User } from '@t/users';
+import { defaultAccount, type Account, type User } from '@t/users';
+import type { AuthAction } from '@s/authReducer';
 
 interface RootState {
-  app: AppState;
-  auth: AuthState;
-  data: DataState;
-}
-
-interface AppState {
-  darkMode: boolean;
+  auth: AuthState
+  data: DataState
 }
 
 interface AuthState {
-  user: User | null,
-  loading: boolean;
-  error: string | null;
-  initialAuthCheckComplete: boolean,
+  user: User | null
+  loading: boolean
+  error: string | null
+  info: string | null
+  action: AuthAction | null
+  initialAuthCheckComplete: boolean
 }
 
 interface DataState {
-  measurements: Measurement[];
-  habits: Habit[],
+  dataLoaded: boolean
+
+  measurements: Measurement[]
+  habits: Habit[]
+  account: Account
 
   measurementStatus: {
-    create: string,
-    update: string,
-    delete: string,
-  },
-  recordingStatus: {
-    create: string,
-    update: string,
-    delete: string,
-  },
+    create: string
+    update: string
+    delete: string
+  }
   habitStatus: {
-    create: string,
-    update: string,
-    delete: string,
-  },
+    create: string
+    update: string
+    delete: string
+  }
+  accountStatus: {
+    update: string
+  }
 };
 
 const createDataState = (): DataState => ({
+  dataLoaded: false,
+
   measurements: [],
   habits: [],
+  account: defaultAccount(),
 
   measurementStatus: {
     create: Status.Measurement.Create.SUCCESS,
     update: Status.Measurement.Update.SUCCESS,
     delete: Status.Measurement.Delete.SUCCESS,
   },
-  recordingStatus: {
-    create: Status.Recording.Create.SUCCESS,
-    update: Status.Recording.Update.SUCCESS,
-    delete: Status.Recording.Delete.SUCCESS,
-  },
   habitStatus: {
     create: Status.Habit.Create.SUCCESS,
     update: Status.Habit.Update.SUCCESS,
     delete: Status.Habit.Delete.SUCCESS,
-  }
+  },
+  accountStatus: {
+    update: Status.Recording.Update.SUCCESS,
+  },
 });
 
 export {
@@ -67,7 +67,6 @@ export {
 
   type AuthState,
   type DataState,
-  type AppState,
 
   createDataState,
 }

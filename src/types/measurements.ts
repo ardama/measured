@@ -1,24 +1,25 @@
 import { generateId } from "@/utils/helpers";
+import type { BaseColor } from '@u/colors';
 import { Collections } from '@u/constants/Firestore';
 import { Icons } from '@u/constants/Icons';
 import type { SimpleDate } from '@u/dates';
-import type { DocumentData } from 'firebase/firestore';
 
 interface Measurement {
-  id: string;
-  userId: string;
-  type: MeasurementType;
-  name: string;
-  variant: string;
-  unit: string;
-  step: number;
-  initial: number;
+  id: string
+  userId: string
+  type: MeasurementType
+  name: string
+  variant: string
+  unit: string
+  step: number
+  initial: number
   priority: number,
-  archived: boolean;
-  comboLeftId?: string,
-  comboRightId?: string,
-  comboOperator?: MeasurementOperator,
-  recordings: MeasurementRecording[],
+  archived: boolean
+  comboLeftId?: string
+  comboRightId?: string
+  comboOperator?: MeasurementOperator
+  recordings: MeasurementRecording[]
+  baseColor?: BaseColor
 }
 
 const createMeasurement = (userId: string, name: string, variant: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
@@ -54,18 +55,18 @@ type MeasurementType = '' | 'duration' | 'time' | 'count' | 'bool' | 'combo';
 const measurementTypes: MeasurementType[] = ['duration', 'time', 'count', 'bool', 'combo'];
 
 type MeasurementTypeData = {
-  icon: string,
-  label: string,
-  description: string,
-  namePlaceholder: string,
-  variantPlaceholder: string,
+  icon: string
+  label: string
+  description: string
+  namePlaceholder: string
+  variantPlaceholder: string
 };
 const measurementTypeData: {
-  duration: MeasurementTypeData,
-  time: MeasurementTypeData,
-  count: MeasurementTypeData,
-  bool: MeasurementTypeData,
-  combo: MeasurementTypeData,
+  duration: MeasurementTypeData
+  time: MeasurementTypeData
+  count: MeasurementTypeData
+  bool: MeasurementTypeData
+  combo: MeasurementTypeData
 } = {
   duration: {
     label: 'Duration', icon: Icons.measurementTypeDuration,
@@ -116,10 +117,10 @@ const measurementOperators: MeasurementOperator[] = ['+', '-', '*', '/'];
 
 type MeasurementOperatorData = { icon: string, label: string, action: string, operator: string, };
 const measurementOperatorData: {
-  ['+']: MeasurementOperatorData,
-  ['-']: MeasurementOperatorData,
-  ['*']: MeasurementOperatorData,
-  ['/']: MeasurementOperatorData,
+  ['+']: MeasurementOperatorData
+  ['-']: MeasurementOperatorData
+  ['*']: MeasurementOperatorData
+  ['/']: MeasurementOperatorData
 } = {
   '+': { label: 'Plus', action: 'Add', operator: '+', icon: Icons.measurementOperatorAdd },
   '-': { label: 'Minus', action: 'Subtract', operator: '-', icon: Icons.measurementOperatorSubtract },
@@ -131,11 +132,11 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
   return measurementOperatorData[operator || '+'];
 }
 
-type MeasurementRecording = { date: string, value: number };
+type MeasurementRecording = { date: string, value: number | null };
 
 const getMeasurementRecordingValue = (
   measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[],
-  recordingData?: Map<string, Map<string, number>>, visited?: string[]
+  recordingData?: Map<string, Map<string, number | null>>, visited?: string[]
 ): number | null => {
   if (!measurementId) return null;
   const measurement = measurements.find(({ id }) => id === measurementId);
@@ -166,6 +167,13 @@ const getMeasurementRecordingValue = (
   return value === undefined ? null : value;
 }
 
+const getMeasurementStartDate = (measurement: (Measurement | undefined)) => {
+  if (!measurement || !measurement.recordings.length) return null;
+
+  const earliest = measurement.recordings.reduce((earliest, current) => earliest.date < current.date ? earliest : current);
+  return earliest.date;
+}
+
 const getDateRecordings = (measurements: Measurement[], date: SimpleDate): MeasurementRecording[] => {
   const dateString = date.toString();
   return measurements.map(({ recordings }) => {
@@ -190,5 +198,6 @@ export {
 
   type MeasurementRecording,
   getMeasurementRecordingValue,
+  getMeasurementStartDate,
   getDateRecordings,
 };

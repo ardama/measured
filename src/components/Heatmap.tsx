@@ -1,4 +1,5 @@
-import { useDarkMode } from '@s/selectors';
+import { useSettings } from '@s/selectors';
+import { usePalettes } from '@u/hooks/usePalettes';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme, type MD3Theme } from 'react-native-paper';
 
@@ -12,7 +13,8 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
   const { data, style, target } = props;
 
   const theme = useTheme();
-  const darkMode = useDarkMode();
+  const settings = useSettings();
+  const { globalPalette } = usePalettes();
   const styles = createStyles(theme);
 
   let cellValues: (number | null)[] = [];
@@ -31,7 +33,7 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
   
               const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum <= (cell || 0));
             
-              let cellColor = theme.colors.onSurface;
+              let cellColor = globalPalette.primary;
               let overlayOpacity = 0;
               if (bucketIndex === 5) overlayOpacity = 0.9;
               else if (bucketIndex === 4) overlayOpacity = 0.77;
@@ -40,7 +42,7 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
               else if (bucketIndex === 1) overlayOpacity = 0.38;
               else if (bucketIndex === 0) overlayOpacity = 0.25;
               
-              const overlayColor = darkMode ? `rgba(10, 10, 10, ${overlayOpacity})` : `rgba(255, 255, 255, ${overlayOpacity})`;
+              const overlayColor = settings.darkMode ? `rgba(40, 40, 40, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
                           
               return (
                 <View key={r * 7 + c} style={[styles.cell, cell === null ? styles.empty : {}, { backgroundColor: cellColor }]}>

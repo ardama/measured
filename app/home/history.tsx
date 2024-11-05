@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, IconButton, Menu, Surface, Switch, Text, TextInput, ToggleButton, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
-import { formatValue, movingAverage, range } from '@u/helpers';
+import { formatValue, movingAverage, range, triggerHaptic } from '@u/helpers';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
 import { useIsFocused } from '@react-navigation/native';
 import { SimpleDate } from '@u/dates';
@@ -15,17 +15,18 @@ import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
 import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
 import { withAuth } from '@u/hocs/withAuth';
+import { usePalettes } from '@u/hooks/usePalettes';
+import type { Palette } from '@u/colors';
 
-function HistoryScreen() {
-  const theme = useTheme();
-  const s = createStyles(theme);
-  
+function HistoryScreen() {  
   const measurements = useMeasurements();
   const dimensions = useDimensions();
 
+  const theme = useTheme();
+  const { getCombinedPalette, globalPalette } = usePalettes();
+  
   const [selectedDataIndex, setSelectedDataIndex] = useState(-1);
-
-
+  
   const chartDurationItems = [
     { title: '1W', value: 7 },
     { title: '1M', value: 30 },
@@ -35,9 +36,12 @@ function HistoryScreen() {
   ];
   const [chartDurationTitle, setChartDurationTitle] = useState(chartDurationItems[1].title);
   const chartDurationValue = chartDurationItems.find(({ title }) => title === chartDurationTitle)?.value || 30;
-
+  
   const [chartMeasurementId, setChartMeasurementId] = useState(measurements[0]?.id);
   const selectedMeasurement = measurements.find(({ id }) => id === chartMeasurementId) || null;
+  const palette = getCombinedPalette(selectedMeasurement?.baseColor);
+  const s = createStyles(theme, palette);
+
   const chartMeasurementItems: BottomDrawerItem<string>[] = measurements.map(({ id, name: activity, variant, type }) => {
     return {
       title: `${activity}${variant ? ` : ${variant}` : ''}`,
@@ -55,6 +59,7 @@ function HistoryScreen() {
         setChartMeasurementId(item.value);
         setSelectedDataIndex(-1);
       }}
+      palette={palette}
     />
   );
 
@@ -74,6 +79,7 @@ function HistoryScreen() {
       onChange={(item) => {
         setChartTrendlineValue(item.value);
       }}
+      palette={palette}
     />
   );
 
@@ -121,7 +127,7 @@ function HistoryScreen() {
 
     const chartWidth = dimensions.window.width - 72;
     const chartHeight = 300;
-    const chartPadding = Math.ceil(Math.max((dotSize) / 2, 1));
+    const chartPadding = Math.ceil(Math.max((dotSize), 1));
 
     const allDataValues = [...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y)].filter((value) => value !== null);
     const verticalStep = step || 1;
@@ -193,11 +199,11 @@ function HistoryScreen() {
                     theme={{
                       gradient: {
                         from: {
-                          color: theme.colors.onSurface,
+                          color: palette.primary,
                           opacity: 0.25
                         },
                         to: {
-                          color: theme.colors.onSurface,
+                          color: palette.primary,
                           opacity: 0
                         }
                       }
@@ -209,8 +215,9 @@ function HistoryScreen() {
                     data={filteredAverageData}
                     theme={{
                       stroke: {
-                        color: theme.colors.onSurface,
+                        color: palette.primary,
                         width: 2,
+                        dashArray: [8, 4],
                       },
                       scatter: {
                         default: {
@@ -232,13 +239,14 @@ function HistoryScreen() {
                       default: {
                         width: dotSize,
                         height: dotSize,
-                        color: theme.colors.onSurface,
+                        color: palette.primary,
                         rx: dotSize,
                       },
                     }
                   }}
                   hideTooltipOnDragEnd
-                  onTooltipSelect={(value, index) => {
+                  onTooltipSelect={(_, index) => {
+                    triggerHaptic('selection');
                     setSelectedDataIndex(index);
                   }}
                   onTooltipSelectEnd={() => {
@@ -312,11 +320,11 @@ function HistoryScreen() {
                 }}
                 mode={'text'}
                 textColor={theme.colors.onSurface}
-                contentStyle={[s.chartDurationButton, selected ? s.chartDurationButtonSelected : {}]}
-                labelStyle={s.chartDurationLabel}
+                style={s.durationButton}
+                contentStyle={[s.durationButtonContent, selected ? { backgroundColor: palette.backdrop } : {}]}
                 compact
               >
-                <Text variant='titleMedium'>
+                <Text variant='labelLarge'>
                   {title}
                 </Text>
               </Button>
@@ -337,7 +345,7 @@ function HistoryScreen() {
   );
 }
 
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -440,7 +448,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     position: 'absolute',
     top: 0,
     height: 352,
-    borderLeftColor: theme.colors.onSurface,
+    borderLeftColor: palette?.primary || theme.colors.onSurface,
     borderLeftWidth: 2,
     borderEndEndRadius: 4,
     borderEndStartRadius: 4,
@@ -452,23 +460,25 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     gap: 8,
     marginTop: 8
   },
-  chartDurationButton: {
-    width: 60,
-    height: 40,
+  durationButton: {
+    borderRadius: 16,
   },
-  chartDurationButtonSelected: {
-    backgroundColor: theme.colors.surfaceDisabled,
+  durationButtonContent: {
+    width: 44,
+    height: 44,
   },
-  chartDurationLabel: {
+  durationButtonContentSelected: {
+    
   },
 });
 
-const MeasurementChartDropdown = ({ label, selectedItem, items, onChange
+const MeasurementChartDropdown = ({ label, selectedItem, items, onChange, palette,
 }: {
-  label: string,
-  selectedItem: BottomDrawerItem<string> | null,
-  items: BottomDrawerItem<string>[],
-  onChange: (item: { title: string, icon?: string, value: string }) => void,
+  label: string
+  selectedItem: BottomDrawerItem<string> | null
+  items: BottomDrawerItem<string>[]
+  onChange: (item: { title: string, icon?: string, value: string }) => void
+  palette?: Palette
 }): JSX.Element => {
   const [isVisible, setIsVisible] = useState(false); 
 
@@ -485,7 +495,8 @@ const MeasurementChartDropdown = ({ label, selectedItem, items, onChange
               style={{}}
               mode='outlined'
               readOnly
-              value={selectedItem ? selectedItem.title : ''}
+              value={selectedItem ? selectedItem.title : ''}   
+              activeOutlineColor={palette?.primary}           
             />
           </Pressable>
         )}
@@ -494,6 +505,7 @@ const MeasurementChartDropdown = ({ label, selectedItem, items, onChange
         onSelect={(item) => onChange(item)}
         onDismiss={() => setIsVisible(false) }
         items={items}
+        selectionColor={palette?.backdrop}
       />
     </View>
   );
@@ -565,7 +577,8 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const pointsPerDayMonth = monthTotalPoints / daysThisMonth;
 
   const cardStyles = createStyles(theme);
-  const styles = createMonthSummaryStyles(theme);
+  const { globalPalette } = usePalettes();
+  const styles = createMonthSummaryStyles(theme, globalPalette);
 
   return (
     <Surface style={cardStyles.cardContainer}>
@@ -573,7 +586,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
         <Text style={[cardStyles.title, styles.title]} variant='titleLarge'>{firstDate.toFormattedMonthYear()}</Text>
         <IconButton
           style={styles.headerButton}
-          icon={'chevron-left'}
+          icon={Icons.left}
           size={20}
           onPress={() => {
             setFirstDate(firstDate.getMonthsAgo(1));
@@ -581,7 +594,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
         />
         <IconButton
           style={styles.headerButton}
-          icon={'chevron-right'}
+          icon={Icons.right}
           size={22}
           onPress={() => {
             setFirstDate(firstDate.getMonthsAgo(-1));
@@ -625,7 +638,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   )
 };
 
-const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
+const createMonthSummaryStyles = (theme: MD3Theme, globalPalette: Palette) => StyleSheet.create({
   title: {
   },
   headerButton: {
@@ -635,6 +648,11 @@ const createMonthSummaryStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 15,
+
+    backgroundColor: globalPalette.backdrop,
   },
   pointsPerDayLabel: {
 

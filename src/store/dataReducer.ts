@@ -1,6 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { ComputedHabit, Habit, HabitUpdate } from '@t/habits';
 import type { Measurement } from '@t/measurements';
+import type { Account } from '@t/users';
 import { createDataState, type DataState } from '@type/redux';
 
 const initialState: DataState = createDataState();
@@ -11,8 +12,16 @@ const dataStateSlice = createSlice({
   reducers: {
     setMeasurements: (state: DataState, action: PayloadAction<Measurement[]>) => {
       state.measurements = [...action.payload].sort((a, b) => a.priority - b.priority);
+      state.dataLoaded = true;
     },
-    setHabits: (state: DataState, action: PayloadAction<Habit[]>) => { state.habits = action.payload; },
+    setHabits: (state: DataState, action: PayloadAction<Habit[]>) => {
+      state.habits = action.payload;
+      state.dataLoaded = true;
+    },
+    setAccount: (state: DataState, action: PayloadAction<Account[]>) => {
+      if (action.payload.length) state.account = action.payload[0];
+      state.dataLoaded = true;
+    },
 
     callCreateMeasurement: (_: DataState, __: PayloadAction<Measurement>) => {},
     callCreateMeasurementStatus: (state: DataState, action: PayloadAction<string>) => { state.measurementStatus.create = action.payload; },
@@ -29,12 +38,16 @@ const dataStateSlice = createSlice({
     callUpdateHabitStatus: (state: DataState, action: PayloadAction<string>) => { state.habitStatus.update = action.payload; },
     callDeleteHabit: (_: DataState, __: PayloadAction<ComputedHabit>) => {},
     callDeleteHabitStatus: (state: DataState, action: PayloadAction<string>) => { state.habitStatus.delete = action.payload; },
+    
+    callUpdateAccount: (_: DataState, __: PayloadAction<Account>) => {},
+    callUpdateAccountStatus: (state: DataState, action: PayloadAction<string>) => { state.accountStatus.update = action.payload; },
   },
 });
 
 export const {
   setMeasurements,
   setHabits,
+  setAccount,
 
   callCreateMeasurement,
   callCreateMeasurementStatus,
@@ -51,5 +64,9 @@ export const {
   callUpdateHabitStatus,
   callDeleteHabit,
   callDeleteHabitStatus,
+
+  callUpdateAccount,
+  callUpdateAccountStatus,
+
 } = dataStateSlice.actions;
 export default dataStateSlice.reducer;

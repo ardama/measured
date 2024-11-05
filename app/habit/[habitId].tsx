@@ -10,12 +10,13 @@ const HabitEditScreen = () => {
   const habit = useHabit(parsedId);
 
   if (!habit) {
-    router.canGoBack() ? router.back() : router.replace('/');
+    setTimeout(() => {
+      router.canGoBack() ? router.back() : router.replace('/');
+    }, 0);
     return null;
   }
   return (
     <>
-      <Header showBackButton title={habit.name} />
       <HabitForm habit={habit} formType={'edit'} />
     </>
   )

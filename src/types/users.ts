@@ -1,16 +1,15 @@
+import type { BaseColor } from '@u/colors';
+import { Collections } from '@u/constants/Firestore';
+import { generateId } from '@u/helpers';
 import type { User as AuthUser } from 'firebase/auth';
 
-type User = {
-  uid: string;
-  email: string | null;
-  emailVerified: boolean;
-  displayName: string | null;
-  photoURL: string | null;
-  phoneNumber: string | null;
-}
-
-export {
-  type User,
+export type User = {
+  uid: string
+  email: string | null
+  emailVerified: boolean
+  displayName: string | null
+  photoURL: string | null
+  phoneNumber: string | null
 }
 
 export const serializeUser = (user: AuthUser): User => ({
@@ -21,3 +20,23 @@ export const serializeUser = (user: AuthUser): User => ({
   photoURL: user.photoURL,
   phoneNumber: user.phoneNumber,
 })
+
+export type Account = {
+  id: string
+  userId: string
+  settings: AccountSettings
+}
+
+export type AccountSettings = {
+  darkMode: boolean
+  hue?: number
+  baseColor?: BaseColor,
+}
+
+export const defaultAccount = (): Account => ({
+  id: generateId(Collections.Accounts),
+  userId: '',
+  settings: {
+    darkMode: false,
+  }
+});

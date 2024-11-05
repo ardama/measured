@@ -10,17 +10,14 @@ const MeasurementEditScreen = () => {
   const measurement = useMeasurement(parsedId);
 
   if (!measurement) {
-    router.canGoBack() ? router.back() : router.replace('/');
+    setTimeout(() => {
+      router.canGoBack() ? router.back() : router.replace('/');
+    }, 0);
     return null;
   }
 
   return (
     <>
-      <Header
-        showBackButton
-        title={`${measurement.name}`}
-        subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
-      />
       <MeasurementForm measurement={measurement} formType={'edit'} />
     </>
   )

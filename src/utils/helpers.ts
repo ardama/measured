@@ -2,6 +2,7 @@ import { firestore } from '@/firebase';
 import type { MeasurementType } from '@t/measurements';
 import { collection, doc } from 'firebase/firestore';
 import { Platform } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 export const generateId = (collectionName: string): string => doc(collection(firestore, collectionName)).id;
 
@@ -29,8 +30,8 @@ export const formatValue = (value: number | null, type?: MeasurementType, unit?:
   const unitString = withUnit && unit && isCount ? ` ${unit}` : '';
   return `${valueString}${unitString}`;
 }
-export const formatNumber = (num: number): string => {
-  if (num < 10000) return Number(num.toFixed(2)).toString();
+export const formatNumber = (num: number, decimals: number = 2): string => {
+  if (num < 10000) return Number(num.toFixed(decimals)).toString();
   
   const units = [
     { value: 1e9, symbol: 'B' },
@@ -134,3 +135,19 @@ export const round = (number: number, places: number = 0) => {
   const base = 10 ** places;
   return Math.round(number * base) / base;
 }
+
+export const triggerHaptic = async (type: 'impact' | 'notification' | 'selection', style?: Haptics.ImpactFeedbackStyle | Haptics.NotificationFeedbackType) => {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    try {
+      if (type === 'impact') {
+        await Haptics.impactAsync(style as Haptics.ImpactFeedbackStyle);
+      } else if (type === 'notification') {
+        await Haptics.notificationAsync(style as Haptics.NotificationFeedbackType);
+      } else if (type === 'selection') {
+        await Haptics.selectionAsync();
+      }
+    } catch (error) {
+      console.log('Haptics not available:', error);
+    }
+  }
+};

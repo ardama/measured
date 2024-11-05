@@ -1,25 +1,27 @@
 import { generateId } from "@/utils/helpers";
 import { getMeasurementRecordingValue, type Measurement, type MeasurementType } from '@t/measurements';
+import type { BaseColor } from '@u/colors';
 import { Collections } from '@u/constants/Firestore';
 import { Icons } from '@u/constants/Icons';
 import { stripExcessFields } from '@u/constants/Types';
 import { SimpleDate } from '@u/dates';
 
 interface Habit {
-  id: string,
-  userId: string,
-  updates: HabitUpdate[];
+  id: string
+  userId: string
+  updates: HabitUpdate[]
 }
 
 interface ComputedHabit extends Habit {
-  name: string;
-  isWeekly: boolean;
-  daysPerWeek: number;
-  points: number;
-  archived: boolean;
-  conditions: HabitCondition[];
-  predicate: HabitPredicate;
-  priority: number,
+  name: string
+  isWeekly: boolean
+  daysPerWeek: number
+  points: number
+  archived: boolean
+  conditions: HabitCondition[]
+  predicate: HabitPredicate
+  priority: number
+  baseColor?: BaseColor
 }
 
 
@@ -36,6 +38,7 @@ const emptyComputedHabit = (): ComputedHabit => ({
   conditions: [],
   predicate: '',
   priority: -1,
+  baseColor: undefined,
 });
 
 const mergeHabitUpdate = (computedHabit: ComputedHabit, update: HabitUpdate): ComputedHabit => {
@@ -81,6 +84,7 @@ interface HabitUpdate {
   conditions?: HabitCondition[]
   predicate?: HabitPredicate;
   priority?: number,
+  baseColor?: BaseColor,
 }
 
 export const emptyHabitUpdate: HabitUpdate = {
@@ -93,6 +97,7 @@ export const emptyHabitUpdate: HabitUpdate = {
   conditions: undefined,
   predicate: undefined,
   priority: undefined,
+  baseColor: undefined,
 };
 
 const createInitialHabit = (
@@ -211,7 +216,7 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 
 const getHabitCompletion = (
   habit: ComputedHabit | null, measurements: Measurement[], dates: SimpleDate[],
-  recordingData?: Map<string, Map<string, number>>,
+  recordingData?: Map<string, Map<string, number | null>>,
 ): [boolean, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: (number | null)[] = [];

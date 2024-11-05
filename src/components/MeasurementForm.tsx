@@ -1,15 +1,19 @@
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
+import ColorPicker from '@c/ColorPicker';
+import Header from '@c/Header';
 import OptionButton from '@c/OptionButton';
-import { CommonActions } from '@react-navigation/native';
-import { callCreateMeasurement, callUpdateMeasurement } from '@s/dataReducer';
-import { useMeasurements } from '@s/selectors';
+import { callCreateMeasurement, callDeleteMeasurement, callUpdateMeasurement } from '@s/dataReducer';
+import { useMeasurements, useMeasurementUsage } from '@s/selectors';
 import { getMeasurementOperatorData, getMeasurementTypeData, getMeasurementTypeIcon, measurementOperators, measurementTypes, type Measurement, type MeasurementOperator, type MeasurementRecording, type MeasurementType } from '@t/measurements';
+import { type BaseColor, type Palette } from '@u/colors';
 import { Error, EmptyError, NoError } from '@u/constants/Errors';
+import { Icons } from '@u/constants/Icons';
 import { formatValue } from '@u/helpers';
-import { router, useNavigation } from 'expo-router';
+import { usePalettes } from '@u/hooks/usePalettes';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Divider, Icon, IconButton, Menu, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Dialog, Divider, Icon, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 
 type MeasurementFormProps = {
@@ -32,6 +36,8 @@ type FormMeasurement = {
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
   recordings: MeasurementRecording[],
+  hue?: number
+  baseColor?: BaseColor,
 };
 
 export default function MeasurementForm({ measurement, formType } : MeasurementFormProps) {
@@ -133,6 +139,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   const getVariantErrors = () => {
     return NoError;
   }
+
+  const getColorErrors = () => {
+    return NoError;
+  }
   
   const getStepErrors = () => {
     if (isBool) return NoError;
@@ -174,291 +184,433 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
   const selectedOperatorItem = comboOperatorItems.find(({ value }) => value === formMeasurement.comboOperator) || null;  
   const unitString = isDuration ? 'minutes' : isBool ? '--' : isTime ? 'hours' : formMeasurement.unit;
+  
+  const measurementUsage = useMeasurementUsage();
+  const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [deletionTarget, setDeletionTarget] = useState<Measurement | null>(null);
+  const deletionTargetUsage = deletionTarget && measurementUsage.get(deletionTarget.id);
+  const canDelete = (
+    !deletionTargetUsage?.habits.length
+    && !deletionTargetUsage?.pastHabits.length
+    && !deletionTargetUsage?.measurements.length
+  );
+
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const menuItems: BottomDrawerItem<string>[] = [
+    {
+      icon: measurement.archived ? Icons.show : Icons.hide,
+      title: `${measurement.archived ? 'Unarchive' : 'Archive'} measurement`,
+      subtitle: 'Archive this measurement to hide it from being shown. Data for archived measurements is always preserved.',
+      value: 'archive',
+    },
+    {
+      icon: Icons.delete,
+      title: 'Delete measurement',
+      value: 'delete',
+      subtitle: 'Permanently delete this measurement and all of its data. Cannot be deleted if referenced by any habits or combo measurements.',
+      disabled: !canDelete,
+    }
+  ];
+
+  const handleDeleteMeasurement = (measurement: Measurement) => {
+    setDeletionTarget(measurement);
+    setIsDialogVisible(true);
+  };
+
+  const handleConfirmDeleteMeasurement = (measurement: Measurement | null) => {
+    setIsDialogVisible(false);
+    setDeletionTarget(null);
+    
+    setTimeout(() => {
+      if (measurement) dispatch(callDeleteMeasurement(measurement))
+      router.canGoBack() ? router.back() : router.push('/');
+    }, 0);
+  };
+
+  const handleArchiveMeasurement = (measurement: Measurement, archived: boolean) => {
+    dispatch(callUpdateMeasurement({ ...measurement, archived }));
+  };
+
 
   const theme = useTheme();
-  const s = createFormStyles(theme);
-  return (
-    <View style={s.container}>
-      <ScrollView contentContainerStyle={s.scrollContainer}>
-        <View style={s.content}>
-          <View style={s.formSectionHeader}>
-            <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
-            <Text variant='bodySmall' style={s.labelSubtitle}>
-              {`${isNew ? 'Select the' : 'The'} kind of data this measurement represents.`}
-            </Text>
-          </View>
-          <View style={s.formSection}>
-            {measurementTypes.map((type) => {
-              const typeData = getMeasurementTypeData(type);
-              const selected = type === formMeasurement.type;
-              const disabled = !isNew && !selected;
+  const { getCombinedPalette } = usePalettes();
+  const palette = getCombinedPalette(formMeasurement.baseColor);
+  const s = createFormStyles(theme, palette);
 
-              return (
-                <OptionButton
-                  key={type}
-                  onPress={() => {
-                    if (type === formMeasurement.type) return;
-  
-                    const nextMeasurement = { ...formMeasurement, type: type };
-                    if (type === 'combo') {
-                      nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
-                      nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0].id;
-                      nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[0].id;
-                    } else if (type === 'time') {
-                      nextMeasurement.step = '0.5';
-                      nextMeasurement.initial = '12';
-                    } else if (type === 'duration') {
-                      nextMeasurement.step = '15';
-                      nextMeasurement.unit = 'minutes'
-                    }
-                    handleFormEdit(nextMeasurement);
-                  }}
-                  selected={selected}
-                  unselected={isUnset}
-                  disabled={disabled}
-                  icon={typeData.icon}
-                  title={typeData.label.toUpperCase()}
-                  subtitle={typeData.description}
-                />
-              );
-            })}
-          </View>
-          {!isUnset && (
-            <>
-              <Divider style={s.formSectionDivider} />
-              <View style={s.formSectionHeader}>
-                <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
-                <Text variant='bodySmall' style={s.labelSubtitle}>
-                  {`Define what the measurement is called.`}
-                </Text>
-              </View>
-              <View style={s.formSection}>
-                <TextInput
-                  label='Name'
-                  placeholder='Read, Work out, Study'
-                  placeholderTextColor={theme.colors.onSurfaceDisabled}
-                  style={s.input}
-                  mode='outlined'
-                  error={saveAttempted && getNameErrors().hasError}
-                  value={formMeasurement.name || ''}
-                  onChangeText={(text) => {
-                    const nextMeasurement = { ...formMeasurement, name: text };
-                    handleFormEdit(nextMeasurement);
-                  }}
-                  />
-                <TextInput
-                  label='Variant (optional)'
-                  placeholder='Nonfiction, Cardio, Biology'
-                  placeholderTextColor={theme.colors.onSurfaceDisabled}
-                  style={s.input}
-                  mode='outlined'
-                  error={saveAttempted && getVariantErrors().hasError}
-                  value={formMeasurement.variant || ''}
-                  onChangeText={(text) => {
-                    const nextMeasurement = { ...formMeasurement, variant: text };
-                    handleFormEdit(nextMeasurement);
-                  }}
-                />
-              </View>
-              <Divider style={s.formSectionDivider} />
-              <View style={s.formSectionHeader}>
-                <Text variant='labelMedium' style={s.labelTitle}>DATA VALUES</Text>
-                <Text variant='bodySmall' style={s.labelSubtitle}>
-                  {`Configure what values the measurement can take and how they are displayed.`}
-                </Text>
-              </View>
-              <View style={s.formSection}>
-                {isCombo ? (
-                  <View style={s.comboContainer}>
-                    <View style={{ flex: 1 }}>
-                      <BottomDrawer
-                        anchor={
-                          <TouchableRipple
-                          style={s.dropdownButton}
-                          onPress={() => {
-                            setIsComboLeftMenuVisible(true);
-                          }}
-                          >
-                            <>
-                              <Icon source={getMeasurementTypeIcon(comboLeftMeasurement?.type)} size={16} />
-                              <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
-                                {comboLeftMeasurement?.name}
-                              </Text>
-                              {comboLeftMeasurement?.variant ? (
-                                <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboLeftMeasurement?.variant}</Text>
-                              ) : null}
-                            </>
-                          </TouchableRipple>
-                        }
-                        visible={isComboLeftMenuVisible}
-                        onDismiss={() => {
-                          setIsComboLeftMenuVisible(false);
-                        }}
-                        items={comboMeasurementItems}
-                        onSelect={(item) => {
-                          const nextMeasurement = { ...formMeasurement, comboLeftId: item.value };
-                          handleFormEdit(nextMeasurement);
-                          setIsComboLeftMenuVisible(false);
-                        }}
-                        selectedItem={selectedLeftMeasurementItem}
-                        />
-                    </View>
-                    <BottomDrawer
-                      visible={isComboOperatorMenuVisible}
-                      onDismiss={() => {
-                        setIsComboOperatorMenuVisible(false);
-                      }}
-                      anchor={
-                        <TouchableRipple
-                        style={s.dropdownButton}
-                        onPress={() => {
-                          setIsComboOperatorMenuVisible(true);
-                        }}
-                        disabled={isBool}
-                        >
-                          <Text variant='titleSmall' style={s.operatorLabel}>
-                            {getMeasurementOperatorData(formMeasurement.comboOperator).operator.toLowerCase()}
-                          </Text>
-                        </TouchableRipple>
+  return (
+    <>
+      <Header
+        showBackButton
+        title={isNew ? 'Create measurement' : measurement.name}
+        subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
+        actionButton={isNew ? null :
+          <BottomDrawer
+            anchor={
+              <Button
+                mode='text'
+                textColor={theme.colors.onSurface}
+                onPress={() => setIsMenuVisible(true) }
+              >
+                MORE
+              </Button>
+            }
+            visible={isMenuVisible}
+            onDismiss={() => {
+              setIsMenuVisible(false);
+            }}
+            items={menuItems}
+            onSelect={(item) => {
+              setIsMenuVisible(false);
+              if (item.value === 'archive') {
+                setTimeout(() => {
+                  handleArchiveMeasurement(measurement, !measurement.archived);
+                }, 200);
+              } else {
+                handleDeleteMeasurement(measurement);
+              }
+            }}
+          />
+        }
+      />
+      <View style={s.container}>
+        <ScrollView contentContainerStyle={s.scrollContainer}>
+          <View style={s.content}>
+            <View style={s.formSectionHeader}>
+              <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
+              <Text variant='bodySmall' style={s.labelSubtitle}>
+                {`${isNew ? 'Select the' : 'The'} kind of data this measurement represents.`}
+              </Text>
+            </View>
+            <View style={s.formSection}>
+              {measurementTypes.map((type) => {
+                const typeData = getMeasurementTypeData(type);
+                const selected = type === formMeasurement.type;
+                const disabled = !isNew && !selected;
+
+                return (
+                  <OptionButton
+                    key={type}
+                    onPress={() => {
+                      if (type === formMeasurement.type) return;
+    
+                      const nextMeasurement = { ...formMeasurement, type: type };
+                      if (type === 'combo') {
+                        nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
+                        nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0].id;
+                        nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[0].id;
+                      } else if (type === 'time') {
+                        nextMeasurement.step = '0.5';
+                        nextMeasurement.initial = '12';
+                      } else if (type === 'duration') {
+                        nextMeasurement.step = '15';
+                        nextMeasurement.unit = 'minutes'
                       }
-                      items={comboOperatorItems}
-                      selectedItem={selectedOperatorItem}
-                      onSelect={(item) => {
-                        const nextMeasurement = { ...formMeasurement, comboOperator: item.value as MeasurementOperator };
+                      handleFormEdit(nextMeasurement);
+                    }}
+                    selected={selected}
+                    unselected={isUnset}
+                    disabled={disabled}
+                    icon={typeData.icon}
+                    title={typeData.label.toUpperCase()}
+                    subtitle={typeData.description}
+                    selectedColor={palette.backdrop}
+                  />
+                );
+              })}
+            </View>
+            {!isUnset && (
+              <>
+                <Divider style={s.formSectionDivider} />
+                <View style={s.formSectionHeader}>
+                  <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
+                  <Text variant='bodySmall' style={s.labelSubtitle}>
+                    {`Define what the measurement is called.`}
+                  </Text>
+                </View>
+                <View style={s.formSection}>
+                  <TextInput
+                    label='Name'
+                    placeholder='Read, Work out, Study'
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    style={s.input}
+                    mode='outlined'
+                    error={saveAttempted && getNameErrors().hasError}
+                    value={formMeasurement.name || ''}
+                    onChangeText={(text) => {
+                      const nextMeasurement = { ...formMeasurement, name: text };
+                      handleFormEdit(nextMeasurement);
+                    }}
+                    activeOutlineColor={palette.primary || undefined}
+                    />
+                  <TextInput
+                    label='Variant (optional)'
+                    placeholder='Nonfiction, Cardio, Biology'
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    style={s.input}
+                    mode='outlined'
+                    error={saveAttempted && getVariantErrors().hasError}
+                    value={formMeasurement.variant || ''}
+                    onChangeText={(text) => {
+                      const nextMeasurement = { ...formMeasurement, variant: text };
+                      handleFormEdit(nextMeasurement);
+                    }}
+                    activeOutlineColor={palette.primary || undefined}
+                  />
+                  <View style={{ marginTop: 8 }}>
+                    <ColorPicker
+                      value={formMeasurement.baseColor}
+                      onSelect={(nextColor) => {
+                        const nextMeasurement = { ...formMeasurement, baseColor: nextColor };
                         handleFormEdit(nextMeasurement);
-                        setIsComboOperatorMenuVisible(false);
                       }}
-                      />
-                    <View style={{ flex: 1 }}>
+                    />
+                  </View>
+                </View>
+                <Divider style={s.formSectionDivider} />
+                <View style={s.formSectionHeader}>
+                  <Text variant='labelMedium' style={s.labelTitle}>DATA VALUES</Text>
+                  <Text variant='bodySmall' style={s.labelSubtitle}>
+                    {`Configure what values the measurement can take and how they are displayed.`}
+                  </Text>
+                </View>
+                <View style={s.formSection}>
+                  {isCombo ? (
+                    <View style={s.comboContainer}>
+                      <View style={{ flex: 1 }}>
+                        <BottomDrawer
+                          anchor={
+                            <TouchableRipple
+                            style={s.dropdownButton}
+                            onPress={() => {
+                              setIsComboLeftMenuVisible(true);
+                            }}
+                            >
+                              <>
+                                <Icon source={getMeasurementTypeIcon(comboLeftMeasurement?.type)} size={16} />
+                                <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
+                                  {comboLeftMeasurement?.name}
+                                </Text>
+                                {comboLeftMeasurement?.variant ? (
+                                  <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboLeftMeasurement?.variant}</Text>
+                                ) : null}
+                              </>
+                            </TouchableRipple>
+                          }
+                          visible={isComboLeftMenuVisible}
+                          onDismiss={() => {
+                            setIsComboLeftMenuVisible(false);
+                          }}
+                          items={comboMeasurementItems}
+                          onSelect={(item) => {
+                            const nextMeasurement = { ...formMeasurement, comboLeftId: item.value };
+                            handleFormEdit(nextMeasurement);
+                            setIsComboLeftMenuVisible(false);
+                          }}
+                          selectedItem={selectedLeftMeasurementItem}
+                          selectionColor={palette.backdrop}
+                          />
+                      </View>
                       <BottomDrawer
+                        visible={isComboOperatorMenuVisible}
+                        onDismiss={() => {
+                          setIsComboOperatorMenuVisible(false);
+                        }}
                         anchor={
                           <TouchableRipple
                           style={s.dropdownButton}
                           onPress={() => {
-                            setIsComboRightMenuVisible(true);
+                            setIsComboOperatorMenuVisible(true);
                           }}
+                          disabled={isBool}
                           >
-                            <>
-                              <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
-                              <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
-                                {comboRightMeasurement?.name}
-                              </Text>
-                              {comboRightMeasurement?.variant ? (
-                                <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboRightMeasurement?.variant}</Text>
-                              ) : null}
-                            </>
+                            <Text variant='titleSmall' style={s.operatorLabel}>
+                              {getMeasurementOperatorData(formMeasurement.comboOperator).operator.toLowerCase()}
+                            </Text>
                           </TouchableRipple>
                         }
-                        visible={isComboRightMenuVisible}
-                        onDismiss={() => {
-                          setIsComboRightMenuVisible(false);
-                        }}
-                        items={comboMeasurementItems}
+                        items={comboOperatorItems}
+                        selectedItem={selectedOperatorItem}
                         onSelect={(item) => {
-                          const nextMeasurement = { ...formMeasurement, comboRightId: item.value };
+                          const nextMeasurement = { ...formMeasurement, comboOperator: item.value as MeasurementOperator };
                           handleFormEdit(nextMeasurement);
-                          setIsComboRightMenuVisible(false);
+                          setIsComboOperatorMenuVisible(false);
                         }}
-                        selectedItem={selectedRightMeasurementItem}
+                        selectionColor={palette.backdrop}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <BottomDrawer
+                          anchor={
+                            <TouchableRipple
+                            style={s.dropdownButton}
+                            onPress={() => {
+                              setIsComboRightMenuVisible(true);
+                            }}
+                            >
+                              <>
+                                <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
+                                <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
+                                  {comboRightMeasurement?.name}
+                                </Text>
+                                {comboRightMeasurement?.variant ? (
+                                  <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboRightMeasurement?.variant}</Text>
+                                ) : null}
+                              </>
+                            </TouchableRipple>
+                          }
+                          visible={isComboRightMenuVisible}
+                          onDismiss={() => {
+                            setIsComboRightMenuVisible(false);
+                          }}
+                          items={comboMeasurementItems}
+                          onSelect={(item) => {
+                            const nextMeasurement = { ...formMeasurement, comboRightId: item.value };
+                            handleFormEdit(nextMeasurement);
+                            setIsComboRightMenuVisible(false);
+                          }}
+                          selectedItem={selectedRightMeasurementItem}
+                          selectionColor={palette.backdrop}
                         />
+                      </View>
                     </View>
-                  </View>
-                ) : null}
-                <TextInput
-                  style={s.input}
-                  mode='outlined'
-                  label='Unit (optional)'
-                  placeholder='minutes, steps, calories, oz'
-                  placeholderTextColor={theme.colors.onSurfaceDisabled}
-                  value={unitString}
-                  onChangeText={(text) => {
-                    const nextMeasurement = { ...formMeasurement, unit: text };
-                    handleFormEdit(nextMeasurement);
-                  }}
-                  disabled={isBool || isTime || isDuration}
-                  error={saveAttempted && getUnitErrors().hasError}
-                />
-                {!isCombo ? (
+                  ) : null}
                   <TextInput
                     style={s.input}
                     mode='outlined'
-                    placeholder='15, 1000, 100, 8'
+                    label='Unit (optional)'
+                    placeholder='minutes, steps, calories, oz'
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
-                    label='Increment amount'
-                    value={isBool ? '--' : formMeasurement.step.toString() || ''}
-                    error={saveAttempted && getStepErrors().hasError}
+                    value={unitString}
                     onChangeText={(text) => {
-                      const nextMeasurement = { ...formMeasurement, step: text };
+                      const nextMeasurement = { ...formMeasurement, unit: text };
                       handleFormEdit(nextMeasurement);
                     }}
-                    keyboardType="numeric"
-                    disabled={isBool}
-                    left={
-                      isBool ? null :
-                      <TextInput.Affix text={'+/-'} />
-                    }
-                    right={
-                      isBool ? null :
-                      isTime && formMeasurement.step ? <TextInput.Affix text={`(${(parseFloat(formMeasurement.step) * 60).toFixed(0)} minutes)`} /> :
-                      unitString ? <TextInput.Affix text={unitString} /> :
-                      null
-                    }
+                    disabled={isBool || isTime || isDuration}
+                    error={saveAttempted && getUnitErrors().hasError}
+                    activeOutlineColor={palette.primary || undefined}
                   />
-                ) : null}
-                
-                {!isCombo ? (
-                  <TextInput
-                    style={s.input}
-                    mode='outlined'
-                    label='Daily starting value'
-                    value={isBool ? 'No' : formMeasurement.initial}
-                    error={saveAttempted && getInitialErrors().hasError}
-                    onChangeText={(text) => {
-                      const nextMeasurement = { ...formMeasurement, initial: text };
-                      handleFormEdit(nextMeasurement);
-                    }}
-                    disabled={isBool}
-                    right={
-                      isBool ? null :
-                      (isTime || isDuration) && formMeasurement.initial ? <TextInput.Affix text={`(${formatValue(parseFloat(formMeasurement.initial), formMeasurement.type)})`} /> :
-                      unitString ? <TextInput.Affix text={unitString} /> :
-                      null
-                    }
-                  />
-                ) : null}
-              </View>
-            </>
-          )}
+                  {!isCombo ? (
+                    <TextInput
+                      style={s.input}
+                      mode='outlined'
+                      placeholder='15, 1000, 100, 8'
+                      placeholderTextColor={theme.colors.onSurfaceDisabled}
+                      label='Increment amount'
+                      value={isBool ? '--' : formMeasurement.step.toString() || ''}
+                      error={saveAttempted && getStepErrors().hasError}
+                      onChangeText={(text) => {
+                        const nextMeasurement = { ...formMeasurement, step: text };
+                        handleFormEdit(nextMeasurement);
+                      }}
+                      keyboardType="numeric"
+                      disabled={isBool}
+                      left={
+                        isBool ? null :
+                        <TextInput.Affix text={'+/-'} />
+                      }
+                      right={
+                        isBool ? null :
+                        isTime && formMeasurement.step ? <TextInput.Affix text={`(${(parseFloat(formMeasurement.step) * 60).toFixed(0)} minutes)`} /> :
+                        unitString ? <TextInput.Affix text={unitString} /> :
+                        null
+                      }
+                      activeOutlineColor={palette.primary || undefined}
+                    />
+                  ) : null}
+                  
+                  {!isCombo ? (
+                    <TextInput
+                      style={s.input}
+                      mode='outlined'
+                      label='Daily starting value'
+                      value={isBool ? 'No' : formMeasurement.initial}
+                      error={saveAttempted && getInitialErrors().hasError}
+                      onChangeText={(text) => {
+                        const nextMeasurement = { ...formMeasurement, initial: text };
+                        handleFormEdit(nextMeasurement);
+                      }}
+                      disabled={isBool}
+                      right={
+                        isBool ? null :
+                        (isTime || isDuration) && formMeasurement.initial ? <TextInput.Affix text={`(${formatValue(parseFloat(formMeasurement.initial), formMeasurement.type)})`} /> :
+                        unitString ? <TextInput.Affix text={unitString} /> :
+                        null
+                      }
+                      activeOutlineColor={palette.primary || undefined}
+                    />
+                  ) : null}
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+        <View style={s.buttons}>
+          <Button
+            mode="text"
+            style={[s.button, s.cancelButton]}
+            contentStyle={[s.buttonContent, s.cancelButtonContent]}
+            labelStyle={s.buttonLabel}
+            onPress={() => handleCancel()}
+            textColor={theme.colors.onSurface}
+          >
+            <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>Discard</Text>
+          </Button>
+          <Button
+            mode="text"
+            style={s.button}
+            contentStyle={s.buttonContent}
+            labelStyle={s.buttonLabel}
+            onPress={() => handleSave()}
+            textColor={palette.primary}
+            disabled={saveAttempted && hasErrors()}
+          >
+            <Text variant='labelLarge' style={[s.buttonText, saveAttempted && hasErrors() ? { color: theme.colors.onSurfaceDisabled } : {}]}>
+              {isNew ? 'Create' : 'Save'}
+            </Text>
+          </Button>
         </View>
-      </ScrollView>
-      <View style={s.buttons}>
-        <Button
-          mode="text"
-          style={[s.button, s.cancelButton]}
-          contentStyle={[s.buttonContent, s.cancelButtonContent]}
-          labelStyle={s.buttonLabel}
-          onPress={() => handleCancel()}
-        >
-          <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>Discard</Text>
-        </Button>
-        <Button
-          mode="text"
-          style={s.button}
-          contentStyle={s.buttonContent}
-          labelStyle={s.buttonLabel}
-          onPress={() => handleSave()}
-          disabled={getTypeErrors().hasError}
-        >
-          <Text variant='labelLarge' style={{ ...s.buttonText, color: getTypeErrors().hasError ? theme.colors.onSurfaceDisabled : undefined }}>
-            {isNew ? 'Create' : 'Save'}
-          </Text>
-        </Button>
       </View>
-    </View>
+      <Portal>
+        <Dialog
+          visible={isDialogVisible}
+          onDismiss={() => setIsDialogVisible(false) }
+          dismissable
+        >
+          <Dialog.Title>Delete measurement</Dialog.Title>
+          <Dialog.Content>
+            <Text variant='bodyMedium'>
+              {canDelete
+                ? 'Are you sure you want to delete this measurement, including all of its recordings? This action cannot be undone.'
+                : 'This measurement is currently being referenced and cannot be deleted.'
+              }
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              contentStyle={s.dialogButton}
+              onPress={() => setIsDialogVisible(false)}
+              mode='text'
+              textColor={theme.colors.onSurface}
+            >
+              {canDelete ? 'CANCEL' : 'CLOSE'}
+            </Button>
+            {canDelete &&
+              <Button
+                contentStyle={s.dialogButton}  
+                onPress={() => handleConfirmDeleteMeasurement(deletionTarget)}
+                mode='text'
+                textColor={theme.colors.error}
+              >
+                DELETE
+              </Button>
+            }
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </>
   );
 }
 
-const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
+const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
     width: '100%',
     flexGrow: 1,
@@ -534,7 +686,7 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
     marginBottom: 8,
   },
   dropdownButton: {
-    backgroundColor: theme.colors.surfaceVariant,
+    backgroundColor: palette.backdrop,
     paddingHorizontal: 8,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -577,7 +729,7 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: theme.colors.onSurface,
+    color: palette.primary,
   },
   cancelButton: {
 
@@ -589,4 +741,7 @@ const createFormStyles = (theme: MD3Theme) => StyleSheet.create({
   cancelButtonText: {
     color: theme.colors.onSurface,
   },
+  dialogButton: {
+    paddingHorizontal: 8,
+  }
 });

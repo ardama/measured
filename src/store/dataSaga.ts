@@ -18,6 +18,9 @@ import {
   callDeleteHabitStatus,
   callUpdateMeasurements,
   callUpdateHabits,
+  setAccount,
+  callUpdateAccountStatus,
+  callUpdateAccount,
 } from './dataReducer';
 import type { ActionCreatorWithPayload, PayloadAction } from '@reduxjs/toolkit';
 import { computeHabit, constructHabitUpdate, isEmptyHabitUpdate, type ComputedHabit, type Habit } from '@t/habits';
@@ -31,7 +34,7 @@ import { END, eventChannel, type EventChannel, type Task } from 'redux-saga';
 import type { Measurement } from '@t/measurements';
 import { Collections } from '@u/constants/Firestore';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { serializeUser } from '@t/users';
+import { serializeUser, type Account } from '@t/users';
 import { createAuthChannel } from '@s/authSaga';
 
 function* watchAuth() {
@@ -50,6 +53,7 @@ function* watchAuth() {
         console.error(`Auth state error: ${authState.error}`);
         yield put(setMeasurements([]));
         yield put(setHabits([]));
+        yield put(setAccount([]));
         continue;
       }
   
@@ -57,6 +61,7 @@ function* watchAuth() {
       if (!user) {
         yield put(setMeasurements([]));
         yield put(setHabits([]));
+        yield put(setAccount([]));
         
         continue;
       }
@@ -65,6 +70,7 @@ function* watchAuth() {
         watchFirestoreChannelTasks = [
           yield fork(watchFirestoreChannel<Measurement>, Collections.Measurements, setMeasurements, user.uid),
           yield fork(watchFirestoreChannel<Habit>, Collections.Habits, setHabits, user.uid),
+          yield fork(watchFirestoreChannel<Account>, Collections.Accounts, setAccount, user.uid),
         ];
         
         yield all(watchFirestoreChannelTasks);
@@ -74,6 +80,7 @@ function* watchAuth() {
         yield put(signOutRequest());
         yield put(setMeasurements([]));
         yield put(setHabits([]));
+        yield put(setAccount([]));
       }
     }
   } catch (error) {
@@ -368,6 +375,19 @@ function* deleteHabitSaga(action: PayloadAction<ComputedHabit>) {
   }
 }
 
+function* updateAccountSaga(action: PayloadAction<Account>) {
+  yield put(callUpdateAccountStatus(Status.IN_PROGRESS));
+  
+  try {
+    if (!action.payload.userId && auth.currentUser) action.payload.userId = auth.currentUser.uid;
+    yield call(replaceFirestoreDocumentSaga, action.payload, Collections.Accounts);
+    yield put(callUpdateAccountStatus(Status.SUCCESS));
+  } catch (error) {
+    console.error(error);
+    yield put(callUpdateAccountStatus(Status.ERROR));
+  }
+}
+
 export function* dataSaga() {
   yield all([
     takeEvery(callCreateMeasurement.type, createMeasurementSaga),
@@ -379,6 +399,8 @@ export function* dataSaga() {
     takeEvery(callUpdateHabit.type, updateHabitSaga),
     takeEvery(callUpdateHabits.type, updateHabitsSaga),
     takeEvery(callDeleteHabit.type, deleteHabitSaga),
+    
+    takeEvery(callUpdateAccount.type, updateAccountSaga),
 
     fork(watchAuth),
   ])

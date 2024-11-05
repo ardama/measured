@@ -12,7 +12,7 @@ const LoadingScreen = () => {
         {/* <Text style={styles.title} variant='headlineMedium'>
           Loading habits...
         </Text> */}
-        <ActivityIndicator size={'large'} color={theme.colors.onSecondary} style={styles.spinner} />
+        <ActivityIndicator size={'large'} color={'white'} style={styles.spinner} />
       </View>
     </View>
   );
@@ -25,8 +25,8 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     width: '100%',
     height: '100%',
     flex: 1,
-    backgroundColor: theme.colors.secondary,
-
+    backgroundColor: theme.dark ? theme.colors.inversePrimary : theme.colors.primary,
+    
     alignItems: 'center',
     justifyContent: 'center',
   },

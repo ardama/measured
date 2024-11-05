@@ -26,7 +26,6 @@ const HabitCreateScreen = () => {
 
   return (
     <>
-      <Header showBackButton title={'Create habit'} />
       <HabitForm habit={computedHabit} formType={'create'} />
     </>
   )

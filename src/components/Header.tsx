@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { toggleDarkMode } from '@s/appReducer';
-import { useDarkMode } from '@s/selectors';
 import { Appbar, Drawer as PaperDrawer, Text, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import { Drawer } from "expo-router/drawer";
@@ -9,6 +7,7 @@ import { router, useNavigation } from 'expo-router';
 import { CommonActions, DrawerActions, type ParamListBase } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 import { getFontFamily } from '@u/styles';
+import { Icons } from '@u/constants/Icons';
 
 type HeaderProps = {
   title: string | JSX.Element,
@@ -44,7 +43,7 @@ export default function Header({
       ]}
     >
       {/* {showMenuButton ? <Appbar.Action icon={'menu'} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} /> : null} */}
-      {showBackButton ? <Appbar.Action icon={'chevron-left'} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
+      {showBackButton ? <Appbar.Action icon={Icons.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
       <Appbar.Content
         title={titleContent}
       />

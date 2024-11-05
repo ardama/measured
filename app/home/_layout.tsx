@@ -1,21 +1,17 @@
-import { Redirect, Slot, Tabs, router } from 'expo-router';
-import React, { useState, type ReactNode } from 'react';
+import { Tabs } from 'expo-router';
+import React, { type ReactNode } from 'react';
 
-import { TabBarIcon } from '@c/navigation/TabBarIcon';
-import { Colors } from '@u/constants/Colors';
-import { useColorScheme } from '@u/hooks/useColorScheme';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { BottomNavigation, Icon, Portal, Text, useTheme } from 'react-native-paper';
+import { BottomNavigation, Icon, useTheme } from 'react-native-paper';
 import { CommonActions } from '@react-navigation/native';
 import { withAuth } from '@u/hocs/withAuth';
-import { TabScreen } from 'react-native-paper-tabs';
 import Header from '@c/Header';
 import { Icons } from '@u/constants/Icons';
-import { Drawer } from 'expo-router/drawer';
-import { DrawerToggleButton } from '@react-navigation/drawer';
+import { usePalettes } from '@u/hooks/usePalettes';
 
 const TabLayout = () => {
   const theme = useTheme();
+  const { globalPalette } = usePalettes();
 
   const renderTabBar = ({ navigation, state, descriptors, insets}: BottomTabBarProps): ReactNode => {
     return (
@@ -23,7 +19,7 @@ const TabLayout = () => {
         navigationState={state}
         safeAreaInsets={insets}
         labeled
-        activeIndicatorStyle={{ backgroundColor: theme.colors.surfaceDisabled }}
+        activeIndicatorStyle={{ backgroundColor: globalPalette.backdrop }}
         onTabPress={({ route, preventDefault }) => {
           const event = navigation.emit({
             type: 'tabPress',
@@ -39,8 +35,9 @@ const TabLayout = () => {
             })
           }
         }}
-        renderIcon={({ route, focused, color }) => {
+        renderIcon={({ route, focused }) => {
           const { options } = descriptors[route.key];
+          const color = theme.colors.onSurface;
           if (options.tabBarIcon) {
             return options.tabBarIcon({ focused, color, size: 24 });
           }
@@ -71,7 +68,11 @@ const TabLayout = () => {
         options={{
           title: 'History',
           tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.chartFilled : Icons.chart} color={color} size={size} />
+            <Icon
+              source={focused ? Icons.chartFilled : Icons.chart}
+              color={color}
+              size={size}
+            />
           ,
         }}
         />
@@ -80,7 +81,11 @@ const TabLayout = () => {
         options={{
           title: 'Measure',
           tabBarIcon: ({ color, focused, size }) => (
-            <Icon source={focused ? Icons.recordingFilled : Icons.recording} color={color} size={size} />
+            <Icon
+                source={focused ? Icons.recordingFilled : Icons.recording}
+                color={color}
+                size={size}
+              />
           ),
           headerShown: false,
         }}
@@ -90,7 +95,11 @@ const TabLayout = () => {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, focused, size }) => 
-            <Icon source={focused ? Icons.accountFilled : Icons.account} color={color} size={size} />
+            <Icon
+              source={focused ? Icons.accountFilled : Icons.account}
+              color={color}
+              size={size}
+            />
           ,
           headerShown: false,
         }}

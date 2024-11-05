@@ -1,5 +1,5 @@
 export const Collections = {
   Measurements: 'measurements',
-  Recordings: 'recordings',
   Habits: 'habits',
+  Accounts: 'accounts',
 }

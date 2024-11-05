@@ -1,22 +1,17 @@
 import { createSelector } from '@reduxjs/toolkit';
-import { computeHabit, type ComputedHabit, type Habit, type HabitUpdate } from '@t/habits';
+import { computeHabit, type ComputedHabit, type Habit } from '@t/habits';
 import { type Measurement } from '@t/measurements';
-import type { AppState, AuthState, DataState, RootState } from '@t/redux';
-import type { User } from '@t/users';
+import type { AuthState, DataState, RootState } from '@t/redux';
+import type { Account, AccountSettings, User } from '@t/users';
 import { SimpleDate } from '@u/dates';
 import { useSelector } from 'react-redux';
-
-const selectAppState = (state: RootState): AppState => state.app;
-export const useAppState = () => useSelector(selectAppState);
-
-const selectDarkMode = (state: RootState): boolean => state.app.darkMode;
-export const useDarkMode = () => useSelector(selectDarkMode);
 
 const selectAuthState = (state: RootState): AuthState => state.auth;
 export const useAuthState = () => useSelector(selectAuthState);
 
 const selectDataState = (state: RootState): DataState => state.data;
 export const useDataState = () => useSelector(selectDataState);
+export const useDataLoaded = () => useSelector((state: RootState) => state.data.dataLoaded);
 
 // -----------------------------------------
 // Auth selectors -------------------
@@ -53,6 +48,8 @@ const selectMeasurementsByIds = (ids: string[]): (state: RootState) => (Measurem
     (measurements) => ids.map((id) => measurements.find(m => m.id === id))
   );
 export const useMeasurementsByIds = (ids: string[]) => useSelector(selectMeasurementsByIds(ids));
+
+export const useMeasurementStatus = () => useSelector((state: RootState) => state.data.measurementStatus);
 
 // -----------------------------------------
 // Habit selectors -------------------
@@ -92,6 +89,11 @@ const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState)
     })
   );
 export const useHabitsByMeasurement = (measurement: Measurement) => useSelector(selectHabitsByMeasurement(measurement));
+
+// -----------------------------------------
+// Account selectors -----------------------
+export const useAccount = () => useSelector((state: RootState): Account => state.data.account);
+export const useSettings = () => useSelector((state: RootState): AccountSettings => state.data.account.settings);
 
 // -----------------------------------------
 // Complex selectors -----------------------

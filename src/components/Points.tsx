@@ -1,5 +1,5 @@
 import { Icons } from '@u/constants/Icons';
-import { StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native'
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Icon, Text, useTheme, type MD3Theme } from 'react-native-paper'
 import type { VariantProp } from 'react-native-paper/lib/typescript/components/Typography/types';
 

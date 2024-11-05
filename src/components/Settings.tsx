@@ -1,8 +1,9 @@
+import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
-import { toggleDarkMode } from '@s/appReducer';
-import { useDarkMode } from '@s/selectors';
-import { Icons } from '@u/constants/Icons';
-import { Link, router } from 'expo-router'
+import { callUpdateAccount } from '@s/dataReducer';
+import { useAccount } from '@s/selectors';
+import { usePalettes } from '@u/hooks/usePalettes';
+import { router } from 'expo-router'
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -26,15 +27,32 @@ const Settings = () => {
 
   const theme = useTheme();
   const styles = createStyles(theme);
+  const { globalPalette } = usePalettes();
 
-  const darkMode = useDarkMode();
+  const account = useAccount();
+  const darkMode = account.settings.darkMode;
 
   const displayItems: SettingsItem[] = [
     {
       icon: 'theme-light-dark',
       title: 'dark mode',
-      control: <Switch color={theme.colors.onSurface} value={darkMode} />,
-      onPress: () => { dispatch(toggleDarkMode()) },
+      control: <Switch color={globalPalette.primary} trackColor={{ true: globalPalette.backdrop, false: globalPalette.secondary }} value={account.settings.darkMode} />,
+      onPress: () => {
+        dispatch(callUpdateAccount({ ...account, settings: { ...account.settings, darkMode: !darkMode } }));
+      },
+    },
+    {
+      icon: 'palette',
+      title: 'accent color',
+      control: (
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1, paddingLeft: 24 }}>
+          <ColorPicker value={account.settings.baseColor} onSelect={(nextColor) => {
+            const nextSettings = { ...account.settings, baseColor: nextColor };
+            if (!nextColor) delete nextSettings['baseColor'];
+            dispatch(callUpdateAccount({ ...account, settings: nextSettings }));
+          }}/>
+        </View>
+      ),
     },
   ];
   const accountItems: SettingsItem[] = [
@@ -45,7 +63,7 @@ const Settings = () => {
     },
   ];
 
-  const sections = [
+  const sections: SettingsSection[] = [
     {
       title: 'customize',
       items: displayItems,
@@ -147,7 +165,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     borderBottomWidth: 1,
     borderTopWidth: 1,
     borderColor: theme.colors.surfaceVariant,
-    height: 48,
+    minHeight: 48,
 
     flexGrow: 1,
     flexDirection: 'row',
@@ -155,10 +173,12 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     gap: 6,
   },
   itemTitle: {
-    flexGrow: 1,
   },
   itemContent: {
-    flexShrink: 0,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexGrow: 1,
+    flexShrink: 1,
   },
   itemIcon: {
     

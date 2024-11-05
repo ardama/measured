@@ -9,9 +9,10 @@ import { Provider } from 'react-redux';
 import { store } from '@s/utils';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import ThemeProvider from '@c/ThemeProvider';
-import { useAuthState } from '@s/selectors';
+import { useAuthState, useDataLoaded, useSettings } from '@s/selectors';
 import LoadingScreen from '@c/Loading';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StatusBar } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -54,10 +55,17 @@ const RootStack = () => {
   });
 
   const { loading, initialAuthCheckComplete } = useAuthState();
+  const dataLoaded = useDataLoaded(); 
+
+  const settings = useSettings();
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
+
+  useEffect(() => {
+    StatusBar.setBarStyle(settings.darkMode ? 'light-content' : 'dark-content');
+  }, [settings.darkMode]);
 
   if (!fontsLoaded) return null;
 
@@ -65,14 +73,14 @@ const RootStack = () => {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
+        <Stack.Screen name="auth" />
         <Stack.Screen name="signout" />
         <Stack.Screen name="home" />
         <Stack.Screen name="+not-found" />
         <Stack.Screen name="measurement" />
         <Stack.Screen name="habit" />
       </Stack>
-      {loading || !initialAuthCheckComplete ? <LoadingScreen /> : null}
+      {loading || !initialAuthCheckComplete || !dataLoaded ? <LoadingScreen /> : null}
     </>
   )
 };

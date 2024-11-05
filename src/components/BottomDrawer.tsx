@@ -1,16 +1,16 @@
 import AnimatedView from '@c/AnimatedView';
 import { Icons } from '@u/constants/Icons';
 import { forWeb } from '@u/helpers';
+import { usePalettes } from '@u/hooks/usePalettes';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
-import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { StyleSheet, View, type TextInput } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Divider, Icon, Modal, Portal, Searchbar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import Animated, { 
+import { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring, 
   withTiming,
-  runOnJS
 } from 'react-native-reanimated';
 
 type BottomDrawerProps<T> = {
@@ -22,6 +22,7 @@ type BottomDrawerProps<T> = {
   placeholder?: string,
   onSelect: (item: BottomDrawerItem<T>) => void,
   onDismiss: () => void;
+  selectionColor?: string,
 }
 
 export type BottomDrawerItem<T> = {
@@ -31,9 +32,10 @@ export type BottomDrawerItem<T> = {
   icon?: string,
   disabled?: boolean,
 }
-export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, showSearchbar, placeholder, onSelect, onDismiss }: BottomDrawerProps<T>) {
+export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, showSearchbar, placeholder, onSelect, onDismiss, selectionColor }: BottomDrawerProps<T>) {
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const { globalPalette } = usePalettes();
+  const styles = createStyles(theme, selectionColor);
 
   const [searchText, setSearchText] = useState('');
   const [searchbarFocused, setSearchbarFocused] = useState(false);
@@ -147,6 +149,7 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                     item={item}
                     selected={item.value === selectedItem?.value}
                     onSelect={() => { onSelect(item); handleDismiss(); }}
+                    selectionColor={selectionColor}
                   />
                 );
               })}
@@ -160,6 +163,7 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                     item={item}
                     selected={item.value === selectedItem?.value}
                     onSelect={() => { onSelect(item); handleDismiss(); }}
+                    selectionColor={selectionColor}
                   />
                 );
               })}
@@ -172,13 +176,14 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
 };
 
 type BottomDrawerItemProps<T> = {
-  item: BottomDrawerItem<T>,
-  selected: boolean,
-  onSelect: (item: BottomDrawerItem<T>) => void,
+  item: BottomDrawerItem<T>
+  selected: boolean
+  onSelect: (item: BottomDrawerItem<T>) => void
+  selectionColor?: string
 }
-function BottomDrawerItem<T>({ item, selected, onSelect }: BottomDrawerItemProps<T>) {
+function BottomDrawerItem<T>({ item, selected, onSelect, selectionColor }: BottomDrawerItemProps<T>) {
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, selectionColor);
 
   return (
     <TouchableRipple
@@ -211,7 +216,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect }: BottomDrawerItemProps
   )
 }
 
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, selectionColor?: string) => StyleSheet.create({
   modal: {
     margin: 0,
   },
@@ -219,7 +224,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     width: '100%',
     position: 'absolute',
     bottom: 0,
-    // shadowColor: 'transparent',
   },
   content: {
     width: '100%',
@@ -255,7 +259,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   scrollContainer: {
     width: '100%',
-    maxHeight: 400,
+    maxHeight: 600,
   },
   divider: {
     backgroundColor: theme.colors.surfaceDisabled,
@@ -264,7 +268,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   item: {
   },
   itemSelected: {
-    backgroundColor: 'rgba(23, 29, 30, 0.06)',
+    backgroundColor: selectionColor || theme.colors.surfaceDisabled,
   },
   itemDisabled: {
     

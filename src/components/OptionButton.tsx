@@ -8,6 +8,7 @@ type OptionButtonProps = {
   disabled?: boolean,
   style?: ViewStyle,
   contentStyle?: ViewStyle,
+  selectedColor?: string,
 
   icon?: string,
   iconSize?: number,
@@ -25,6 +26,7 @@ const OptionButton = ({
   disabled,
   style,
   contentStyle,
+  selectedColor,
   
   icon,
   iconSize,
@@ -36,7 +38,7 @@ const OptionButton = ({
   onPress,
 }: OptionButtonProps) => {
   const theme = useTheme();
-  const s = createStyles(theme);
+  const s = createStyles(theme, selectedColor || theme.colors.surfaceDisabled);
 
   const content = children && children.length ? children : (
     <>
@@ -105,7 +107,7 @@ const OptionButton = ({
   );
 };
 
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, selectedColor: string) => StyleSheet.create({
   container: {
     borderRadius: 16,
     overflow: 'hidden',
@@ -118,7 +120,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     paddingHorizontal: 12,
   },
   containerSelected: {
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: selectedColor,
   },
   containerUnselected: {
     backgroundColor: theme.colors.elevation.level2,

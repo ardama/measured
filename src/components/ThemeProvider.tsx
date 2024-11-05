@@ -10,9 +10,9 @@ import {
   PaperProvider,
   adaptNavigationTheme,
 } from 'react-native-paper';
-import { useDarkMode } from '@s/selectors';
-import { Text } from 'react-native';
+import { useAccount } from '@s/selectors';
 import { textStyles } from '@u/styles';
+import { generateStandardPalette } from '@u/colors';
 
 const { LightTheme, DarkTheme } = adaptNavigationTheme({
   reactNavigationLight: NavigationDefaultTheme,
@@ -265,8 +265,12 @@ const CombinedDarkTheme = {
 };
 
 const ThemeProvider = (props: PropsWithChildren) => {
-  const darkMode = useDarkMode();
-  let theme = darkMode ? CombinedDarkTheme : CombinedDefaultTheme;
+  const account = useAccount();
+  let theme = account.settings.darkMode ? CombinedDarkTheme : CombinedDefaultTheme;
+
+  const palette = generateStandardPalette(account.settings.baseColor, account.settings.darkMode);
+  theme.colors.primary = palette.primary || theme.colors.onSurface;
+  theme.colors.primaryContainer = palette.backdrop || theme.colors.surface;
 
   return (
     <NavigationThemeProvider value={theme}>
