@@ -52,10 +52,11 @@ interface FontStyleType {
 
 export const getFontFamily = (
   weight: FontWeight | string = 400, 
-  italic: boolean = false
+  italic: boolean = false,
+  family: FontFamily = ACTIVE_FONT
 ): string => {
   const style: FontStyle = italic ? 'italic' : 'normal';
-  const weightMap = FONT_FAMILIES[ACTIVE_FONT][style];
+  const weightMap = FONT_FAMILIES[family][style];
   const numericWeight = typeof weight === 'string' 
     ? parseInt(weight, 10) as FontWeight 
     : weight;
@@ -75,9 +76,10 @@ export const getFontFamily = (
 
 export const createFontStyle = (
   weight: FontWeight | string, 
-  italic: boolean = false
+  italic: boolean = false,
+  family: FontFamily = ACTIVE_FONT,
 ): FontStyleType => ({
-  fontFamily: getFontFamily(weight, italic)
+  fontFamily: getFontFamily(weight, italic, family)
 });
 
 // Type for our text styles

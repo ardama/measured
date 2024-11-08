@@ -2,9 +2,10 @@ import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
 import { callUpdateAccount } from '@s/dataReducer';
 import { useAccount } from '@s/selectors';
+import { useAuth } from '@u/hooks/useAuth';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router'
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Icon, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
@@ -24,6 +25,7 @@ type SettingsSection = {
 
 const Settings = () => {
   const dispatch = useDispatch();
+  const { user } = useAuth();
 
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -32,13 +34,33 @@ const Settings = () => {
   const account = useAccount();
   const darkMode = account.settings.darkMode;
 
+  const [darkModeValue, setDarkModeValue] = useState(darkMode);
+
+  const darkModeChange = useRef<NodeJS.Timeout | null>(null);
+  const handleDarkModeChange = (nextDarkMode: boolean) => {
+    setDarkModeValue(nextDarkMode);
+    if (darkModeChange.current) clearTimeout(darkModeChange.current);
+    darkModeChange.current = setTimeout(() => {
+      dispatch(callUpdateAccount({ ...account, settings: { ...account.settings, darkMode: nextDarkMode}}))
+    }, 50);
+  }
+
+  useEffect(() => {
+    if (darkMode !== darkModeValue) setDarkModeValue(darkMode);
+  }, [darkMode]);
+
   const displayItems: SettingsItem[] = [
     {
       icon: 'theme-light-dark',
       title: 'dark mode',
-      control: <Switch color={globalPalette.primary} trackColor={{ true: globalPalette.backdrop, false: globalPalette.secondary }} value={account.settings.darkMode} />,
+      control: <Switch
+        color={globalPalette.primary}
+        trackColor={{ true: globalPalette.backdrop, false: globalPalette.disabled }}
+        value={darkModeValue}
+        onValueChange={handleDarkModeChange}
+      />,
       onPress: () => {
-        dispatch(callUpdateAccount({ ...account, settings: { ...account.settings, darkMode: !darkMode } }));
+        handleDarkModeChange(!darkModeValue);
       },
     },
     {
@@ -60,6 +82,9 @@ const Settings = () => {
       icon: 'logout',
       title: 'SIGN OUT',
       onPress: () => { router.push('/signout'); },
+      control: (
+        <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email}</Text>
+      )
     },
   ];
 
@@ -135,7 +160,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flex: 1,
   },
   sectionHeader: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: theme.colors.elevation.level3,
@@ -159,7 +184,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginRight: 8,
   },
   item: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     marginTop: -1,
     borderBottomWidth: 1,

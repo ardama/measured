@@ -10,6 +10,9 @@ const dataStateSlice = createSlice({
   name: 'dataState',
   initialState,
   reducers: {
+    resetData: (_: DataState) => {
+      return createDataState();
+    },
     setMeasurements: (state: DataState, action: PayloadAction<Measurement[]>) => {
       state.measurements = [...action.payload].sort((a, b) => a.priority - b.priority);
       state.dataLoaded = true;
@@ -45,6 +48,8 @@ const dataStateSlice = createSlice({
 });
 
 export const {
+  resetData,
+
   setMeasurements,
   setHabits,
   setAccount,

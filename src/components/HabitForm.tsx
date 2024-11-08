@@ -112,12 +112,13 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   };
   
   const handleCancel = () => {
-    handleFormClose()
+    handleFormClose();
   }
 
   const hasErrors = () => {
     if (getNameErrors().hasError) return true;
-    if (getTargetErrors().hasError) return true;
+    if (getConditionErrors().hasError) return true;
+
     return false
   }
 
@@ -126,17 +127,12 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     return NoError;
   }
 
-  const getTargetErrors = () => {
-
-    // if (isBool) return NoError;
-    // if (formHabit.conditions.find(({ target }) => !target)) return EmptyError;
-
-    // if (formHabit.conditions.find((condition) => {
-    //   const target = parseFloat(condition.target);
-    //   return (isNaN(target) || !isFinite(target) || target < 0);
-    // })) {
-    //   return Error('Invalid target');
-    // }
+  const getConditionErrors = () => {
+    if (!formHabit.conditions || !formHabit.conditions.length) return EmptyError;
+    if (formHabit.conditions.find(({ measurementId, operator, target }) => {
+      if (!measurementId || !operator || !target) return true;
+      return isNaN(parseFloat(target));
+    })) return EmptyError;
 
     return NoError;
   }
@@ -170,7 +166,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     {
       icon: habit.archived ? Icons.show : Icons.hide,
       title: `${habit.archived ? 'Unarchive' : 'Archive'} habit`,
-      subtitle: 'Archive this habit to hide it from being shown. Data for archived habits is always preserved.',
+      subtitle: 'Hide this habit by archiving it. Data is preserved while archived.',
       value: 'archive',
     },
     {
@@ -204,7 +200,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
       <Header
         showBackButton
         title={isNew ? 'Create habit' : habit.name}
-        actionButton={isNew ? null :
+        actionContent={isNew ? null :
           <BottomDrawer
             anchor={
               <Button
@@ -212,7 +208,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 textColor={theme.colors.onSurface}
                 onPress={() => setIsMenuVisible(true) }
               >
-                MORE
+                MANAGE
               </Button>
             }
             visible={isMenuVisible}
@@ -240,7 +236,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             <View style={s.formSectionHeader}>
               <Text variant='labelMedium' style={s.labelTitle}>FREQUENCY</Text>
               <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`${isNew ? 'Choose h' : 'H'}ow often this habit is evaluated.`}
+                {`${isNew ? 'Choose h' : 'H'}ow often the habit is evaluated.`}
               </Text>
             </View>
             <View style={s.formSection}>
@@ -252,7 +248,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 }}
                 icon={Icons.repeatDaily}
                 title='DAILY'
-                subtitle='Evaluated daily based on the measurement values for each day.'
+                subtitle='Evaluated daily based on the recorded measurements for each day.'
                 disabled={!isNew && formHabit.isWeekly}
                 selectedColor={palette.backdrop}                
               />
@@ -264,7 +260,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 }}
                 icon={Icons.repeatWeekly}
                 title='WEEKLY'
-                subtitle='Evaluated weekly based on all measurement values from the week.'
+                subtitle='Evaluated weekly based on all recorded measurements from the week.'
                 disabled={!isNew && !formHabit.isWeekly}
                 selectedColor={palette.backdrop}
               />
@@ -361,9 +357,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             </View>
             <Divider style={s.formSectionDivider} />
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>MEASUREMENTS</Text>
+              <Text variant='labelMedium' style={s.labelTitle}>TARGETS</Text>
               <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`Configure the measurement targets that need to be hit to consider this habit completed.`}
+                {`Measurement targets that need to be hit to complete the habit.`}
               </Text>
             </View>
             <View style={s.formSection}>
@@ -388,6 +384,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 }));
                 const selectedOperatorItem = operatorItems.find(({ value }) => value === condition.operator);
                 const suggestedTarget = conditionMeasurement.initial + conditionMeasurement.step;
+                const rawValue = parseFloat(condition.target || suggestedTarget.toString());
+
+                const showTargetAffix = !isNaN(rawValue) && (isTime || isDuration);
 
                 return (
                   <View key={index} style={s.condition}>
@@ -513,12 +512,12 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         mode='outlined'
                         style={{ ...s.targetInput, marginTop: -5}}
                         contentStyle={s.targetInputContent}
-                        label='Target'
+                        label='Target value'
                         placeholder={suggestedTarget.toString()}
                         placeholderTextColor={theme.colors.onSurfaceDisabled}
                         dense
-                        error={saveAttempted && getTargetErrors().hasError}
-                        value={isBool ? 'Yes' : condition.target}
+                        error={saveAttempted && getConditionErrors().hasError}
+                        value={isBool ? 'Yes' : condition.target || ''}
                         onChangeText={(text) => {
                           const nextHabit = { ...formHabit };
                           nextHabit.conditions[index].target = text;
@@ -526,7 +525,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         }}
                         right={(
                           <TextInput.Affix
-                            text={isTime || isDuration ? `(${formatValue(parseFloat(condition.target || suggestedTarget.toString()), conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
+                            text={showTargetAffix ? `(${formatValue(rawValue, conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
                           />
                         )}
                         keyboardType="numeric"
@@ -566,7 +565,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 <View style={s.addConditionButtonContent}>
                   <Icon source={Icons.add} size={14} color={theme.colors.onSurface} />
                   <Text variant='labelMedium'>
-                    ADD CONDITION
+                    ADD TARGET
                   </Text>
                 </View>
               </Button>
@@ -575,9 +574,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               <>
                 <Divider style={s.formSectionDivider} />
                 <View style={s.formSectionHeader}>
-                  <Text variant='labelMedium' style={s.labelTitle}>MULTI CONDITION</Text>
+                  <Text variant='labelMedium' style={s.labelTitle}>MULTI TARGET</Text>
                   <Text variant='bodySmall' style={s.labelSubtitle}>
-                    {`Define how many conditions need to be satisfied to consider the habit completed.`}
+                    {`How many targets need to be hit to complete the habit.`}
                   </Text>
                 </View>
                 <View style={s.formSection}>
@@ -589,7 +588,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     }}
                     icon={Icons.predicateAnd}
                     title='ALL'
-                    subtitle='Every condition must be satisfied.'
+                    subtitle='Every target must be hit.'
                     selectedColor={palette.backdrop}
                   />
                   <OptionButton
@@ -600,7 +599,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     }}
                     icon={Icons.predicateOr}
                     title='ANY'
-                    subtitle='At least one condition must be satisfied.'
+                    subtitle='One or more targets must be hit.'
                     selectedColor={palette.backdrop}
                   />
                 </View>

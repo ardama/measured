@@ -200,7 +200,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     {
       icon: measurement.archived ? Icons.show : Icons.hide,
       title: `${measurement.archived ? 'Unarchive' : 'Archive'} measurement`,
-      subtitle: 'Archive this measurement to hide it from being shown. Data for archived measurements is always preserved.',
+      subtitle: 'Hide this measurement by archiving it. Data is preserved while archived.',
       value: 'archive',
     },
     {
@@ -243,7 +243,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         showBackButton
         title={isNew ? 'Create measurement' : measurement.name}
         subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
-        actionButton={isNew ? null :
+        actionContent={isNew ? null :
           <BottomDrawer
             anchor={
               <Button
@@ -251,7 +251,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                 textColor={theme.colors.onSurface}
                 onPress={() => setIsMenuVisible(true) }
               >
-                MORE
+                MANAGE
               </Button>
             }
             visible={isMenuVisible}
@@ -285,7 +285,8 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
               {measurementTypes.map((type) => {
                 const typeData = getMeasurementTypeData(type);
                 const selected = type === formMeasurement.type;
-                const disabled = !isNew && !selected;
+                if (!isNew && !selected) return null;
+                const disabled = type === 'combo' && !measurements.length;
 
                 return (
                   <OptionButton
@@ -293,17 +294,16 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                     onPress={() => {
                       if (type === formMeasurement.type) return;
     
-                      const nextMeasurement = { ...formMeasurement, type: type };
+                      const nextMeasurement = { ...formMeasurement, type, step: '', unit: '', initial: '' };
                       if (type === 'combo') {
                         nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
-                        nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0].id;
-                        nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[0].id;
+                        nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0]?.id;
+                        nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[1]?.id || measurements[0]?.id;
                       } else if (type === 'time') {
                         nextMeasurement.step = '0.5';
                         nextMeasurement.initial = '12';
                       } else if (type === 'duration') {
-                        nextMeasurement.step = '15';
-                        nextMeasurement.unit = 'minutes'
+                        nextMeasurement.unit = 'minutes';
                       }
                       handleFormEdit(nextMeasurement);
                     }}
@@ -324,7 +324,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                 <View style={s.formSectionHeader}>
                   <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
                   <Text variant='bodySmall' style={s.labelSubtitle}>
-                    {`Define what the measurement is called.`}
+                    {`How the measurement is displayed.`}
                   </Text>
                 </View>
                 <View style={s.formSection}>
@@ -370,7 +370,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                 <View style={s.formSectionHeader}>
                   <Text variant='labelMedium' style={s.labelTitle}>DATA VALUES</Text>
                   <Text variant='bodySmall' style={s.labelSubtitle}>
-                    {`Configure what values the measurement can take and how they are displayed.`}
+                    {`What values the measurement can take and how they are formatted.`}
                   </Text>
                 </View>
                 <View style={s.formSection}>

@@ -83,7 +83,7 @@ const Habits = () => {
       <Header
         title='Habits'
         bordered
-        actionButton={(
+        actionContent={(
           <Button
             mode='text'
             textColor={theme.colors.onSurface}

@@ -25,8 +25,8 @@ const ColorPicker: React.FC<ColorPickerProps> = (props) => {
         return (
           <TouchableRipple
             key={baseColor}
-            style={[styles.colorOuter, { backgroundColor: isSelected ? backdrop || primary : undefined }]}
-            onPress={() => onSelect(isSelected ? undefined : baseColor)}
+            style={[styles.colorOuter, { backgroundColor: isSelected ? (backdrop || primary) : undefined }]}
+            onPress={() => onSelect(isSelected ? '' : baseColor)}
           >
             <View style={[styles.colorInner, { backgroundColor: primary }]} />
           </TouchableRipple>

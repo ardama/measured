@@ -14,7 +14,7 @@ type HeaderProps = {
   subtitle?: string | JSX.Element,
   showBackButton?: boolean,
   showMenuButton?: boolean,
-  actionButton?: JSX.Element | null,
+  actionContent?: JSX.Element | null,
   bordered?: boolean,
 }
 export default function Header({
@@ -22,7 +22,7 @@ export default function Header({
   subtitle,
   showBackButton,
   showMenuButton,
-  actionButton,
+  actionContent: actionButton,
   bordered,
 }: HeaderProps) {
   const theme = useTheme();
@@ -45,9 +45,12 @@ export default function Header({
       {/* {showMenuButton ? <Appbar.Action icon={'menu'} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} /> : null} */}
       {showBackButton ? <Appbar.Action icon={Icons.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
       <Appbar.Content
+        style={{ paddingLeft: 4 }}
         title={titleContent}
       />
-      {actionButton || null}
+      <View style={styles.actionContent}>
+        {actionButton || null}
+      </View>
     </Appbar.Header>
   );
 }
@@ -64,6 +67,11 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   title: {
     // textTransform: 'uppercase',

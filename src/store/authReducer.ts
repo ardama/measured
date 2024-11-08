@@ -26,69 +26,70 @@ const authSlice = createSlice({
     initialAuthCheckComplete: (state) => {
       state.initialAuthCheckComplete = true;
     },
-    signUpRequest: (state, _: PayloadAction<AuthCredentials>) => {
+    signUpRequest: (state: AuthState, _: PayloadAction<AuthCredentials>) => {
       state.action = 'signup';
       state.loading = true;
       state.error = null;
       state.info = null;
     },
-    signUpSuccess: (state, action: PayloadAction<User>) => {
+    signUpSuccess: (state: AuthState, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.loading = false;
       state.error = null;
       state.info = null;
     },
-    signUpFailure: (state, action: PayloadAction<string>) => {
+    signUpFailure: (state: AuthState, action: PayloadAction<string>) => {
       state.loading = false;
       state.error = action.payload;
       state.info = null;
     },
-    signInRequest: (state, _: PayloadAction<AuthCredentials>) => {
+    signInRequest: (state: AuthState, _: PayloadAction<AuthCredentials>) => {
       state.action = 'login';
       state.loading = true;
       state.error = null;
       state.info = null;
     },
-    signInSuccess: (state, action: PayloadAction<User>) => {
+    signInSuccess: (state: AuthState, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.loading = false;
       state.error = null;
       state.info = null;
     },
-    signInFailure: (state, action: PayloadAction<string>) => {
+    signInFailure: (state: AuthState, action: PayloadAction<string>) => {
       state.loading = false;
       state.error = action.payload;
       state.info = null;
     },
-    signOutRequest: (state) => {
+    signOutRequest: (state: AuthState) => {
       state.action = 'signout';
       state.loading = true;
       state.error = null;
       state.info = null;
     },
-    signOutSuccess: (state) => {
+    signOutSuccess: (state: AuthState) => {
+      state.action = null;
       state.user = null;
       state.loading = false;
       state.error = null;
       state.info = null;
     },
-    signOutFailure: (state, action: PayloadAction<string>) => {
+    signOutFailure: (state: AuthState, action: PayloadAction<string>) => {
       state.loading = false;
       state.error = action.payload;
       state.info = null;
     },
-    resetRequest: (state, _: PayloadAction<AuthCredentials>) => {
+    resetRequest: (state: AuthState, _: PayloadAction<AuthCredentials>) => {
       state.action = 'reset';
       state.loading = true;
       state.error = null;
       state.info = null;
     },
-    resetSuccess: (state) => {
+    resetSuccess: (state: AuthState) => {
       state.loading = false;
       state.error = null;
       state.info = 'Email successfully sent. Return here to sign in with your new password after completing the reset process.';
     },
-    resetFailure: (state, action: PayloadAction<string>) => {
+    resetFailure: (state: AuthState, action: PayloadAction<string>) => {
       state.loading = false;
       state.error = action.payload;
       state.info = null;

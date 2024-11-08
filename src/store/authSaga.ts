@@ -5,7 +5,7 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { auth } from '@/firebase';
 import { serializeUser, type Account } from '@t/users';
 import { eventChannel, type EventChannel } from 'redux-saga';
-import { callUpdateAccount } from '@s/dataReducer';
+import { resetData, callUpdateAccount } from '@s/dataReducer';
 import type { RootState } from '@t/redux';
 import { FirebaseError } from 'firebase/app';
 
@@ -50,6 +50,7 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
 function* signOutSaga() {
   try {
     yield call(signOut, auth);
+    yield put(resetData());
     yield put(signOutSuccess());
   } catch (error) {
     if (error instanceof FirebaseError) {

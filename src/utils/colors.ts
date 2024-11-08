@@ -105,6 +105,7 @@ export const baseColors: BaseColor[] = ['pink', 'red', 'orange', 'yellow', 'gree
 
 export type Palette = {
   primary: string
+  disabled?: string
   secondary?: string
   backdrop: string
   surface: string
@@ -114,66 +115,74 @@ export type Palette = {
 const darkPalettes = new Map<BaseColor, Palette>([
   [
     'pink', {
-      primary: '#ff73ca',
-      secondary: '',
+      primary: '#ec79c0',
+      secondary: '#fdd3ed',
       backdrop: '#602048',
       surface: '#602048',
+      disabled: '',
     }
   ],
   [
     'red', {
       primary: '#ff7575',
-      secondary: '',
+      secondary: '#ffcccf',
       backdrop: '#60202b',
       surface: '#60202b',
+      disabled: '',
     }
   ],
   [
     'orange', {
       primary: '#FF972F',
-      secondary: '',
+      secondary: '#ffdcc2',
       backdrop: '#7a4006',
       surface: '#7a4006',
+      disabled: '',
     }
   ],
   [
     'yellow', {
-      primary: '#ffbf29',
-      secondary: '',
+      primary: '#ffb914',
+      secondary: '#f4dfaf',
       backdrop: '#805700',
       surface: '#805700',
+      disabled: '',
     }
   ],
   [
     'green', {
-      primary: '#3eda72',
-      secondary: '',
+      primary: '#2dd272',
+      secondary: '#b6edcb',
       backdrop: '#265941',
       surface: '#265941',
+      disabled: '',
     }
   ],
   [
     'teal', {
       primary: '#5cc8d6',
-      secondary: '',
+      secondary: '#b9e5ee',
       backdrop: '#1f5361',
       surface: '#1f5361',
+      disabled: '',
     }
   ],
   [
     'blue', {
       primary: '#7891ed',
-      secondary: '',
+      secondary: '#c6d6fb',
       backdrop: '#203360',
       surface: '#203360',
+      disabled: '',
     }
   ],
   [
     'violet', {
       primary: '#c588f1',
-      secondary: '',
+      secondary: '#e7cdf9',
       backdrop: '#412956',
       surface: '#412956',
+      disabled: '',
     }
   ],
 ]);
@@ -181,66 +190,74 @@ const darkPalettes = new Map<BaseColor, Palette>([
 const lightPalettes = new Map<BaseColor, Palette>([
   [
     'pink', {
-      primary: '#ff73ca',
-      secondary: '',
+      primary: '#ec79c0',
+      secondary: '#602048',
       backdrop: '#fdd3ed',
       surface: '#fdd3ed',
+      disabled: '',
     }
   ],
   [
     'red', {
       primary: '#ff7575',
-      secondary: '',
+      secondary: '#60202b',
       backdrop: '#ffcccf',
       surface: '#ffcccf',
+      disabled: '',
     }
   ],
   [
     'orange', {
       primary: '#FF972F',
-      secondary: '',
+      secondary: '#7a4006',
       backdrop: '#ffdcc2',
       surface: '#ffdcc2',
+      disabled: '',
     }
   ],
   [
     'yellow', {
-      primary: '#ffbf29',
-      secondary: '',
+      primary: '#ffb914',
+      secondary: '#805700',
       backdrop: '#f4dfaf',
       surface: '#f4dfaf',
+      disabled: '',
     }
   ],
   [
     'green', {
-      primary: '#3eda72',
-      secondary: '',
+      primary: '#2dd272',
+      secondary: '#265941',
       backdrop: '#b6edcb',
       surface: '#b6edcb',
+      disabled: '',
     }
   ],
   [
     'teal', {
       primary: '#5cc8d6',
-      secondary: '',
+      secondary: '#1f5361',
       backdrop: '#b9e5ee',
       surface: '#b9e5ee',
+      disabled: '',
     }
   ],
   [
     'blue', {
       primary: '#7891ed',
-      secondary: '',
+      secondary: '#203360',
       backdrop: '#c6d6fb',
       surface: '#c6d6fb',
+      disabled: '',
     }
   ],
   [
     'violet', {
       primary: '#c588f1',
-      secondary: '',
+      secondary: '#412956',
       backdrop: '#e7cdf9',
       surface: '#e7cdf9',
+      disabled: '',
     }
   ],
 ]);
@@ -269,9 +286,10 @@ export const generateStandardPalette = (baseColor: BaseColor | undefined, darkMo
 
 export const getBasePalette = (theme: MD3Theme) => ({
   primary: theme.colors.onSurface,
-  secondary: theme.colors.onSurfaceDisabled,
+  secondary: theme.colors.outline,
   backdrop: theme.colors.surfaceDisabled,
   surface: theme.colors.surface,
+  disabled: theme.colors.onSurfaceDisabled,
   alt: theme.colors.onSurfaceDisabled,
 });
 
@@ -280,7 +298,7 @@ const emptyPalette: Palette = {
   secondary: '',
   backdrop: '',
   surface: '',
-  alt: '',
+  disabled: '',
 };
 
 // interface HSLColor {

@@ -127,7 +127,7 @@ const createStyles = (theme: MD3Theme, knobWidth: number) => StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 4,
   },
 });
 

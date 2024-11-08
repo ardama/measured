@@ -1,7 +1,7 @@
 import Header from '@c/Header';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, IconButton, Menu, Surface, Switch, Text, TextInput, ToggleButton, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Icon, IconButton, Menu, Surface, Switch, Text, TextInput, ToggleButton, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, HorizontalAxis, Line, VerticalAxis } from 'react-native-responsive-linechart';
 import { formatValue, movingAverage, range, triggerHaptic } from '@u/helpers';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
@@ -15,8 +15,8 @@ import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
 import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
 import { withAuth } from '@u/hocs/withAuth';
-import { usePalettes } from '@u/hooks/usePalettes';
 import type { Palette } from '@u/colors';
+import { usePalettes } from '@u/hooks/usePalettes';
 
 function HistoryScreen() {  
   const measurements = useMeasurements();
@@ -59,12 +59,11 @@ function HistoryScreen() {
         setChartMeasurementId(item.value);
         setSelectedDataIndex(-1);
       }}
-      palette={palette}
     />
   );
 
   const chartTrendlineItems = [
-    { title: 'None', value: '0', icon: undefined },
+    { title: 'None', value: '', icon: undefined },
     { title: '7-day average', value: '7', icon: undefined },
     { title: '14-day average', value: '14', icon: undefined },
     { title: '30-day average', value: '30', icon: undefined },
@@ -79,7 +78,6 @@ function HistoryScreen() {
       onChange={(item) => {
         setChartTrendlineValue(item.value);
       }}
-      palette={palette}
     />
   );
 
@@ -88,6 +86,8 @@ function HistoryScreen() {
   const today = SimpleDate.today();
   const renderMeasurementChartCard = (): JSX.Element | null => {
     const { recordings, step, unit, type } = selectedMeasurement || { recordings: [], step: 1 };
+    const isBool = type === 'bool';
+    const isTime = type === 'time';
     const measurementRecordingDates = recordings
       .map(({ date }) => date)
       .sort((a, b) => a.localeCompare(b))
@@ -96,7 +96,7 @@ function HistoryScreen() {
     
     const firstDateWithData = measurementRecordingDates[0];
     let chartDuration = chartDurationValue;
-    if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(firstDateWithData, today), chartDuration);
+    if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(firstDateWithData, today), chartDuration - 1);
     chartDuration = Math.max(chartDuration, 1);
 
     const selectedMeasurementData = measurementRecordingDates.map((date) => {
@@ -126,15 +126,15 @@ function HistoryScreen() {
     else if (chartDuration > 20) dotSize = 6;
 
     const chartWidth = dimensions.window.width - 72;
-    const chartHeight = 300;
     const chartPadding = Math.ceil(Math.max((dotSize), 1));
+    const chartHeight = 300;
 
-    const allDataValues = [...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y)].filter((value) => value !== null);
+    const combinedDataValues = [...selectedMeasurementData.map(({ y }) => y), ...averageData.map(({ y }) => y)].filter((value) => value !== null);
     const verticalStep = step || 1;
-    const verticalMinRaw = allDataValues.length ? Math.min(...allDataValues) : 0;
+    const verticalMinRaw = isBool ? 0 : combinedDataValues.length ? Math.min(...combinedDataValues) : 0;
     const verticalMinSteps = Math.floor(verticalMinRaw / verticalStep);
     const verticalMinUnits = verticalMinSteps * verticalStep;
-    const verticalMaxRaw = allDataValues.length ? Math.max(...allDataValues) : 1;
+    const verticalMaxRaw = isBool ? 1 : combinedDataValues.length ? Math.max(...combinedDataValues) : 1;
     const verticalMaxSteps = Math.max(Math.ceil(verticalMaxRaw / verticalStep), verticalMinSteps + 1);
     const verticalMaxUnits = verticalMaxSteps * verticalStep;
     const verticalOffset = (verticalMaxUnits - verticalMinUnits) * (chartPadding / chartHeight);
@@ -165,15 +165,39 @@ function HistoryScreen() {
     const selectedDateAverageString = formatValue(selectedDateAverage, type, unit, true);
     const selectedDateAverageLabel = `${chartTrendlineItem?.title || ''}: `;
 
+    const selectedVisibleData = selectedMeasurementData.filter(({ x }) => x >= 0);
+    const recordingCount = selectedVisibleData.length;
+    const total = selectedVisibleData.reduce((acc, curr) => acc + curr.y || 0, 0);
+    const totalString = !!selectedMeasurement && !isTime ? formatValue(total, isBool ? 'count' : selectedMeasurement.type, selectedMeasurement.unit, true) : '--';
+    const average = recordingCount ? total / recordingCount : 0;
+    const averageString = !!selectedMeasurement ? formatValue(average, isBool ? 'count' : selectedMeasurement.type, selectedMeasurement.unit, true) : '--';
     return (
       <Surface style={s.cardContainer}>
-        <View style={{ ...s.cardRow, justifyContent: 'flex-start', gap: 8 }}>
-          {chartMeasurementDropdown}
-          {chartTrendlineDropdown}
+        <View style={{ ...s.cardRow, justifyContent: 'flex-start', gap: 12 }}>
+          <View style={{ flexGrow: 1, flexShrink: 1, width: '50%', gap: 4 }}>
+            <Text variant='titleMedium'>Measurement</Text>
+            <View style={{ flexDirection: 'row'}}>
+              {chartMeasurementDropdown}
+            </View>
+          </View>
+          <View style={{ flexGrow: 1, flexShrink: 1, width: '50%', padding: 10}}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text variant='labelMedium'>Recordings</Text>
+              <Text variant='bodyMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{recordingCount}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text variant='labelMedium'>Total</Text>
+              <Text variant='bodyMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{totalString}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text variant='labelMedium'>Average</Text>
+              <Text variant='bodyMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{averageString}</Text>
+            </View>
+          </View>
         </View>
         <View style={s.cardRow}>
           {isFocused ? (
-            <View style={s.chart}>
+            <View style={{ paddingTop: 52, paddingBottom: 24 }}>
               <Chart
                 xDomain={{
                   min: horizontalMin - horizontalOffset,
@@ -276,6 +300,7 @@ function HistoryScreen() {
                 </View>
               </View>
               {selectedDataIndex < 0 ? null : (() => {
+                
                 const ratio = selectedDateDayOffset / chartDuration;
                 const justifyContent = ratio > 0.8 ? 'flex-end' : 'flex-start';
                 return (
@@ -310,6 +335,7 @@ function HistoryScreen() {
           ) : null}
         </View>
         <View style={{ ...s.cardRow, ...s.chartDurationButtons }}>
+          {chartTrendlineDropdown}
           {chartDurationItems.map(({ title, value }) => {
             const selected = title === chartDurationTitle;
             return (
@@ -350,8 +376,6 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     flex: 1,
   },
   cards: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 16,
 
     paddingVertical: 16,
@@ -461,55 +485,89 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     marginTop: 8
   },
   durationButton: {
-    borderRadius: 16,
+    borderRadius: 13,
   },
   durationButtonContent: {
-    width: 44,
-    height: 44,
+    minWidth: 36,
+    height: 36,
   },
   durationButtonContentSelected: {
     
   },
 });
 
-const MeasurementChartDropdown = ({ label, selectedItem, items, onChange, palette,
+const MeasurementChartDropdown = ({ label, selectedItem, items, onChange,
 }: {
   label: string
   selectedItem: BottomDrawerItem<string> | null
   items: BottomDrawerItem<string>[]
   onChange: (item: { title: string, icon?: string, value: string }) => void
-  palette?: Palette
 }): JSX.Element => {
   const [isVisible, setIsVisible] = useState(false); 
 
+  const theme = useTheme();
+  const { globalPalette } = usePalettes();
+  const styles = createDropdownStyles(theme, globalPalette);
 
   return (
-    <View style={{ flex: 1 }}>
-      <BottomDrawer
-        anchor={(
-          <Pressable
+    <BottomDrawer
+      anchor={(
+        <View style={styles.dropdownButton}>
+          <TouchableRipple
             onPress={() => { setIsVisible(true); }}
           >
-            <TextInput
-              label={label}
-              style={{}}
-              mode='outlined'
-              readOnly
-              value={selectedItem ? selectedItem.title : ''}   
-              activeOutlineColor={palette?.primary}           
-            />
-          </Pressable>
-        )}
-        visible={isVisible}
-        selectedItem={selectedItem}
-        onSelect={(item) => onChange(item)}
-        onDismiss={() => setIsVisible(false) }
-        items={items}
-        selectionColor={palette?.backdrop}
-      />
-    </View>
+            <View
+              style={styles.dropdownButtonContent}    
+            >
+              {selectedItem ? (
+                <>
+                  <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1}>
+                    {selectedItem.value ? selectedItem.title : `Select ${label.toLocaleLowerCase()}`}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text variant='labelMedium'>
+                    Select {label.toLocaleLowerCase()}
+                  </Text>
+                  {/* <View style={{ width: 4000, flexShrink: 1 }} /> */}
+                </>
+              )}
+              <Icon source={Icons.down} size={16} />
+            </View>
+          </TouchableRipple>
+        </View>
+      )}
+      visible={isVisible}
+      selectedItem={selectedItem}
+      onSelect={(item) => onChange(item)}
+      onDismiss={() => setIsVisible(false) }
+      items={items}
+      selectionColor={globalPalette.backdrop}
+    />
   );
 }
+
+const createDropdownStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
+  dropdownButton: {
+    backgroundColor: palette.backdrop,
+    borderRadius: 8,
+    overflow: 'hidden',
+    flexShrink: 1,
+    flexGrow: 1,
+    height: 42,
+  },
+  dropdownButtonContent: {
+    flexShrink: 1,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+    height: 42,
+    paddingHorizontal: 10,
+  },
+});
 
 type MonthSummaryCardProps = {
 

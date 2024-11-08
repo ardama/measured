@@ -68,9 +68,9 @@ function* watchAuth() {
       
       try {
         watchFirestoreChannelTasks = [
+          yield fork(watchFirestoreChannel<Account>, Collections.Accounts, setAccount, user.uid),
           yield fork(watchFirestoreChannel<Measurement>, Collections.Measurements, setMeasurements, user.uid),
           yield fork(watchFirestoreChannel<Habit>, Collections.Habits, setHabits, user.uid),
-          yield fork(watchFirestoreChannel<Account>, Collections.Accounts, setAccount, user.uid),
         ];
         
         yield all(watchFirestoreChannelTasks);

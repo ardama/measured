@@ -167,10 +167,15 @@ const getMeasurementRecordingValue = (
   return value === undefined ? null : value;
 }
 
-const getMeasurementStartDate = (measurement: (Measurement | undefined)) => {
-  if (!measurement || !measurement.recordings.length) return null;
+const getMeasurementStartDate = (measurement: (Measurement | undefined), recordingData?: Map<string, number | null>) => {
+  if (!measurement) return null;
+  if (!measurement.recordings.length && (!recordingData || !recordingData.size)) return null;
 
-  const earliest = measurement.recordings.reduce((earliest, current) => earliest.date < current.date ? earliest : current);
+  const recordings = recordingData ? [...recordingData.entries()].map(([date, value]): MeasurementRecording => ({ date, value })) : measurement.recordings;
+  const filteredRecordings = recordings.filter(({ value }) => value !== null);
+  if (!filteredRecordings.length) return null;
+
+  const earliest = filteredRecordings.reduce((earliest, current) => earliest.date < current.date ? earliest : current);
   return earliest.date;
 }
 

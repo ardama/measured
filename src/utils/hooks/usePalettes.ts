@@ -14,6 +14,7 @@ export const usePalettes = () => {
       secondary: palette.secondary || basePalette.secondary,
       backdrop: palette.backdrop || basePalette.backdrop,
       surface: palette.surface || basePalette.surface,
+      disabled: palette.disabled || basePalette.disabled,
       alt: palette.alt || palette.backdrop || basePalette.alt,
     }
   }

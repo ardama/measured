@@ -54,7 +54,7 @@ const RootStack = () => {
     SpaceMono: require('@a/fonts/SpaceMono-Regular.ttf'),
   });
 
-  const { loading, initialAuthCheckComplete } = useAuthState();
+  const { user, loading, initialAuthCheckComplete } = useAuthState();
   const dataLoaded = useDataLoaded(); 
 
   const settings = useSettings();
@@ -80,7 +80,7 @@ const RootStack = () => {
         <Stack.Screen name="measurement" />
         <Stack.Screen name="habit" />
       </Stack>
-      {loading || !initialAuthCheckComplete || !dataLoaded ? <LoadingScreen /> : null}
+      {loading || !initialAuthCheckComplete || (!!user && !dataLoaded) ? <LoadingScreen /> : null}
     </>
   )
 };

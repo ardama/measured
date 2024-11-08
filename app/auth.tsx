@@ -1,12 +1,16 @@
 import { resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
-import { useAuthState, useAuthError, useAuthLoading } from '@s/selectors';
-import { Error, EmptyError, NoError } from '@u/constants/Errors';
+import { useAuthState, useSettings } from '@s/selectors';
+import { Error, NoError } from '@u/constants/Errors';
 import { withAuth } from '@u/hocs/withAuth';
-import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Button, Card, HelperText, Icon, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
+import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native';
+import { Button, HelperText, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
+import Logo from '@a/images/m_logo_1.svg';
+import Background from '@a/images/background_1.svg';
+import { createFontStyle } from '@u/styles';
+import { generateStandardPalette, getBasePalette, type Palette } from '@u/colors';
+import { usePalettes } from '@u/hooks/usePalettes';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -21,11 +25,16 @@ const LoginScreen = () => {
   
   const dispatch = useDispatch();
   const { loading, error, info, action } = useAuthState();
+  const { darkMode } = useSettings();
   const lastestAction = submitAttempted || action;
 
   useEffect(() => {
     if (info) setUserAction('login');
   }, [info]);
+
+  // useEffect(() => {
+  //   StatusBar.setBarStyle(darkMode ? 'dark-content' : 'light-content');
+  // }, [darkMode]);
 
   const getErrors = () => {
     let e = getEmailErrors();
@@ -68,19 +77,35 @@ const LoginScreen = () => {
     else if (isReset) dispatch(resetRequest({ email }));
   }
 
-  const errorText = getErrors().hasError ? getErrors().msg : `Error: ${error}`;
+  const errorText = getErrors().hasError ? getErrors().msg : error && `Error: ${error}`;
 
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const { getPalette } = usePalettes();
+  const palette = getPalette('yellow');
+  const basePalette = getPalette('');
+  const styles = createStyles(theme, palette, basePalette);
+
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <Text style={styles.logoTitle} variant='headlineLarge'>
-          M
-        </Text>
-        <Text style={styles.logoTitle} variant='headlineSmall'>
-          345URED
-        </Text>
+        {/* <Background
+          style={styles.logoBackground}
+          // width={'100%'}
+          height={360}
+        /> */}
+        <ImageBackground
+          source={require('../src/assets/images/background_1.png')}
+          resizeMode="repeat"
+          style={styles.logoBackground}
+          tintColor={theme.colors.elevation.level5}
+          imageStyle={styles.logoBackgroundImage}
+        />
+        <Logo 
+          style={styles.logo}
+          height={120}
+          color={palette.primary}
+        />
+        <Text style={styles.logoTitle}>measured</Text>
       </View>
       <View style={styles.content}>
         <View style={styles.formContainer}>
@@ -100,6 +125,7 @@ const LoginScreen = () => {
             onChangeText={(text) => setEmail(text) }
             left={<TextInput.Icon tabIndex={-1} icon={'at'} rippleColor={'transparent'} />}
             onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+            activeOutlineColor={basePalette.primary}
           />
           {isReset ? null : <TextInput
             value={password}
@@ -112,6 +138,7 @@ const LoginScreen = () => {
             secureTextEntry
             left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
             onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+            activeOutlineColor={basePalette.primary}
           />}
           {isSignUp && (
             <>
@@ -126,6 +153,7 @@ const LoginScreen = () => {
                 secureTextEntry
                 left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
                 onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+                activeOutlineColor={basePalette.primary}
               />
             </>
           )}
@@ -136,18 +164,20 @@ const LoginScreen = () => {
             mode="contained"
             loading={loading}
             onPress={handleSubmit}
+            buttonColor={palette.primary}
+            uppercase
           >
             {isSignUp ? 'Sign Up' : isReset ? 'Reset password' : 'Login'}
           </Button>
         </View>
         <View style={styles.linkContainer}>
-          {!isLogin && <Button onPress={() => setUserAction('login')} style={styles.toggle}>
+          {!isLogin && <Button onPress={() => setUserAction('login')} style={styles.toggle} textColor={basePalette.secondary}>
             {'Already have an account? Log in'}
           </Button>}
-          {!isSignUp && <Button onPress={() => setUserAction('signup')} style={styles.toggle}>
+          {!isSignUp && <Button onPress={() => setUserAction('signup')} style={styles.toggle} textColor={basePalette.secondary}>
             {'Don\'t have an account? Sign Up'}
           </Button>}
-          {!isReset && <Button onPress={() => setUserAction('reset')} style={styles.toggle}>
+          {!isReset && <Button onPress={() => setUserAction('reset')} style={styles.toggle} textColor={basePalette.secondary}>
             {'Having trouble? Reset password'}
           </Button>}
         </View>
@@ -156,71 +186,96 @@ const LoginScreen = () => {
   )
 }
 
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) => StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     width: '100%',
-    padding: 28,
     overflow: 'visible',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.elevation.level3,
   },
   logoContainer: {
+    justifyContent: 'flex-start',
+    position: 'relative',
+    // top: '10%',
+    paddingTop: 120,
+    flexGrow: 1,
+    // borderRadius: 80,
+    alignItems: 'center',
+    overflow: 'hidden',
+    // backgroundColor: palette.backdrop,
+    alignSelf: 'stretch'
+  },
+  logo: {
+  },
+  logoBackground: {
     position: 'absolute',
-    top: '25%',
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    top: 0,
+    zIndex: -1,
+    height: '100%',
+    width: '100%',
+    opacity: 0.2,
+  },
+  logoBackgroundImage: {
+
   },
   logoTitle: {
-    color: theme.colors.onSecondary,
+    color: theme.colors.onSurfaceDisabled,
+    marginTop: 4,
+    fontSize: 30,
+    // opacity: 0.8,
+    ...createFontStyle(500, false, 'fira'),
   },
   content: {
     position: 'absolute',
-    top: '50%',
+    bottom: 0,
     flexDirection: 'column',
     alignItems: 'center',
     paddingVertical: 40,
+    minHeight: '50%',
+    maxWidth: 600,
     width: '100%',
-    height: '50%',
+    alignSelf: 'center',
 
     backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
 
     shadowRadius: 16,
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 3 },
+    elevation: 24,
   },
   title: {
-    
+    color: palette.primary,
   },
   subtitle: {
     color: theme.colors.outline,
     marginTop: 2,
+    marginBottom: 12,
   },
   formContainer: {
-    marginVertical: 20,
     width: '100%',
-    maxWidth: 500,
     paddingHorizontal: 40,
     flexGrow: 1,
     flexShrink: 0,
   },
   input: {
-    marginVertical: 8,
+    marginVertical: 12,
   },
   helperText: {
     marginTop: 0,
     fontSize: 14,
   },
   button: {
-    marginTop: 12,
+    marginTop: 24,
   },
   toggle: {
     marginTop: 8,
   },
   linkContainer: {
+    marginTop: 32,
     width: '100%',
     maxWidth: 400,
     paddingHorizontal: 40,

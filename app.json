@@ -4,13 +4,13 @@
     "slug": "habits",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/images/icon.png",
+    "icon": "./src/assets/images/icon_yellow_192x192.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./src/assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "image": "./src/assets/images/splash_yellow_1242x1242.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#1a2122"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,8 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./src/assets/images/icon_yellow_192x192.png",
+        "backgroundColor": "#1a2122"
       },
       "package": "com.aricdama.habits",
       "googleServicesFile": "./google-services.json"
@@ -27,7 +27,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./src/assets/images/favicon.png"
+      "favicon": "./src/assets/images/icon_yellow_64x64.png"
     },
     "plugins": [
       "expo-router"

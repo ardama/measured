@@ -37,6 +37,7 @@ export const defaultAccount = (): Account => ({
   id: generateId(Collections.Accounts),
   userId: '',
   settings: {
-    darkMode: false,
+    darkMode: true,
+    baseColor: '',
   }
 });
