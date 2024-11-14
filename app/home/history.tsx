@@ -335,7 +335,9 @@ function HistoryScreen() {
           ) : null}
         </View>
         <View style={{ ...s.cardRow, ...s.chartDurationButtons }}>
-          {chartTrendlineDropdown}
+          <View style={{ maxWidth: 240, flexGrow: 1 }}>
+            {chartTrendlineDropdown}
+          </View>
           {chartDurationItems.map(({ title, value }) => {
             const selected = title === chartDurationTitle;
             return (
@@ -511,6 +513,7 @@ const MeasurementChartDropdown = ({ label, selectedItem, items, onChange,
 
   return (
     <BottomDrawer
+      title={label}
       anchor={(
         <View style={styles.dropdownButton}>
           <TouchableRipple
@@ -543,7 +546,7 @@ const MeasurementChartDropdown = ({ label, selectedItem, items, onChange,
       onSelect={(item) => onChange(item)}
       onDismiss={() => setIsVisible(false) }
       items={items}
-      selectionColor={globalPalette.backdrop}
+      palette={globalPalette}
     />
   );
 }

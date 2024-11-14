@@ -1,11 +1,12 @@
 import AnimatedView from '@c/AnimatedView';
+import type { Palette } from '@u/colors';
 import { Icons } from '@u/constants/Icons';
 import { forWeb } from '@u/helpers';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInput } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { Divider, Icon, Modal, Portal, Searchbar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Divider, Icon, IconButton, Modal, Portal, Searchbar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -14,28 +15,31 @@ import {
 } from 'react-native-reanimated';
 
 type BottomDrawerProps<T> = {
-  anchor: JSX.Element,
-  selectedItem?: BottomDrawerItem<T> | null,
-  items: BottomDrawerItem<T>[],
-  visible: boolean,
-  showSearchbar?: boolean,
-  placeholder?: string,
-  onSelect: (item: BottomDrawerItem<T>) => void,
-  onDismiss: () => void;
-  selectionColor?: string,
+  title: string
+  anchor: JSX.Element
+  selectedItem?: BottomDrawerItem<T> | null
+  items: BottomDrawerItem<T>[]
+  visible: boolean
+  showSearchbar?: boolean
+  placeholder?: string
+  onSelect: (item: BottomDrawerItem<T>) => void
+  onDismiss: () => void
+  palette?: Palette
+  showClose?: boolean
 }
 
 export type BottomDrawerItem<T> = {
-  title: string,
-  subtitle?: string,
-  value: T,
-  icon?: string,
-  disabled?: boolean,
+  title: string
+  subtitle?: string
+  value: T
+  icon?: string
+  disabled?: boolean
 }
-export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, showSearchbar, placeholder, onSelect, onDismiss, selectionColor }: BottomDrawerProps<T>) {
+export default function BottomDrawer<T>({ title, anchor, selectedItem, items, visible, showSearchbar, placeholder, onSelect, onDismiss, palette, showClose }: BottomDrawerProps<T>) {
   const theme = useTheme();
   const { globalPalette } = usePalettes();
-  const styles = createStyles(theme, selectionColor);
+  const colorPalette = palette || globalPalette;
+  const styles = createStyles(theme, colorPalette);
 
   const [searchText, setSearchText] = useState('');
   const [searchbarFocused, setSearchbarFocused] = useState(false);
@@ -78,13 +82,11 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
       return (
         !searchText
         || title.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
-        || value.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
       );
     } else if (typeof value === 'number') {
       return (
         !searchText
         || title.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
-        || `${value}`.indexOf(searchText) !== -1
       )
     }
     return true;
@@ -94,13 +96,11 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
       return !(
         !searchText
         || title.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
-        || value.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
       );
     } else if (typeof value === 'number') {
       return !(
         !searchText
         || title.toLowerCase().indexOf(searchText.toLowerCase()) !== -1
-        || `${value}`.indexOf(searchText) !== -1
       )
     }
     return false;
@@ -119,12 +119,21 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
           onDismiss={handleDismiss}
           
         >
-            <AnimatedView style={styles.content} isEnd={visible} startY={50} isSpring>
+          <AnimatedView style={styles.content} isEnd={visible} startY={50} isSpring>
+            <View style={styles.header}>
+              <Text variant='titleMedium' style={styles.headerText}>{title}</Text>
+              {showClose && <IconButton
+                icon={Icons.close}
+                size={22}
+                style={styles.headerButton}
+                onPress={() => handleDismiss()}
+              />}
+            </View>
             {isSearchbarVisible ? (
               <View style={styles.searchbarContainer}>
                 <Searchbar
                   ref={searchbarRef}
-                  style={styles.searchbar}
+                  style={[styles.searchbar, (searchbarFocused || !!searchText) && styles.searchbarFocused]}
                   value={searchText}
                   onChangeText={(text) => setSearchText(text)}
                   placeholder={placeholder !== undefined ? placeholder : 'Search items...'}
@@ -132,6 +141,8 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                   iconColor={searchbarFocused ? undefined : theme.colors.onSurfaceDisabled}
                   onFocus={() => setSearchbarFocused(true) }
                   onBlur={() => setSearchbarFocused(false) }
+                  clearIcon={Icons.close}
+                  right={!!searchText ? undefined : () => null}
                 />
               </View>
             ) : null}
@@ -149,12 +160,12 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                     item={item}
                     selected={item.value === selectedItem?.value}
                     onSelect={() => { onSelect(item); handleDismiss(); }}
-                    selectionColor={selectionColor}
+                    palette={colorPalette}
                   />
                 );
               })}
               {filteredItemsInverse.length ? (
-                <Divider horizontalInset style={styles.divider} />
+                <Divider style={styles.divider} />
               ) : null}
               {filteredItemsInverse.map((item) => {
                 return (
@@ -163,7 +174,7 @@ export default function BottomDrawer<T>({ anchor, selectedItem, items, visible, 
                     item={item}
                     selected={item.value === selectedItem?.value}
                     onSelect={() => { onSelect(item); handleDismiss(); }}
-                    selectionColor={selectionColor}
+                    palette={colorPalette}
                   />
                 );
               })}
@@ -179,22 +190,24 @@ type BottomDrawerItemProps<T> = {
   item: BottomDrawerItem<T>
   selected: boolean
   onSelect: (item: BottomDrawerItem<T>) => void
-  selectionColor?: string
+  palette: Palette
 }
-function BottomDrawerItem<T>({ item, selected, onSelect, selectionColor }: BottomDrawerItemProps<T>) {
+function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawerItemProps<T>) {
   const theme = useTheme();
-  const styles = createStyles(theme, selectionColor);
+  const styles = createStyles(theme, palette);
 
   return (
     <TouchableRipple
       onPress={() => onSelect(item)}
-      style={[styles.item, selected ? styles.itemSelected : {}, item.disabled ? styles.itemDisabled : {}]}
+      style={[styles.item, selected && styles.itemSelected, item.disabled && styles.itemDisabled]}
       disabled={item.disabled}
     >
       <View
         style={[styles.itemContent, selected ? styles.itemContentSelected : {}, item.disabled ? styles.itemContentDisabled : {}]}
       >
-        {item.icon ? <Icon source={item.icon} size={!!item.subtitle ? 22 : 18} color={item.disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} /> : null}
+        {!!item.icon && <View style={styles.itemIcon}>
+          <Icon source={item.icon} size={!!item.subtitle ? 22 : 18} color={item.disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} />
+        </View>}
         <View style={styles.itemTextContent}>
           <Text
             variant={selected || !!item.subtitle ? 'titleMedium': 'bodyLarge'}
@@ -216,7 +229,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect, selectionColor }: Botto
   )
 }
 
-const createStyles = (theme: MD3Theme, selectionColor?: string) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   modal: {
     margin: 0,
   },
@@ -232,43 +245,84 @@ const createStyles = (theme: MD3Theme, selectionColor?: string) => StyleSheet.cr
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     backgroundColor: theme.colors.elevation.level1,  
+    overflow: 'hidden',
     
     shadowColor: theme.colors.shadow,
     shadowRadius: 16,
     shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 0 },
-    paddingTop: 20, 
+    // paddingTop: 20, 
     transform: [{ translateY: 100 }],
   },
+  header: {
+    minHeight: 64,
+    flexDirection: 'row',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    alignItems: 'flex-end',
+    // borderBottomWidth: 1,
+    // borderColor: theme.colors.surfaceDisabled,
+  },
+  headerText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    textTransform: 'uppercase',
+    color: theme.colors.onSurfaceDisabled,
+    paddingLeft: 20,
+  },
+  headerButton: {
+   margin: 0,
+   height: 40,
+   width: 40,
+  },
   searchbarContainer: {
-    marginBottom: 16,
-    paddingHorizontal: 18,
+    marginBottom: 12,
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   searchbar: {
-    borderRadius: 12,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    backgroundColor: 'transparent',
+  },
+  searchbarFocused: {
+    // padding: 0,
+    // borderWidth: 2,
+    // borderColor: palette.primary,
+    backgroundColor: theme.colors.surfaceDisabled,
   },
   noResults: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 20, 
+    paddingVertical: 16, 
+    marginBottom: 12,
   },
   noResultsText: {
     color: theme.colors.onSurfaceDisabled,
-    marginLeft: 8,
+    marginLeft: 16,
   },
   scrollContainer: {
     width: '100%',
     maxHeight: 600,
+    paddingHorizontal: 16,
   },
   divider: {
     backgroundColor: theme.colors.surfaceDisabled,
-    marginVertical: 12,
+    marginTop: 12,
+    marginBottom: 24,
   },
   item: {
+    borderRadius: 14,
+    marginBottom: 12,
+    paddingVertical: 16, 
+    paddingHorizontal: 20, 
+    borderColor: 'transparent',
   },
   itemSelected: {
-    backgroundColor: selectionColor || theme.colors.surfaceDisabled,
+    backgroundColor: palette.backdrop,
   },
   itemDisabled: {
     
@@ -276,9 +330,6 @@ const createStyles = (theme: MD3Theme, selectionColor?: string) => StyleSheet.cr
   itemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20, 
-    paddingHorizontal: 20, 
-    
   },
   itemContentSelected: {
     
@@ -286,8 +337,11 @@ const createStyles = (theme: MD3Theme, selectionColor?: string) => StyleSheet.cr
   itemContentDisabled: {
 
   },
+  itemIcon: {
+    marginRight: 16,
+    
+  },
   itemTextContent: {
-    marginLeft: 16,
     flexGrow: 1,
     flexShrink: 1,
   },

@@ -165,13 +165,13 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const menuItems: BottomDrawerItem<string>[] = [
     {
       icon: habit.archived ? Icons.show : Icons.hide,
-      title: `${habit.archived ? 'Unarchive' : 'Archive'} habit`,
-      subtitle: 'Hide this habit by archiving it. Data is preserved while archived.',
+      title: `${habit.archived ? 'Unarchive' : 'Archive'}`,
+      subtitle: habit.archived ? 'Restore visibility of this habit.' : 'Hide this habit but preserve its data.',
       value: 'archive',
     },
     {
       icon: Icons.delete,
-      title: 'Delete habit',
+      title: 'Delete',
       value: 'delete',
       subtitle: 'Permanently delete this habit and all of its data.',
     }
@@ -192,6 +192,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     }, 0);
   };
   const handleArchiveHabit = (habit: ComputedHabit, archived: boolean) => {
+    const nextHabit = { ...formHabit, archived: archived };
+    handleFormEdit(nextHabit);
     dispatch(callUpdateHabit({ ...habit, archived }));
   };
 
@@ -211,6 +213,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 MANAGE
               </Button>
             }
+            title='Manage'
             visible={isMenuVisible}
             onDismiss={() => {
               setIsMenuVisible(false);
@@ -226,7 +229,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 handleDeleteHabit(habit);
               }
             }}
-            selectionColor={palette.backdrop}
+            palette={palette}
           />
         }
       />
@@ -236,7 +239,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             <View style={s.formSectionHeader}>
               <Text variant='labelMedium' style={s.labelTitle}>FREQUENCY</Text>
               <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`${isNew ? 'Choose h' : 'H'}ow often the habit is evaluated.`}
+                {`${isNew ? 'H' : 'H'}ow often the habit is evaluated.`}
               </Text>
             </View>
             <View style={s.formSection}>
@@ -250,7 +253,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 title='DAILY'
                 subtitle='Evaluated daily based on the recorded measurements for each day.'
                 disabled={!isNew && formHabit.isWeekly}
-                selectedColor={palette.backdrop}                
+                palette={palette}                
               />
               <OptionButton
                 selected={formHabit.isWeekly}
@@ -262,10 +265,11 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 title='WEEKLY'
                 subtitle='Evaluated weekly based on all recorded measurements from the week.'
                 disabled={!isNew && !formHabit.isWeekly}
-                selectedColor={palette.backdrop}
+                palette={palette}
               />
               {!formHabit.isWeekly && (
                 <BottomDrawer
+                  title='Frequency'
                   visible={isDaysPerWeekMenuVisible}
                   onDismiss={() => setIsDaysPerWeekMenuVisible(false)}
                   anchor={
@@ -290,7 +294,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     
                     setIsDaysPerWeekMenuVisible(false);
                   }}
-                  selectionColor={palette.backdrop}
+                  palette={palette}
                 />
               )}
             </View>
@@ -298,7 +302,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             <View style={s.formSectionHeader}>
               <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
               <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`Set the basic attributes of the habit.`}
+                {`The basic attributes of the habit.`}
               </Text>
             </View>
             <View style={s.formSection}>
@@ -318,6 +322,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               />
               <View style={s.formRow}>
                 <BottomDrawer
+                  title='Reward'
                   visible={isPointsMenuVisible}
                   onDismiss={() => setIsPointsMenuVisible(false)}
                   anchor={
@@ -341,7 +346,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     setIsPointsMenuVisible(false);
                   }}
                   showSearchbar={false}
-                  selectionColor={palette.backdrop}
+                  palette={palette}
                 />
                 <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
               </View>
@@ -391,6 +396,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 return (
                   <View key={index} style={s.condition}>
                     <BottomDrawer<string>
+                      title='Measurement'
                       anchor={(
                         <View style={{
                           ...s.dropdownButton,
@@ -422,9 +428,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                               ) : (
                                 <>
                                   <Text variant='labelMedium'>
-                                    Choose measurement
+                                    SELECT MEASUREMENT
                                   </Text>
-                                  {/* <View style={{ width: 4000, flexShrink: 1 }} /> */}
                                   <Icon source={Icons.down} size={16} />
                                 </>
                               )}
@@ -454,9 +459,10 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         setMeasurementMenuVisibilities(nextVisibilities);
                       }}
                       visible={isMeasurementMenuVisible}
-                      selectionColor={palette.backdrop}
+                      palette={palette}
                     />
                     {!!condition.measurementId && <BottomDrawer<string>
+                      title='Operator'
                       anchor={
                         <View style={{
                           ...s.dropdownButton,
@@ -477,8 +483,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                                   <Icon source={getHabitOperatorData(condition.operator).icon} size={14} />
                                 ) : (
                                     <>
-                                  <Text variant='labelMedium' ellipsizeMode='tail' numberOfLines={1} style={{ color: !condition.measurementId ? theme.colors.onSurfaceDisabled : undefined}}>
-                                    Choose operator
+                                  <Text variant='labelMedium'>
+                                    SELECT OPERATOR
                                   </Text>
                                   <Icon source={Icons.down} size={16} color={!condition.measurementId ? theme.colors.onSurfaceDisabled : undefined} />
                                   </>
@@ -505,7 +511,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         nextVisibilities[index] = false;
                         setOperatorMenuVisibilities(nextVisibilities);
                       }}
-                      selectionColor={palette.backdrop}
+                      palette={palette}
                     />}
                     {!!condition.measurementId && !!condition.operator && 
                       <TextInput
@@ -589,7 +595,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     icon={Icons.predicateAnd}
                     title='ALL'
                     subtitle='Every target must be hit.'
-                    selectedColor={palette.backdrop}
+                    palette={palette}
                   />
                   <OptionButton
                     selected={formHabit.predicate === 'OR'}
@@ -600,7 +606,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     icon={Icons.predicateOr}
                     title='ANY'
                     subtitle='One or more targets must be hit.'
-                    selectedColor={palette.backdrop}
+                    palette={palette}
                   />
                 </View>
               </>

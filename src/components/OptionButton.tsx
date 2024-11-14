@@ -1,3 +1,5 @@
+import type { Palette } from '@u/colors';
+import { usePalettes } from '@u/hooks/usePalettes';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { Icon, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 
@@ -8,7 +10,7 @@ type OptionButtonProps = {
   disabled?: boolean,
   style?: ViewStyle,
   contentStyle?: ViewStyle,
-  selectedColor?: string,
+  palette?: Palette,
 
   icon?: string,
   iconSize?: number,
@@ -26,7 +28,7 @@ const OptionButton = ({
   disabled,
   style,
   contentStyle,
-  selectedColor,
+  palette,
   
   icon,
   iconSize,
@@ -38,7 +40,8 @@ const OptionButton = ({
   onPress,
 }: OptionButtonProps) => {
   const theme = useTheme();
-  const s = createStyles(theme, selectedColor || theme.colors.surfaceDisabled);
+  const { globalPalette } = usePalettes();
+  const s = createStyles(theme, palette || globalPalette);
 
   const content = children && children.length ? children : (
     <>
@@ -72,9 +75,9 @@ const OptionButton = ({
       style={[
         s.container,
         style,
-        selected ? s.containerSelected : {},
-        unselected ? s.containerUnselected : {},
-        disabled ? s.containerDisabled : {},
+        selected && s.containerSelected,
+        unselected && s.containerUnselected,
+        disabled && s.containerDisabled,
       ]}
     >
       <TouchableRipple
@@ -85,6 +88,7 @@ const OptionButton = ({
       >
         <View style={[
           s.content,
+          selected && s.contentSelected,
           contentStyle
         ]}>
           {!!icon && (
@@ -107,26 +111,33 @@ const OptionButton = ({
   );
 };
 
-const createStyles = (theme: MD3Theme, selectedColor: string) => StyleSheet.create({
+const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
     borderRadius: 16,
     overflow: 'hidden',
   },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-  },
   containerSelected: {
-    backgroundColor: selectedColor,
+    backgroundColor: palette.backdrop,
   },
   containerUnselected: {
     backgroundColor: theme.colors.elevation.level2,
   },
   containerDisabled: {
     backgroundColor: undefined,
+  },
+  content: {
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  contentSelected: {
+    // borderColor: palette.primary,
+
   },
   title: {
     

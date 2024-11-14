@@ -13,12 +13,11 @@ import { callUpdateHabits, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
-import { NestableDraggableFlatList, NestableScrollContainer, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { NestableDraggableFlatList, NestableScrollContainer, OpacityDecorator, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Status from '@u/constants/Status';
 import { ImpactFeedbackStyle } from 'expo-haptics';
 import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
-import { createFontStyle } from '@u/styles';
 
 const Recordings = () => {
   const measurements = useMeasurements();
@@ -78,7 +77,7 @@ const Recordings = () => {
       icon: Icons.move,
       title: isReorderingMeasurements ? 'Save order' : 'Reorder',
       value: 'reorder',
-      subtitle: isReorderingMeasurements ? 'Disable reordering mode.' : 'Enable reordering mode. Long press to rearrange measurements.',
+      subtitle: isReorderingMeasurements ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
       disabled: measurements.length <= 1,
     },
     {
@@ -145,7 +144,7 @@ const Recordings = () => {
       icon: Icons.move,
       title: isReorderingHabits ? 'Save order' : 'Reorder habits',
       value: 'reorder',
-      subtitle: isReorderingMeasurements ? 'Disable reordering mode.' : 'Enable reordering mode. Long press to rearrange habits.',
+      subtitle: isReorderingHabits ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
       disabled: habits.length <= 1,
     },
     {
@@ -173,13 +172,13 @@ const Recordings = () => {
   const addMenuItems: BottomDrawerItem<string>[] = [
     {
       icon: Icons.measurement,
-      title: 'Create measurement',
+      title: 'Measurement',
       subtitle: 'Simple values to record and monitor over time.',
       value: 'measurement',
     },
     {
       icon: Icons.habit,
-      title: 'Create habit',
+      title: 'Habit',
       value: 'habit',
       subtitle: 'Recurring targets to define goals and score progress.',
       disabled: measurements.length === 0,
@@ -371,6 +370,7 @@ const Recordings = () => {
               ) : null
             }
             <BottomDrawer
+              title='Create'
               visible={isAddMenuVisible}
               onDismiss={() => setIsAddMenuVisible(false)}
               anchor={
@@ -510,6 +510,7 @@ const Recordings = () => {
               <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
             </Button>)}
             {<BottomDrawer
+                title='Measurements'
                 visible={isMeasurementMenuVisible}
                 onDismiss={() => setIsMeasurementMenuVisible(false)}
                 anchor={
@@ -604,7 +605,7 @@ const Recordings = () => {
                         if (!measurement) return;
   
                         return (
-                          <ScaleDecorator>
+                          <>
                             <RecordingMeasurementItem
                               index={getIndex() || 0}
                               measurement={measurement}
@@ -620,7 +621,7 @@ const Recordings = () => {
                               disabled={isActive}
                               reordering
                             />
-                          </ScaleDecorator>
+                          </>
                         );
                       }}
                     />
@@ -695,6 +696,7 @@ const Recordings = () => {
                 <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
               </Button>)}
               <BottomDrawer
+                title='Habits'
                 visible={isHabitMenuVisible}
                 onDismiss={() => setIsHabitMenuVisible(false)}
                 anchor={
@@ -848,6 +850,7 @@ const Recordings = () => {
                   <>
                     {isReorderingHabits ? (
                       <NestableDraggableFlatList
+                        style={{ overflow: 'visible' }}
                         data={habitPriorityOverrides || []}
                         onDragEnd={({ data }) => {
                           setHabitPriorityOverrides(data);
@@ -953,7 +956,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   timelineContainer: {
     position: 'relative',
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.colors.elevation.level2,
     flexGrow: 0,
     flexShrink: 0,
     paddingBottom: 16,
@@ -1101,7 +1104,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     left: -1,
     width: 2,
     height: 16,
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
   },
   overlapProgress: {
     height: '100%',
@@ -1130,7 +1133,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     color: theme.colors.onSurface,
   },
   content: {
-
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1139,7 +1142,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
   },
   sectionHeaderIcon: {
     marginLeft: 8,
@@ -1155,6 +1158,10 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     marginRight: 0,
   },
   sectionContent: {
+    // paddingHorizontal: 16,
+    // borderRadius: 16,
+    // overflow: 'hidden',
+    // backgroundColor: theme.colors.surface,
   },
   recordingView: {
     
@@ -1185,7 +1192,8 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     overflow: 'hidden',
   },
   dailyPointsSelected: {
-    backgroundColor: theme.colors.surfaceDisabled,
+    // backgroundColor: theme.colors.surfaceDisabled,
+    // backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level2
   },
   dailyPointsToday: {
     marginBottom: -4,
@@ -1374,7 +1382,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       return (
         <>
           {!!valueString && (
-            <TouchableRipple style={styles.value} onLongPress={() => onValueChange ? onValueChange(null) : null} delayLongPress={750} disabled={isCombo}>
+            <TouchableRipple style={styles.value} onLongPress={() => onValueChange ? onValueChange(null) : null} delayLongPress={600} disabled={isCombo}>
               <Text style={styles.valueText} variant='titleMedium'>{valueString}</Text>
             </TouchableRipple>
           )}
@@ -1484,11 +1492,11 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       onPress={() => onPress ? onPress(measurement.id) : null}
       onLongPress={() => onLongPress ? onLongPress(measurement.id) : null}
       onPressIn={() => onPressIn ? onPressIn(measurement.id) : null}
-      delayLongPress={600}
+      delayLongPress={300}
       disabled={disabled}
     >
       <>
-        <View style={[styles.content, reordering ? { opacity: 0.4 } : {}]}>
+        <View style={[styles.content]}>
           <View style={styles.label}>
             <View style={styles.typeIconContainer}>
               <Icon source={typeData.icon} size={20} />
@@ -1501,7 +1509,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
               </>
             ) : null}
           </View>
-          {renderControlContent()}
+          {!reordering && renderControlContent()}
         </View>
         {renderExpandedContent()}
       </>
@@ -1511,20 +1519,31 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
 const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, combinedPalette: Palette, index: number) => StyleSheet.create({
   container: {
+    marginHorizontal: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderColor: theme.colors.surfaceVariant,
-    borderBottomWidth: 1,
-    borderTopWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
-    gap: 8,
-    backgroundColor: theme.colors.surface,
+    // borderColor: theme.colors.surfaceVariant,
+    // borderBottomWidth: 1,
+    // borderTopWidth: 1,
+    marginTop: 2,
+    marginBottom: 8,
+    borderRadius: 14,
+    // marginTop: -1,
+    // marginBottom: -1,
+    gap: 12,
+    backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
+    elevation: theme.dark ? 0 : 2,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 4,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 1 },
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 38,
+    minHeight: 44,
     gap: 8,
+    paddingLeft: 4,
   },
   label: {
     flexShrink: 1,
@@ -1580,6 +1599,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     justifyContent: 'space-around',
     alignItems: 'center',
     gap: 16,
+    marginHorizontal: -16,
   },
   completionStatus: {
     width: '100%',
@@ -1589,10 +1609,11 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     height: 20,
   },
   aggregateContent: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 24,
+    marginVertical: 8,
   },
   aggregateMetric: {
     flexDirection: 'row',
@@ -1761,7 +1782,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       onPress={() => onPress ? onPress(habit.id) : null}
       onPressIn={() => onPressIn ? onPressIn(habit.id) : null}
       onLongPress={() => onLongPress ? onLongPress(habit.id) : null}
-      delayLongPress={600}
+      delayLongPress={300}
       disabled={disabled}
     >
       <>
@@ -1772,7 +1793,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
               {habit.isWeekly ? 'WEEKLY' : `DAILY x${habit.daysPerWeek}`}
             </Text>
           </View>
-          {isFuture ? null : (
+          {isFuture || reordering ? null : (
             <View style={styles.dayCompletion}>
               {habit.conditions.length > 1 && (
                 <View style={styles.predicate}>
@@ -1816,19 +1837,27 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
 const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderColor: theme.colors.surfaceVariant,
-    borderBottomWidth: 1,
-    borderTopWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
-    gap: 8,
-    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    // borderColor: theme.colors.surfaceVariant,
+    // borderBottomWidth: 1,
+    // borderTopWidth: 1,
+    // marginTop: index === 0 ? 0 : -1,
+    marginBottom: 10,
+    borderRadius: 14,
+    gap: 12,
+    // backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
+    backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
+    elevation: theme.dark ? 0 : 2,
+    shadowColor: theme.colors.shadow,
+    shadowRadius: 4,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 1 },
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    // paddingHorizontal: 8,
     gap: 8,
   },
   scopeTag: {
@@ -1869,7 +1898,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     color: habitPalette.primary,
   },
   conditionContent: {
-    paddingHorizontal: 8,
+    // paddingHorizontal: 8,
   },
   condition: {
     flexDirection: 'row',
@@ -1913,6 +1942,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     alignItems: 'center',
     justifyContent: 'space-around',
     gap: 16,
+    marginHorizontal: -16,
   },
   completionIcon: {
     width: '100%',

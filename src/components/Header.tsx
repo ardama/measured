@@ -57,7 +57,7 @@ export default function Header({
 
 const createStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.colors.elevation.level2,
     height: 56,
   },
   containerBordered: {
