@@ -850,7 +850,6 @@ const Recordings = () => {
                   <>
                     {isReorderingHabits ? (
                       <NestableDraggableFlatList
-                        style={{ overflow: 'visible' }}
                         data={habitPriorityOverrides || []}
                         onDragEnd={({ data }) => {
                           setHabitPriorityOverrides(data);
@@ -956,7 +955,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   timelineContainer: {
     position: 'relative',
-    backgroundColor: theme.colors.elevation.level2,
+    backgroundColor: theme.colors.elevation.level3,
     flexGrow: 0,
     flexShrink: 0,
     paddingBottom: 16,
@@ -1104,7 +1103,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     left: -1,
     width: 2,
     height: 16,
-    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
+    backgroundColor: theme.colors.elevation.level3,
   },
   overlapProgress: {
     height: '100%',
@@ -1133,7 +1132,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     color: theme.colors.onSurface,
   },
   content: {
-    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
+
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1142,7 +1141,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
-    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level1,
+    backgroundColor: theme.colors.elevation.level3,
   },
   sectionHeaderIcon: {
     marginLeft: 8,
@@ -1158,10 +1157,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     marginRight: 0,
   },
   sectionContent: {
-    // paddingHorizontal: 16,
-    // borderRadius: 16,
-    // overflow: 'hidden',
-    // backgroundColor: theme.colors.surface,
   },
   recordingView: {
     
@@ -1192,8 +1187,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     overflow: 'hidden',
   },
   dailyPointsSelected: {
-    // backgroundColor: theme.colors.surfaceDisabled,
-    // backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level2
+    backgroundColor: theme.colors.surfaceDisabled,
   },
   dailyPointsToday: {
     marginBottom: -4,
@@ -1519,31 +1513,20 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
 const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, combinedPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    marginHorizontal: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    // borderColor: theme.colors.surfaceVariant,
-    // borderBottomWidth: 1,
-    // borderTopWidth: 1,
-    marginTop: 2,
-    marginBottom: 8,
-    borderRadius: 14,
-    // marginTop: -1,
-    // marginBottom: -1,
-    gap: 12,
-    backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
-    elevation: theme.dark ? 0 : 2,
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 4,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 1 },
+    borderColor: theme.colors.surfaceVariant,
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
+    gap: 8,
+    backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 38,
     gap: 8,
-    paddingLeft: 4,
   },
   label: {
     flexShrink: 1,
@@ -1599,7 +1582,6 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     justifyContent: 'space-around',
     alignItems: 'center',
     gap: 16,
-    marginHorizontal: -16,
   },
   completionStatus: {
     width: '100%',
@@ -1609,11 +1591,10 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     height: 20,
   },
   aggregateContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 24,
-    marginVertical: 8,
   },
   aggregateMetric: {
     flexDirection: 'row',
@@ -1837,27 +1818,19 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
 const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    // borderColor: theme.colors.surfaceVariant,
-    // borderBottomWidth: 1,
-    // borderTopWidth: 1,
-    // marginTop: index === 0 ? 0 : -1,
-    marginBottom: 10,
-    borderRadius: 14,
-    gap: 12,
-    // backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
-    backgroundColor: theme.dark ? theme.colors.elevation.level3 : theme.colors.elevation.level1,
-    elevation: theme.dark ? 0 : 2,
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 4,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 1 },
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderColor: theme.colors.surfaceVariant,
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
+    gap: 8,
+    backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    // paddingHorizontal: 8,
+    paddingHorizontal: 8,
     gap: 8,
   },
   scopeTag: {
@@ -1898,7 +1871,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     color: habitPalette.primary,
   },
   conditionContent: {
-    // paddingHorizontal: 8,
+    paddingHorizontal: 8,
   },
   condition: {
     flexDirection: 'row',
@@ -1942,7 +1915,6 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     alignItems: 'center',
     justifyContent: 'space-around',
     gap: 16,
-    marginHorizontal: -16,
   },
   completionIcon: {
     width: '100%',
