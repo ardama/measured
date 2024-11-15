@@ -52,7 +52,7 @@ export const Icons = {
   progressNone: 'circle-outline',
   progressHalf: 'circle-slice-4',
   progressPartial: (percent: number) => `circle-slice-${Math.max(Math.floor(percent * 8) % 9, 1)}`,
-  progressComplete: 'circle-slice-8',
+  progressComplete: 'circle',
   
   collapse: 'format-vertical-align-center',
   expand: 'arrow-expand-vertical',
@@ -73,6 +73,6 @@ export const Icons = {
 
   complete: 'check',
   incomplete: 'window-close',
-  indeterminate: 'circle-small',
+  indeterminate: 'circle-medium',
 
 }

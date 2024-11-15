@@ -11,6 +11,7 @@ interface RootState {
 
 interface AuthState {
   user: User | null
+  tier: 'premium' | 'basic' | null
   loading: boolean
   error: string | null
   info: string | null

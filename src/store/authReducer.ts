@@ -12,6 +12,7 @@ export type AuthAction = 'login' | 'signup' | 'reset' | 'signout';
 
 const initialState: AuthState = {
   user: null,
+  tier: 'basic',
   loading: false,
   error: null,
   info: null,

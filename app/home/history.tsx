@@ -53,6 +53,7 @@ function HistoryScreen() {
   const chartMeasurementDropdown = (
     <MeasurementChartDropdown
       label='Measurement'
+      palette={palette}
       selectedItem={selectedMeasurementItem}
       items={chartMeasurementItems}
       onChange={(item) => {
@@ -73,6 +74,7 @@ function HistoryScreen() {
   const chartTrendlineDropdown = (
     <MeasurementChartDropdown
       label='Trendline'
+      palette={palette}
       selectedItem={chartTrendlineItem}
       items={chartTrendlineItems}
       onChange={(item) => {
@@ -498,18 +500,18 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   },
 });
 
-const MeasurementChartDropdown = ({ label, selectedItem, items, onChange,
+const MeasurementChartDropdown = ({ label, selectedItem, items, onChange, palette,
 }: {
   label: string
   selectedItem: BottomDrawerItem<string> | null
   items: BottomDrawerItem<string>[]
   onChange: (item: { title: string, icon?: string, value: string }) => void
+  palette: Palette
 }): JSX.Element => {
   const [isVisible, setIsVisible] = useState(false); 
 
   const theme = useTheme();
-  const { globalPalette } = usePalettes();
-  const styles = createDropdownStyles(theme, globalPalette);
+  const styles = createDropdownStyles(theme, palette);
 
   return (
     <BottomDrawer
@@ -546,7 +548,7 @@ const MeasurementChartDropdown = ({ label, selectedItem, items, onChange,
       onSelect={(item) => onChange(item)}
       onDismiss={() => setIsVisible(false) }
       items={items}
-      palette={globalPalette}
+      palette={palette}
     />
   );
 }
