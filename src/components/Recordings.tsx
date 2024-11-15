@@ -548,7 +548,7 @@ const Recordings = () => {
                 }}
               />
             }
-            <View style={styles.dailyMeasurementsStatusContainer}>
+            <View style={styles.measurementsStatusContainer}>
               {selectedWeekDates.map((date, index) => {
                 const isSelected = index === selectedDate.getDayOfWeek();
                 const isFuture = date.after(today);
@@ -567,12 +567,12 @@ const Recordings = () => {
                   <View
                     key={date.toString()}
                     style={[
-                      styles.dailyMeasurementsStatus,
-                      isSelected ? styles.dailyMeasurementsStatusSelected : {},
+                      styles.measurementsStatus,
+                      isSelected ? styles.measurementsStatusSelected : {},
                     ]}
                   >
                     <ProgressBar
-                      style={styles.weekProgressBar}
+                      style={styles.measurementsProgressBar}
                       color={isSelected ? globalPalette.primary : globalPalette.backdrop}
                       progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
                     />
@@ -1048,7 +1048,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   todayIndicatorToday: {
     backgroundColor: palette.primary,
   },
-  weekProgressBar: {
+  measurementsProgressBar: {
     height: 8,
     borderRadius: 4,
     backgroundColor: theme.colors.surfaceDisabled,
@@ -1121,7 +1121,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   recordingView: {
     
   },
-  dailyMeasurementsStatusContainer: {
+  measurementsStatusContainer: {
     width: '100%',
     marginBottom: 4,
     marginTop: -4,
@@ -1130,16 +1130,14 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     justifyContent: 'space-around',
     gap: 4,
   },
-  dailyMeasurementsStatus: {
+  measurementsStatus: {
     paddingVertical: 6,
     width: '100%',
     flexShrink: 1,
     alignItems: 'center',
-    borderRadius: 10,
     overflow: 'hidden',
-
   },
-  dailyMeasurementsStatusSelected: {
+  measurementsStatusSelected: {
   },
   dailyPointTotalContainer: {
     width: '100%',
@@ -1190,6 +1188,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   noDataButton: {
     alignSelf: 'center',
+    marginBottom: 24,
   },
   noDataButtonText: {
     paddingHorizontal: 4,
