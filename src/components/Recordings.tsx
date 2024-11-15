@@ -1,19 +1,19 @@
 import { StyleSheet, View } from 'react-native';
 import { useComputedHabits, useMeasurements, useMeasurementStatus } from '@s/selectors';
-import { getDateRecordings, getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, getMeasurementTypeIcon, type Measurement } from '@t/measurements';
-import { Button, Icon, IconButton, ProgressBar, Surface, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
+import { Button, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useEffect, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { formatNumber, formatValue, forWeb, intersection, range, round, triggerHaptic } from '@u/helpers';
+import { formatNumber, formatValue, forWeb, intersection, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import { callUpdateHabits, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
-import { NestableDraggableFlatList, NestableScrollContainer, OpacityDecorator, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { NestableDraggableFlatList, NestableScrollContainer, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Status from '@u/constants/Status';
 import { ImpactFeedbackStyle } from 'expo-haptics';
 import { type Palette } from '@u/colors';
@@ -219,22 +219,22 @@ const Recordings = () => {
     });
   });
 
-  const selectedDatePointTotal = (
-    selectedWeekDailyHabitPointTotals[selectedDate.getDayOfWeek()]
-    + selectedWeekWeeklyHabitPointTotals[selectedDate.getDayOfWeek()]
-  );
+  // const selectedDatePointTotal = (
+  //   selectedWeekDailyHabitPointTotals[selectedDate.getDayOfWeek()]
+  //   + selectedWeekWeeklyHabitPointTotals[selectedDate.getDayOfWeek()]
+  // );
 
-  const selectedDateCumulativePointTotal = (
-    selectedWeekDailyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
-    + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
-  );
+  // const selectedDateCumulativePointTotal = (
+  //   selectedWeekDailyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  //   + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  // );
 
   const selectedWeekPointTotal = selectedWeekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (selectedWeekDailyHabitPointTotals[index] || 0), 0);
   const perWeekPointTarget = activeHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
-  const weekProgressTarget = Math.max(selectedWeekPointTotal, perWeekPointTarget);
+  // const weekProgressTarget = Math.max(selectedWeekPointTotal, perWeekPointTarget);
   const daysThisWeek = Math.min(SimpleDate.daysBetween(today, selectedWeekDates[0]) + 1, 7);
 
   const selectedWeekMeasurementValues = new Map<string, (number | null)[]>();
@@ -341,24 +341,6 @@ const Recordings = () => {
         actionContent={
           <>
             {
-              isReorderingHabits || isReorderingMeasurements ? (
-                <Button
-                  mode='text'
-                  textColor={theme.colors.onSurface}
-                  onPress={() => {
-                    if (isReorderingMeasurements) {
-                      submitMeasurementOrder();
-                      setIsReorderingMeasurements(false);
-                    }
-                    if (isReorderingHabits) {
-                      submitHabitOrder();
-                      setIsReorderingHabits(false);
-                    }
-                  }}
-                >
-                  SAVE ORDER
-                </Button>
-              ) :
               !isToday ? (
                 <Button
                   mode='text'
@@ -442,51 +424,53 @@ const Recordings = () => {
                   key={date.toString()}
                   style={[
                     styles.timelineDate,
-                    isToday ? styles.timelineDateToday : {},
-                    isSelected ? styles.timelineDateSelected : {},
+                    isToday && styles.timelineDateToday,
+                    isSelected && styles.timelineDateSelected,
                   ]}
                 >
                   <TouchableRipple
                     onPressIn={() => setSelectedDate(date)}
                     style={[
                       styles.timelineDateContainer,
-                      isToday ? styles.timelineDateContainerToday : {},
-                      isSelected ? styles.timelineDateContainerSelected : {},
+                      isToday && styles.timelineDateContainerToday,
+                      isSelected && styles.timelineDateContainerSelected,
                     ]}
                   >
                     <>
                       <View
                         style={[
                           styles.timelineDateContent,
-                          isToday ? styles.timelineDateContentToday : {},
-                          isSelected ? styles.timelineDateContentSelected : {},
+                          isToday && styles.timelineDateContentToday,
+                          isSelected && styles.timelineDateContentSelected,
                         ]}
                       >
                         <Text
                           style={[
                             styles.timelineDateDayOfWeek,
-                            isToday ? styles.timelineDateDayOfWeekToday : {},
-                            isSelected ? styles.timelineDateDayOfWeekSelected : {},
+                            isToday && styles.timelineDateDayOfWeekToday,
+                            isSelected && styles.timelineDateDayOfWeekSelected,
                           ]}
                           >
                           {dayOfWeek.toUpperCase()}
                         </Text>
-                        <Text variant='titleMedium'
-                          style={[
-                            styles.timelineDateDay,
-                            isToday ? styles.timelineDateDayToday : {},
-                            isSelected ? styles.timelineDateDaySelected : {},
-                          ]}
-                        >
-                          {date.day}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                          {isToday && <View
+                            style={[
+                              styles.todayIndicator,
+                              isSelected && styles.todayIndicatorToday,
+                            ]}
+                          />}
+                          <Text variant='titleMedium'
+                            style={[
+                              styles.timelineDateDay,
+                              isToday && styles.timelineDateDayToday,
+                              isSelected && styles.timelineDateDaySelected,
+                            ]}
+                          >
+                            {date.day}
+                          </Text>
+                        </View>
                       </View>
-                      {isToday && <View
-                        style={[
-                          styles.todayIndicator,
-                          isSelected ? styles.todayIndicatorToday : {},
-                        ]}
-                      />}
                     </>
                   </TouchableRipple>
                 </View>
@@ -500,15 +484,27 @@ const Recordings = () => {
               <Icon source={Icons.measurement} size={14} />
             </View>
             <Text style={styles.sectionHeaderTitle} variant='labelLarge'>MEASUREMENTS</Text>
-            {!!measurements.length && isReorderingMeasurements && (<Button mode='text'
-              textColor={theme.colors.onSurface}
+            {!!measurements.length && isReorderingMeasurements && <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.move}
+              size={16}
               onPress={() => {
                 submitMeasurementOrder();
-                setIsReorderingMeasurements(!isReorderingMeasurements);
+                setIsReorderingMeasurements(false);
               }}
-            >
-              <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
-            </Button>)}
+              disabled={!measurements.length}
+              containerColor={globalPalette.backdrop}
+            />}
+            {!!measurements.length && showArchivedMeasurements && <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.show}
+              size={16}
+              onPress={() => {
+                setShowArchivedMeasurements(false)
+              }}
+              disabled={!measurements.length}
+              containerColor={globalPalette.backdrop}
+            />}
             {<BottomDrawer
                 title='Measurements'
                 visible={isMeasurementMenuVisible}
@@ -571,19 +567,16 @@ const Recordings = () => {
                   <View
                     key={date.toString()}
                     style={[
-                      styles.timelineDateIcon,
+                      styles.dailyMeasurementsStatus,
+                      isSelected ? styles.dailyMeasurementsStatusSelected : {},
                     ]}
-                    >
-                    {isFuture || (!isSelected && noMeasurements) ? (
-                      <Icon source={Icons.indeterminate} size={20} color={iconColor} />
-                    ) : (
-                      <Icon
-                        source={nonNullRecordingCount ? Icons.progressPartial(nonNullRecordingCount / filteredMeasurements.length) : Icons.progressNone}
-                        size={20}
-                        color={iconColor}
-                      />
-                    )}
-                </View>
+                  >
+                    <ProgressBar
+                      style={styles.weekProgressBar}
+                      color={isSelected ? globalPalette.primary : globalPalette.backdrop}
+                      progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
+                    />
+                  </View>
                 )
               })}
             </View>
@@ -605,7 +598,7 @@ const Recordings = () => {
                         if (!measurement) return;
   
                         return (
-                          <>
+                          <ScaleDecorator activeScale={1.05}>
                             <RecordingMeasurementItem
                               index={getIndex() || 0}
                               measurement={measurement}
@@ -621,7 +614,7 @@ const Recordings = () => {
                               disabled={isActive}
                               reordering
                             />
-                          </>
+                          </ScaleDecorator>
                         );
                       }}
                     />
@@ -686,15 +679,27 @@ const Recordings = () => {
                 <Icon source={Icons.habit} size={14} />
               </View>
               <Text style={styles.sectionHeaderTitle} variant='labelLarge'>HABITS</Text>
-              {!!habits.length && isReorderingHabits && (<Button mode='text'
-                textColor={theme.colors.onSurface}
+              {!!habits.length && isReorderingHabits && <IconButton
+                style={styles.sectionHeaderButton}
+                icon={Icons.move}
+                size={16}
                 onPress={() => {
-                  submitHabitOrder();
-                  setIsReorderingHabits(!isReorderingHabits);
+                  submitMeasurementOrder();
+                  setIsReorderingHabits(false);
                 }}
-              >
-                <Text variant='labelMedium' style={{ marginLeft: 4 }}>SAVE ORDER</Text>
-              </Button>)}
+                disabled={!habits.length}
+                containerColor={globalPalette.backdrop}
+              />}
+              {!!habits.length && showArchivedHabits && <IconButton
+                style={styles.sectionHeaderButton}
+                icon={Icons.show}
+                size={16}
+                onPress={() => {
+                  setShowArchivedHabits(false)
+                }}
+                disabled={!habits.length}
+                containerColor={globalPalette.backdrop}
+              />}
               <BottomDrawer
                 title='Habits'
                 visible={isHabitMenuVisible}
@@ -737,111 +742,92 @@ const Recordings = () => {
               />
               {displayedHabits.length ? (
                 <>
-                  <View style={styles.progressContainer}>
-                    <View style={styles.weekProgressBar}>
-                      <ProgressBar
-                        progress={round(selectedWeekPointTotal / weekProgressTarget || 0, 2)}
-                        style={styles.baseProgress}
-                        color={theme.colors.elevation.level1}
-                      />
-                    </View>
-                    <View style={styles.weekProgressBar}>
-                      <ProgressBar
-                        progress={round(selectedWeekPointTotal / weekProgressTarget || 0, 2)}
-                        style={styles.overlapProgress}
-                        color={globalPalette.alt}
-                      />
-                    </View>
-                    <View style={styles.weekProgressBar}>
-                      <ProgressBar
-                        progress={round(selectedDateCumulativePointTotal / weekProgressTarget || 0, 2)}
-                        style={styles.overlapProgress}
-                        color={globalPalette.primary}
-                      />
-                    </View>
-                    <View style={styles.weekProgressBar}>
-                      <ProgressBar
-                        progress={round((selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0, 2)}
-                        style={styles.overlapProgress}
-                        color={theme.colors.elevation.level1}
-                      />
-                    </View>
-                    <View style={styles.weekProgressBar}>
-                      <ProgressBar
-                        progress={round((selectedDateCumulativePointTotal - selectedDatePointTotal) / weekProgressTarget || 0, 2)}
-                        style={styles.overlapProgress}
-                        color={globalPalette.alt}
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.weekProgressMarkers}>
-                    {range(0, 7).map((i) => (
-                      <View key={i} style={styles.weekProgressMarker}>
-                        {i !== 0 && <View style={styles.weekProgressMarkerInner} />}
+                  {!!perWeekPointTarget &&
+                    <View style={styles.pointsProgressContainer}>
+                      {selectedWeekDates.map((date, index) => {
+                        const dailyPoints = selectedWeekDailyHabitPointTotals[index];
+                        const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
+                        
+                        const isFuture = date.after(today);
+                        const isSelected = date.equals(selectedDate);
+                        const backgroundColor = isSelected ? globalPalette.primary : isFuture ? theme.colors.surfaceDisabled : globalPalette.backdrop;
+                        return (
+                          <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints, backgroundColor }]} />
+                        )
+                      })}
+                      <View style={{
+                        flexDirection: 'row',
+                        flexBasis: 0,
+                        flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                      }}>
+                        <View style={{
+                          flexGrow: 1,
+                          height: 8,
+                          borderRadius: 8,
+                          backgroundColor: theme.colors.surfaceDisabled,
+                        }} />
                       </View>
-                    ))}
-                  </View>
+                    </View>
+                  }
                   <View style={styles.weekPointsContainer}>
-                    <Text style={styles.weekPointsLabel}>Total:</Text>
-                    <Text variant='titleMedium'>{selectedWeekPointTotal}</Text>
-                    <Text style={styles.weekPointsDivider}>/</Text>
-                    <Points size={'medium'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+                    <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
+                    <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
+                    <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+                    <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
                     <View style={{ flexGrow: 1 }} />
-                    <Text style={styles.weekPointsLabel}>Average:</Text>
-                    <Text variant='titleMedium'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
-                    <Text style={styles.weekPointsDivider}>/</Text>
-                    <Points size={'medium'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                  </View>
-                  <View style={styles.dailyPointTotalContainer}>
-                    {selectedWeekDates.map((date, index) => {
-                      const isToday = date.toString() === today.toString();
-                      const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                      const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                      const total = daily + weekly;
-                      const isSelected = index === selectedDate.getDayOfWeek();
-                      const isFuture = date.after(today);
-                      
-                      const color = isSelected ? theme.colors.onSurface : theme.colors.onSurfaceDisabled;
-                      return (
-                        <TouchableRipple
-                          key={date.toString()}
-                          style={[
-                            styles.dailyPoints,
-                            isSelected ? styles.dailyPointsSelected : {},
-                            isToday ? styles.dailyPointsToday : {},
-                          ]}
-                          onPress={() => setSelectedDate(date)}
-                        >
-                          <>
-                            <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-                              <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                              {isFuture ? (
-                                <Icon source={Icons.indeterminate} size={20} color={color} />
-                              ) : (
-                                <Points
-                                  style={styles.dailyPointTotal}
-                                  points={total}
-                                  size='small'
-                                  disabled={!isSelected}
-                                  color={isSelected ? theme.colors.onSurface : theme.colors.onSurfaceDisabled}
-                                />
-                              )}
-                            </View>
-                            {isToday && <View
-                            style={[
-                              styles.todayIndicator,
-                              isSelected ? styles.todayIndicatorToday : {},
-                              // { bottom: -1, },
-                            ]}
-                          />}
-                          </>
-                        </TouchableRipple>
-                      )
-                    })}
+                    <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
+                    <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
+                    <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+                    <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
                   </View>
                 </>
               ) : null}
+              <View style={styles.dailyPointTotalContainer}>
+                {selectedWeekDates.map((date, index) => {
+                  const isToday = date.toString() === today.toString();
+                  const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                  const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+                  const total = daily + weekly;
+                  const isSelected = index === selectedDate.getDayOfWeek();
+                  const isFuture = date.after(today);
+                  
+                  const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+                  return (
+                    <TouchableRipple
+                      key={date.toString()}
+                      style={[
+                        styles.dailyPoints,
+                        isSelected ? styles.dailyPointsSelected : {},
+                        isToday ? styles.dailyPointsToday : {},
+                      ]}
+                      onPress={() => setSelectedDate(date)}
+                    >
+                      <>
+                        <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
+                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+                          {isFuture ? (
+                            <View style={{ padding: 4 }}>
+                              <Icon source={Icons.indeterminate} size={16} color={color} />
+                            </View>
+                          ) : (
+                            <Points
+                              style={styles.dailyPointTotal}
+                              points={total}
+                              size='medium'
+                              disabled={!isSelected}
+                              color={color}
+                            />
+                          )}
+                        </View>
+                      </>
+                    </TouchableRipple>
+                  )
+                })}
+              </View>
             </View>
+            
           )}
           <View style={styles.sectionContent}>
             {!!measurements.length && (
@@ -861,7 +847,7 @@ const Recordings = () => {
                           if (!habit) return;
     
                           return (
-                            <ScaleDecorator>
+                            <ScaleDecorator activeScale={1.05}>
                               <RecordingDataHabit
                                 index={getIndex() || 0}
                                 habit={habit}
@@ -949,7 +935,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   headerCreateButton: {
     width: 36,
     height: 36,
-    borderRadius: 14,
+    borderRadius: 12,
     margin: 0,
     marginRight: 14,
   },
@@ -958,7 +944,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     backgroundColor: theme.colors.elevation.level3,
     flexGrow: 0,
     flexShrink: 0,
-    paddingBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderColor: theme.colors.surfaceVariant,
   },
@@ -986,13 +972,15 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     width: '100%',
     flexShrink: 1,
     alignItems: 'center',
+    borderRadius: 15,
+    overflow: 'hidden',
   },
   timelineDateToday: {
   },
   timelineDateSelected: {
   },
   timelineDateContainer: {
-    borderRadius: 21,
+    borderRadius: 15,
     
     alignSelf: 'stretch',
     alignItems: 'stretch',
@@ -1004,24 +992,18 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     marginBottom: -4,
   },
   timelineDateContainerSelected: {
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: theme.colors.elevation.level4,
   },
   timelineDateContent: {
     borderRadius: 19,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     paddingHorizontal: 1,
     borderWidth: 0,
   },
   timelineDateContentToday: {
-    paddingBottom: 14,
-    // borderWidth: 1,
-    // paddingVertical: 8,
-    // paddingHorizontal: 0,
-    // borderColor: theme.colors.surfaceDisabled,
   },
   timelineDateContentSelected: {
-    borderColor: theme.colors.elevation.level3,
   },
   timelineDateDayOfWeek: {
     textAlign: 'center',
@@ -1032,7 +1014,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     
   },
   timelineDateDayOfWeekSelected: {
-    color: theme.colors.onSurface,
+    color: palette.primary,
   },
   timelineDateDay: {
     textAlign: 'center',
@@ -1047,69 +1029,47 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   timelineDateDayToday: {
   },
   timelineDateDaySelected: {
-    color: theme.colors.onSurface,
+    color: palette.primary,
   },
   timelineDateIcon: {
-    width: 18,
+    marginTop: 4,
     alignItems: 'center',
     justifyContent: 'center',
     flexGrow: 1,
   },
   todayIndicator: {
-    position: 'absolute',
-    bottom: 6,
-    left: '50%',
-    // top: '50%',
+    marginRight: 2,
     width: 5,
     height: 5,
     borderRadius: 4,
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: theme.colors.onSurfaceDisabled,
     transform: [{ translateX: -2 }],
   },
   todayIndicatorToday: {
     backgroundColor: palette.primary,
   },
-  progressContainer: {
-    width: '100%',
-    height: 8,
-    borderRadius: 8,
-  },
   weekProgressBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surfaceDisabled,
   },
-  weekProgressMarkers: {
+  pointsProgressContainer: {
     width: '100%',
-    height: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    gap: 2,
-    marginTop: -8,
+    gap: 4,
+    borderRadius: 100,
   },
-  weekProgressMarker: {
-    position: 'relative',
-    bottom: 8,
-    flexGrow: 1,
-    width: 2,
-    height: 16,
-    transform: [{ translateX: -2 }],
-  },
-  weekProgressMarkerInner: {
-    position: 'relative',
-    left: -1,
-    width: 2,
-    height: 16,
-    backgroundColor: theme.colors.elevation.level3,
+  pointsProgressBar: {
+    height: 8,
+    borderRadius: 8,
+    flexBasis: 8,
   },
   overlapProgress: {
     height: '100%',
     borderRadius: 8,
     flexGrow: 0,
-
+    
     backgroundColor: 'transparent',
   },
   baseProgress: {
@@ -1120,19 +1080,15 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   weekPointsContainer: {
     flexGrow: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    gap: 8,
-    marginTop: -8,
+    alignItems: 'baseline',
+    gap: 6,
+    marginTop: 2,
   },
   weekPointsLabel: {},
   weekPointsDivider: {
-    fontSize: 16,
-    color: theme.colors.onSurface,
   },
   content: {
-
+    
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1141,18 +1097,22 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
+    rowGap: 6,
     backgroundColor: theme.colors.elevation.level3,
+    borderTopWidth: 1,
+    borderColor: theme.colors.surfaceVariant,
+    marginTop: -1,
   },
   sectionHeaderIcon: {
-    marginLeft: 8,
+    marginLeft: 4,
   },
   sectionHeaderTitle: {
     flex: 1,
   },
   sectionHeaderButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     margin: 0,
     marginRight: 0,
   },
@@ -1163,48 +1123,51 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   dailyMeasurementsStatusContainer: {
     width: '100%',
-    paddingBottom: 8,
+    marginBottom: 4,
+    marginTop: -4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    gap: 16,
+    gap: 4,
+  },
+  dailyMeasurementsStatus: {
+    paddingVertical: 6,
+    width: '100%',
+    flexShrink: 1,
+    alignItems: 'center',
+    borderRadius: 10,
+    overflow: 'hidden',
+
+  },
+  dailyMeasurementsStatusSelected: {
   },
   dailyPointTotalContainer: {
     width: '100%',
-    paddingVertical: 8,
+    paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     gap: 16,
   },
   dailyPoints: {
-    // padding: 2,
+    paddingVertical: 8,
     width: '100%',
     flexShrink: 1,
     alignItems: 'stretch',
-    // gap: 2,
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   dailyPointsSelected: {
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: theme.colors.elevation.level4,
   },
   dailyPointsToday: {
-    marginBottom: -4,
   },
   dailyPointsContainer: {
-    paddingVertical: 10,
-    borderRadius: 18,
-    borderWidth: 0,
     alignItems: 'center',
-    
-    borderColor: 'transparent',
   },
   dailyPointsContainerToday: {
-    paddingBottom: 14,
   },
   dailyPointsContainerSelected: {    
-    borderColor: theme.colors.elevation.level3,
   },
   dailyPointDayOfWeek: {
     
@@ -1250,8 +1213,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   createButtonContent: {
     flexDirection: 'row',
     justifyContent: 'center',
-    // paddingHorizontal: 24,
-    // paddingVertical: 20,
     width: 56,
     height: 56,
     alignItems: 'center',
@@ -1293,7 +1254,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     onPressIn,
     disabled,
     reordering,
-    
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -1443,36 +1403,34 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
               return (
                 <View key={date.toString()} style={styles.completionStatus}>
                   {isFuture || hasNotStarted ? (
-                    <Icon source={Icons.indeterminate} size={20} color={isSelected ? combinedPalette.primary : combinedPalette.disabled} />
+                    <Icon source={Icons.indeterminate} size={14} color={isSelected ? combinedPalette.primary : theme.colors.surfaceDisabled} />
                   ) : (
                   <Icon
                     source={value === null ? Icons.progressNone : Icons.progressComplete}
-                    size={16}
-                    color={isSelected ? combinedPalette.primary : combinedPalette.disabled}
+                    size={14}
+                    color={isSelected ? combinedPalette.primary : isFuture ? theme.colors.surfaceDisabled : combinedPalette.backdrop}
                   />)}
                 </View>
               );
             })}
           </View>
-        </View>
-      ),
-      (
-        <View key={'aggregate'} style={styles.aggregateContent}>
-          {isTime ? null : (<View style={styles.aggregateMetric}>
-            <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
-              Total:
-            </Text>
-            <Text variant='titleSmall' style={styles.aggregateMetricValue}>
-              {count ? totalString : '--'}
-            </Text>
-          </View>)}
-          <View style={styles.aggregateMetric}>
-            <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
-              Average:
-            </Text>
-            <Text variant='titleSmall' style={styles.aggregateMetricValue}>
-              {count ? averageString : '--'}
-            </Text>
+          <View style={styles.aggregateContent}>
+            {isTime ? null : (<View style={styles.aggregateMetric}>
+              <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
+                Total
+              </Text>
+              <Text variant='titleSmall' style={styles.aggregateMetricValue}>
+                {count ? totalString : '--'}
+              </Text>
+            </View>)}
+            <View style={styles.aggregateMetric}>
+              <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
+                Average
+              </Text>
+              <Text variant='titleSmall' style={styles.aggregateMetricValue}>
+                {count ? averageString : '--'}
+              </Text>
+            </View>
           </View>
         </View>
       ),
@@ -1482,7 +1440,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
   return (
     <TouchableRipple
-      style={styles.container}
+      style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
       onPress={() => onPress ? onPress(measurement.id) : null}
       onLongPress={() => onLongPress ? onLongPress(measurement.id) : null}
       onPressIn={() => onPressIn ? onPressIn(measurement.id) : null}
@@ -1492,9 +1450,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       <>
         <View style={[styles.content]}>
           <View style={styles.label}>
-            <View style={styles.typeIconContainer}>
-              <Icon source={typeData.icon} size={20} />
-            </View>
+            {!!measurement.baseColor && <View style={styles.colorSquare} />}
             <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={styles.labelActivity}>{measurement.name}</Text>
             {measurement.variant ? (
               <>
@@ -1513,19 +1469,17 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
 const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, combinedPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 8,
     borderColor: theme.colors.surfaceVariant,
-    borderBottomWidth: 1,
-    borderTopWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
     gap: 8,
     backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 38,
+    minHeight: 42,
     gap: 8,
   },
   label: {
@@ -1533,6 +1487,14 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: 4,
+  },
+  colorSquare: {
+    height: 10,
+    width: 10,
+    borderRadius: 3,
+    backgroundColor: measurementPalette.primary,
+    marginRight: 8,
   },
   typeIconContainer: {
     paddingVertical: 6,
@@ -1556,7 +1518,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
 
     paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 16,
+    borderRadius: 12,
   },
   valueText: {
     color: combinedPalette.primary,
@@ -1569,36 +1531,40 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   },
   controlButton: {
     margin: 0,
-    marginHorizontal: -4,
+    marginHorizontal: -2,
     marginVertical: 0,
-    width: 44,
-    height: 44,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
   },
   completionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: -6,
   },
   completionStatuses: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   completionStatus: {
-    width: '100%',
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 20,
+    height: 14,
   },
   aggregateContent: {
-    paddingHorizontal: 8,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 24,
   },
   aggregateMetric: {
     flexDirection: 'row',
-    gap: 6,
+    alignItems: 'baseline',
+    gap: 4,
   },
   aggregateMetricLabel: {
 
@@ -1627,15 +1593,14 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress, onPressIn, onLongPress, disabled, reordering } = props;
 
   const theme = useTheme();
-  const { getPalette, getCombinedPalette, globalPalette } = usePalettes();
-  const habitPalette = getPalette(habit.baseColor);
+  const { getCombinedPalette } = usePalettes();
   const combinedPalette = getCombinedPalette(habit.baseColor);
   const styles = createHabitStyles(theme, combinedPalette, index);
 
   const today = SimpleDate.today();
   const isFuture = date.after(SimpleDate.today());
-  const dayRecordings = getDateRecordings(measurements, date);
-  const weekRecordings = weekDates.map((weekDate) => getDateRecordings(measurements, weekDate));
+  // const dayRecordings = getDateRecordings(measurements, date);
+  // const weekRecordings = weekDates.map((weekDate) => getDateRecordings(measurements, weekDate));
 
   const firstWeeklyCompletionIndex = habit.isWeekly ? range(0, 7).map((_, index) => {
     const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1), recordingData);
@@ -1650,21 +1615,23 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         
         const isSelected = index === date.getDayOfWeek();
         const isFuture = weekDate.after(today);
-        let source = Icons.incomplete;
-        let color = combinedPalette.disabled;
+        let source = Icons.progressNone;
+        let color = combinedPalette.backdrop;
         let size = 14;
         if (isFuture) {
+          color = theme.colors.surfaceDisabled;
           source = Icons.indeterminate;
-          size = 20;
+          size = 14;
         } else if (habit.isWeekly && firstWeeklyCompletionIndex !== -1) {
           if (index === firstWeeklyCompletionIndex) {
-            source = Icons.complete;
+            source = Icons.progressComplete;
           } else if (index > firstWeeklyCompletionIndex) {
             source = Icons.indeterminate;
-            size = 20;
+            size = 14;
           }
         } else if (complete) {
-          source = Icons.complete;
+          color = combinedPalette.backdrop;
+          source = Icons.progressComplete;
         }
         
         if (isSelected) {
@@ -1708,7 +1675,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           return (
             <View key={`${measurementId}${operator}${target}`} style={styles.condition}>
               <View style={styles.conditionMeasurement}>
-                <Icon source={getMeasurementTypeIcon(measurement.type)} size={14} />
+                {!!measurement.baseColor && <View style={[styles.conditionColorSquare, { backgroundColor: palette.primary }]} />}
                 <Text variant='labelLarge'>{measurement.name}</Text>
                 {measurement.variant ? (
                   <>
@@ -1759,7 +1726,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
   return (
     <TouchableRipple
-      style={styles.container}
+      style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
       onPress={() => onPress ? onPress(habit.id) : null}
       onPressIn={() => onPressIn ? onPressIn(habit.id) : null}
       onLongPress={() => onLongPress ? onLongPress(habit.id) : null}
@@ -1767,7 +1734,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       disabled={disabled}
     >
       <>
-        <View style={[styles.content, reordering ? { opacity: 0.5 } : {}]}>
+        <View style={[styles.content]}>
+          {!!habit.baseColor && <View style={styles.colorSquare} />}
           <Text variant='titleMedium'>{habit.name}</Text>
           <View style={styles.scopeTag}>
             <Text variant='bodySmall' style={styles.scopeTagText}>
@@ -1789,9 +1757,9 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                 return (
                   <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
                     <Icon
-                      source={conditionCompletion ? Icons.complete : Icons.incomplete}
-                      color={conditionCompletion ? palette.primary : palette.disabled}
-                      size={16}
+                      source={conditionCompletion ? Icons.progressComplete : Icons.progressNone}
+                      color={complete ? palette.primary : conditionCompletion ? palette.backdrop : palette.disabled}
+                      size={12}
                     />
                   </View>
                 )
@@ -1807,8 +1775,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         </View>
         {expanded && (
           <>
-            {renderCompletionContent()}
             {renderConditionContent()}
+            {renderCompletionContent()}
           </>
         )}
       </>
@@ -1818,20 +1786,21 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
 const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderColor: theme.colors.surfaceVariant,
-    borderBottomWidth: 1,
-    borderTopWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 8,
-    backgroundColor: theme.colors.surface,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     gap: 8,
+  },
+  colorSquare: {
+    height: 10,
+    width: 10,
+    borderRadius: 12,
+    backgroundColor: habitPalette.primary,
   },
   scopeTag: {
     flexDirection: 'row',
@@ -1840,8 +1809,8 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 10,
-    backgroundColor: theme.colors.surfaceDisabled,
-    borderRadius: 10,
+    backgroundColor: theme.colors.elevation.level3,
+    borderRadius: 6,
   },
   scopeTagText: {
     color: theme.colors.outline,
@@ -1871,7 +1840,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     color: habitPalette.primary,
   },
   conditionContent: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   condition: {
     flexDirection: 'row',
@@ -1881,6 +1850,11 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     paddingVertical: 4,
     justifyContent: 'space-between',
   },
+  conditionColorSquare: {
+    height: 7,
+    width: 7,
+    borderRadius: 12,
+  },
   conditionMeasurement: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1889,7 +1863,6 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   conditionProgressBarComplete: {
   },
   conditionProgressLabel: {
-    // flexGrow: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
@@ -1907,17 +1880,16 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     width: '100%',
   },
   conditionProgressBar: {
-    height: 4,
+    height: 6,
     borderRadius: 200,
   },
   completionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    gap: 16,
+    paddingHorizontal: 4,
+    gap: 12,
   },
   completionIcon: {
-    width: '100%',
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
