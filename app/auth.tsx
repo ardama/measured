@@ -1,4 +1,4 @@
-import { resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
+import { guestSignInRequest, resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
 import { useAuthState, useSettings } from '@s/selectors';
 import { Error, NoError } from '@u/constants/Errors';
 import { withAuth } from '@u/hocs/withAuth';
@@ -77,12 +77,16 @@ const LoginScreen = () => {
     else if (isReset) dispatch(resetRequest({ email }));
   }
 
+  const handleGuest = () => {
+    dispatch(guestSignInRequest())
+  }
+
   const errorText = getErrors().hasError ? getErrors().msg : error && `Error: ${error}`;
 
   const theme = useTheme();
   const { getPalette } = usePalettes();
   const palette = getPalette('yellow');
-  const basePalette = getPalette('');
+  const basePalette = getPalette();
   const styles = createStyles(theme, palette, basePalette);
 
   return (
@@ -94,7 +98,7 @@ const LoginScreen = () => {
           height={360}
         /> */}
         <ImageBackground
-          source={require('../src/assets/images/background_1.png')}
+          source={require('@a/images/background_1.png')}
           resizeMode="repeat"
           style={styles.logoBackground}
           tintColor={theme.colors.elevation.level5}
@@ -125,7 +129,7 @@ const LoginScreen = () => {
             onChangeText={(text) => setEmail(text) }
             left={<TextInput.Icon tabIndex={-1} icon={'at'} rippleColor={'transparent'} />}
             onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-            activeOutlineColor={basePalette.primary}
+            activeOutlineColor={palette.primary}
           />
           {isReset ? null : <TextInput
             value={password}
@@ -138,7 +142,7 @@ const LoginScreen = () => {
             secureTextEntry
             left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
             onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-            activeOutlineColor={basePalette.primary}
+            activeOutlineColor={palette.primary}
           />}
           {isSignUp && (
             <>
@@ -153,12 +157,14 @@ const LoginScreen = () => {
                 secureTextEntry
                 left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
                 onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-                activeOutlineColor={basePalette.primary}
+                activeOutlineColor={palette.primary}
               />
             </>
           )}
           {lastestAction === userAction && errorText && <HelperText style={styles.helperText} type="error">{errorText}</HelperText>}
           {info && <HelperText style={styles.helperText} type='info'>{info}</HelperText>}
+        </View>
+        <View style={styles.controlContainer}>
           <Button
             style={styles.button}
             mode="contained"
@@ -169,7 +175,19 @@ const LoginScreen = () => {
           >
             {isSignUp ? 'Sign Up' : isReset ? 'Reset password' : 'Login'}
           </Button>
+          <Button
+            style={styles.button}
+            mode="text"
+            loading={loading}
+            onPress={handleGuest}
+            uppercase
+            textColor={palette.primary}
+            
+          >
+            Continue as guest
+          </Button>
         </View>
+        <View style={{ flexGrow: 1 }} />
         <View style={styles.linkContainer}>
           {!isLogin && <Button onPress={() => setUserAction('login')} style={styles.toggle} textColor={basePalette.secondary}>
             {'Already have an account? Log in'}
@@ -246,6 +264,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 3 },
     elevation: 24,
+    gap: 12,
   },
   title: {
     color: palette.primary,
@@ -258,7 +277,6 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
   formContainer: {
     width: '100%',
     paddingHorizontal: 40,
-    flexGrow: 1,
     flexShrink: 0,
   },
   input: {
@@ -268,8 +286,13 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     marginTop: 0,
     fontSize: 14,
   },
+  controlContainer: {
+    width: '100%',
+    paddingHorizontal: 40,
+    flexShrink: 0,
+  },
   button: {
-    marginTop: 24,
+    marginVertical: 8,
   },
   toggle: {
     marginTop: 8,

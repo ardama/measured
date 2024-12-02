@@ -315,5 +315,7 @@ export {
   getHabitPredicateLabel,
   getHabitPredicateIcon,
 
+  type HabitCondition,
+
   getHabitCompletion,
 }

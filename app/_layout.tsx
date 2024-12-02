@@ -1,4 +1,3 @@
-
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -6,7 +5,7 @@ import { useEffect } from 'react';
 
 import { Provider } from 'react-redux';
 
-import { store } from '@s/utils';
+import { store } from '@s/init';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import ThemeProvider from '@c/ThemeProvider';
 import { useAuthState, useDataLoaded, useSettings } from '@s/selectors';
@@ -75,12 +74,12 @@ const RootStack = () => {
         <Stack.Screen name="index" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="signout" />
-        <Stack.Screen name="home" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="+not-found" />
         <Stack.Screen name="measurement" />
         <Stack.Screen name="habit" />
       </Stack>
-      {loading || !initialAuthCheckComplete || (!!user && !dataLoaded) ? <LoadingScreen /> : null}
+      <LoadingScreen visible={loading || !initialAuthCheckComplete || (!!user && !dataLoaded)} />
     </>
   )
 };

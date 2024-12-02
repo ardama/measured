@@ -15,15 +15,15 @@ const dataStateSlice = createSlice({
     },
     setMeasurements: (state: DataState, action: PayloadAction<Measurement[]>) => {
       state.measurements = [...action.payload].sort((a, b) => a.priority - b.priority);
-      state.dataLoaded = true;
+      state.dataLoaded |= 1;
     },
     setHabits: (state: DataState, action: PayloadAction<Habit[]>) => {
       state.habits = action.payload;
-      state.dataLoaded = true;
+      state.dataLoaded |= 2;
     },
     setAccount: (state: DataState, action: PayloadAction<Account[]>) => {
       if (action.payload.length) state.account = action.payload[0];
-      state.dataLoaded = true;
+      state.dataLoaded |= 4;
     },
 
     callCreateMeasurement: (_: DataState, __: PayloadAction<Measurement>) => {},
@@ -74,4 +74,17 @@ export const {
   callUpdateAccountStatus,
 
 } = dataStateSlice.actions;
+
+export const dataActions = new Set([
+  callCreateMeasurement.type,
+  callUpdateMeasurement.type,
+  callDeleteMeasurement.type,
+
+  callCreateHabit.type,
+  callUpdateHabit.type,
+  callDeleteHabit.type,
+
+  callUpdateAccount.type,
+]);
+
 export default dataStateSlice.reducer;

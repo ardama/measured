@@ -13,7 +13,7 @@ export const forWeb = (webValue: any, defaultValue: any): any => {
 export const formatValue = (value: number | null, type?: MeasurementType, unit?: string, withUnit?: boolean) => {
   if (value === null) return '';
 
-  const isMinuteDuration = type === 'duration' || unit === 'minutes' || unit === 'minutes' || unit === 'min';
+  const isMinuteDuration = type === 'duration' || unit === 'minutes' || unit === 'minute' || unit === 'min';
   const isHourDuration = unit === 'hours' || unit === 'hour' || unit === 'hr';
   const isTime = type === 'time' || unit === 'time';
   const isBool = type === 'bool';

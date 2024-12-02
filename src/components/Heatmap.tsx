@@ -21,7 +21,7 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
   cellValues = cellValues.concat(...data);
 
   const maxValue = target || Math.max(...cellValues.map((v) => v || 0));
-  const bucketMinimums = [1.0, 0.8, 0.6, 0.4, 0.2, 0.0].map((v) => v * maxValue);
+  const bucketMinimums = [1.0, 0.85, 0.75, 0.6, 0.4, 0.0].map((v) => v * maxValue);
 
   return (
     <View style={[styles.container, style]}>
@@ -30,7 +30,6 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
         return (
           <View key={r} style={styles.row}>
             {row.map((cell, c) => {
-  
               const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum <= (cell || 0));
             
               let cellColor = globalPalette.primary;
@@ -42,7 +41,7 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
               else if (bucketIndex === 1) overlayOpacity = 0.38;
               else if (bucketIndex === 0) overlayOpacity = 0.25;
               
-              const overlayColor = settings.darkMode ? `rgba(40, 40, 40, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
+              const overlayColor = settings.darkMode ? `rgba(25, 25, 25, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
                           
               return (
                 <View key={r * 7 + c} style={[styles.cell, cell === null ? styles.empty : {}, { backgroundColor: cellColor }]}>

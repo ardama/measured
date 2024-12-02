@@ -21,6 +21,10 @@ export const serializeUser = (user: AuthUser): User => ({
   phoneNumber: user.phoneNumber,
 })
 
+export type UserClaims = {
+  premiumExpiration?: string
+}
+
 export type Account = {
   id: string
   userId: string
@@ -38,6 +42,6 @@ export const defaultAccount = (): Account => ({
   userId: '',
   settings: {
     darkMode: true,
-    baseColor: '',
+    baseColor: undefined,
   }
 });

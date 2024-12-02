@@ -12,18 +12,17 @@ const MeasurementEditScreen = () => {
   const measurement = useMeasurement(parsedId);
 
   const { loading, initialAuthCheckComplete } = useAuth();
-  if (loading || !initialAuthCheckComplete) return <LoadingScreen />;
 
   if (!measurement) {
     setTimeout(() => {
       router.canGoBack() ? router.back() : router.replace('/');
     }, 250);
-    return <LoadingScreen />;
   }
 
   return (
     <>
-      <MeasurementForm measurement={measurement} formType={'edit'} />
+      {measurement && <MeasurementForm measurement={measurement} formType={'edit'} />}
+      <LoadingScreen visible={!measurement || loading || !initialAuthCheckComplete} />
     </>
   )
 }

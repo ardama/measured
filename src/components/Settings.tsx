@@ -166,6 +166,9 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     backgroundColor: theme.colors.elevation.level3,
     minHeight: 48,
     flexDirection: 'row',
+    borderTopWidth: 1,
+    borderColor: theme.colors.surfaceVariant,
+    marginTop: -1,
   },
   sectionHeaderTitle: {
     flexDirection: 'row',
@@ -189,7 +192,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     marginTop: -1,
     borderBottomWidth: 1,
     borderTopWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
+    borderColor: theme.colors.elevation.level3,
     minHeight: 48,
 
     flexGrow: 1,

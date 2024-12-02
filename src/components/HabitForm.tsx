@@ -388,7 +388,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   disabled: isBool && (operator !== '==' && operator !== '!='),
                 }));
                 const selectedOperatorItem = operatorItems.find(({ value }) => value === condition.operator);
-                const suggestedTarget = conditionMeasurement.initial + conditionMeasurement.step;
+                const suggestedTarget = (conditionMeasurement.initial || 0) + (conditionMeasurement.step || 0);
                 const rawValue = parseFloat(condition.target || suggestedTarget.toString());
 
                 const showTargetAffix = !isNaN(rawValue) && (isTime || isDuration);
@@ -811,8 +811,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     bottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
+    backgroundColor: theme.colors.elevation.level2,
   },
   button: {
     flexGrow: 1,
@@ -833,8 +832,6 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
 
   },
   cancelButtonContent: {
-    borderRightWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
   },
   cancelButtonText: {
     color: theme.colors.onSurface,

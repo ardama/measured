@@ -167,16 +167,28 @@ const getMeasurementRecordingValue = (
   return value === undefined ? null : value;
 }
 
-const getMeasurementStartDate = (measurement: (Measurement | undefined), recordingData?: Map<string, number | null>) => {
+const getMeasurementStartDate = (measurementId: (string | undefined), measurements: Measurement[], recordingData?: Map<string, Map<string, number | null>>) => {
+  if (!measurementId) return null;
+  const measurement = measurements.find((m) => m.id === measurementId);
   if (!measurement) return null;
-  if (!measurement.recordings.length && (!recordingData || !recordingData.size)) return null;
+  
+  const recordingDataMap = recordingData || new Map(measurements.map(({ id, recordings }) => [id, new Map(recordings.map(({ date, value }) => [date, value]))]));
+  let entries = [...(recordingDataMap.get(measurementId)?.entries() || [])];
+  
+  const isCombo = measurement?.type === 'combo';
+  if (isCombo) {
+    const left = measurements.find((m) => m.id === measurement.comboLeftId);
+    const right = measurements.find((m) => m.id === measurement.comboRightId);
+    if (!left && !right) return null;
 
-  const recordings = recordingData ? [...recordingData.entries()].map(([date, value]): MeasurementRecording => ({ date, value })) : measurement.recordings;
-  const filteredRecordings = recordings.filter(({ value }) => value !== null);
-  if (!filteredRecordings.length) return null;
+    const leftEntries = (measurement.comboLeftId && recordingDataMap.get(measurement.comboLeftId)?.entries()) || [];
+    const rightEntries = (measurement.comboRightId && recordingDataMap.get(measurement.comboRightId)?.entries()) || [];
+    entries = [...leftEntries, ...rightEntries];
+  }
 
-  const earliest = filteredRecordings.reduce((earliest, current) => earliest.date < current.date ? earliest : current);
-  return earliest.date;
+  const dates = entries.filter(([_, value]) => value !== null).map(([date, _]) => date);
+  dates.sort();
+  return dates[0] || null;
 }
 
 const getDateRecordings = (measurements: Measurement[], date: SimpleDate): MeasurementRecording[] => {

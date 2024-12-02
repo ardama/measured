@@ -16,7 +16,7 @@ export function withAuth<P extends object>(
         if (requireAuth && !user) {
           router.replace('/auth');
         } else if (!requireAuth && user) {
-          router.replace('/home/');
+          router.replace('/');
         }
       }, 0)
     }, [user]);

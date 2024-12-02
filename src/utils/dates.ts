@@ -17,7 +17,7 @@ export class SimpleDate {
     return `${this.year}-${String(this.month).padStart(2, '0')}-${String(this.day).padStart(2, '0')}`;
   }
 
-  toFormattedString(useOrdinal = false, withYear = false, full = false,) {
+  toFormattedString(useOrdinal = false, withYear = false, full = false, abbreviated = false) {
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -46,7 +46,7 @@ export class SimpleDate {
       return `${monthName} ${dayWithSuffix}, ${this.year}`
     } 
     
-    const monthName = months[this.month - 1];
+    const monthName = (abbreviated ? monthsAbbr : months)[this.month - 1];
     return `${monthName} ${dayWithSuffix}`;
   }
 
@@ -146,23 +146,26 @@ export class SimpleDate {
   }
 
   equals(date: SimpleDate): boolean {
-    return this.day === date.day && this.month === date.month && this.year === date.year;
+    return this.toString() === date.toString();
+    // return this.day === date.day && this.month === date.month && this.year === date.year;
   }
 
   after(date: SimpleDate): boolean {
-    if (this.year > date.year) return true;
-    if (this.year < date.year) return false;
-    if (this.month > date.month) return true;
-    if (this.month < date.month) return false;
-    return this.day > date.day;
+    return this.toString() > date.toString();
+    // if (this.year > date.year) return true;
+    // if (this.year < date.year) return false;
+    // if (this.month > date.month) return true;
+    // if (this.month < date.month) return false;
+    // return this.day > date.day;
   }
-
+  
   before(date: SimpleDate): boolean {
-    if (this.year > date.year) return false;
-    if (this.year < date.year) return true;
-    if (this.month > date.month) return false;
-    if (this.month < date.month) return true;
-    return this.day < date.day;
+    return this.toString() < date.toString();
+    // if (this.year > date.year) return false;
+    // if (this.year < date.year) return true;
+    // if (this.month > date.month) return false;
+    // if (this.month < date.month) return true;
+    // return this.day < date.day;
   }
   
   static isLeapYear(year: number) {

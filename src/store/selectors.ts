@@ -1,9 +1,11 @@
 import { createSelector } from '@reduxjs/toolkit';
+import { computedHabitsEqual, habitsEqual, measurementsEqual } from '@s/helpers';
 import { computeHabit, type ComputedHabit, type Habit } from '@t/habits';
 import { type Measurement } from '@t/measurements';
 import type { AuthState, DataState, RootState } from '@t/redux';
 import type { Account, AccountSettings, User } from '@t/users';
 import { SimpleDate } from '@u/dates';
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
 const selectAuthState = (state: RootState): AuthState => state.auth;
@@ -11,7 +13,7 @@ export const useAuthState = () => useSelector(selectAuthState);
 
 const selectDataState = (state: RootState): DataState => state.data;
 export const useDataState = () => useSelector(selectDataState);
-export const useDataLoaded = () => useSelector((state: RootState) => state.data.dataLoaded);
+export const useDataLoaded = () => useSelector((state: RootState) => state.data.dataLoaded === 7);
 
 // -----------------------------------------
 // Auth selectors -------------------
@@ -66,7 +68,13 @@ const selectComputedHabits = (date: SimpleDate = SimpleDate.today()): (state: Ro
   }
 );
 
-export const useComputedHabits = (date: SimpleDate = SimpleDate.today()) => useSelector(selectComputedHabits(date));
+export const useComputedHabits = (date: SimpleDate = SimpleDate.today()) => {
+  const selector = useMemo(
+    () => selectComputedHabits(date),
+    [date.toString()]
+  );
+  return useSelector(selector);
+};
 
 const selectHabitCount = createSelector(
   selectComputedHabits,
@@ -80,6 +88,7 @@ const selectHabitById = (id: string) =>
     (habits) => habits.find(h => h.id === id)
   );
 export const useHabit = (id: string) => useSelector(selectHabitById(id));
+export const useHabitStatus = () => useSelector((state: RootState) => state.data.habitStatus);
 
 const selectHabitsByMeasurement = (measurement: Measurement): (state: RootState) => ComputedHabit[] =>
   createSelector(

@@ -9,7 +9,7 @@ export default function NotFoundScreen() {
   
   useEffect(() => {
     setTimeout(() => {
-      router.replace('/home/');
+      router.replace('/');
     }, 0);
   });
 

@@ -20,7 +20,7 @@ interface AuthState {
 }
 
 interface DataState {
-  dataLoaded: boolean
+  dataLoaded: number
 
   measurements: Measurement[]
   habits: Habit[]
@@ -42,7 +42,7 @@ interface DataState {
 };
 
 const createDataState = (): DataState => ({
-  dataLoaded: false,
+  dataLoaded: 0,
 
   measurements: [],
   habits: [],

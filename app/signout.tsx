@@ -1,11 +1,7 @@
 import LoadingScreen from '@c/Loading';
-import { signInRequest, signOutRequest, signUpRequest } from '@s/authReducer';
-import { useAuthState, useAuthError, useAuthLoading } from '@s/selectors';
+import { signOutRequest } from '@s/authReducer';
 import { withAuth } from '@u/hocs/withAuth';
-import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Button, Card, HelperText, Icon, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
+import React, { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 
 const SignoutScreen = () => {
@@ -20,11 +16,8 @@ const SignoutScreen = () => {
     signoutTriggered.current = true;
   })
   return (
-    <LoadingScreen />
+    <LoadingScreen visible />
   )
 }
-
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
-})
 
 export default withAuth(SignoutScreen);

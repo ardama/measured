@@ -1,5 +1,5 @@
 import { call, delay, put, race, select, take, takeLatest } from 'redux-saga/effects';
-import { signInRequest, signInSuccess, signInFailure, signOutRequest, signOutSuccess, signOutFailure, signUpSuccess, signUpFailure, signUpRequest, type AuthCredentials, initialAuthCheckComplete, resetRequest, resetSuccess, resetFailure } from '@s/authReducer';
+import { signInRequest, signInSuccess, signInFailure, signOutRequest, signOutSuccess, signOutFailure, signUpSuccess, signUpFailure, signUpRequest, type AuthCredentials, initialAuthCheckComplete, resetRequest, resetSuccess, resetFailure, guestSignInRequest, guestSignInSuccess, guestSignInFailure } from '@s/authReducer';
 import { confirmPasswordReset, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User, type UserCredential } from 'firebase/auth';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { auth } from '@/firebase';
@@ -9,10 +9,27 @@ import { resetData, callUpdateAccount } from '@s/dataReducer';
 import type { RootState } from '@t/redux';
 import { FirebaseError } from 'firebase/app';
 
+function* guestSignInRequestSaga() {
+  try {
+    yield put(resetData());
+    
+    // GET OR CREATE LOCALLY STORED USER OBJECT, LOAD THEIR LOCALLY STORED DATA IF IT EXISTS
+  } catch (error) {
+    if (error instanceof FirebaseError) {
+      yield put(guestSignInFailure(error.code));
+    } else if (error instanceof Error) {
+      yield put(guestSignInFailure(error.message));
+    } else {
+      yield put(guestSignInFailure('An unknown error occurred while signing in as guest'));
+    }
+  }
+}
+
 function* signUpSaga(action: PayloadAction<AuthCredentials>) {
   const { email, password } = action.payload;
   if (!email || !password) return;
   try {
+    yield put(resetData());
     const result: UserCredential = yield call(createUserWithEmailAndPassword, auth, email.trim(), password.trim());
     yield put(signUpSuccess(serializeUser(result.user)));
     
@@ -34,6 +51,7 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
   if (!email || !password) return;
 
   try {
+    yield put(resetData());
     const result: UserCredential = yield call(signInWithEmailAndPassword, auth, email.trim(), password.trim());
     yield put(signInSuccess(serializeUser(result.user)));
   } catch (error) {
@@ -125,8 +143,10 @@ function* initialAuthCheckSaga() {
         return;
       }
 
-      if (authState?.error)console.error(authState.error);
+      if (authState?.error) console.error(authState.error);
       yield put(signOutSuccess());
+
+      // LOAD LOCALLY STORED USER AND THEIR LOCALLY STORED DATA IF IT EXISTS
     } finally {
       yield delay(750);
       yield put(initialAuthCheckComplete());
@@ -135,6 +155,7 @@ function* initialAuthCheckSaga() {
 }
 
 export function* authSaga() {
+  yield takeLatest(guestSignInRequest.type, guestSignInRequestSaga);
   yield takeLatest(signUpRequest.type, signUpSaga);
   yield takeLatest(signInRequest.type, signInSaga);
   yield takeLatest(signOutRequest.type, signOutSaga);

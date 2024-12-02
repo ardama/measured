@@ -1,8 +1,8 @@
-import { StyleSheet, View } from 'react-native';
-import { useComputedHabits, useMeasurements, useMeasurementStatus } from '@s/selectors';
+import { Dimensions, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
 import { Button, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
@@ -18,6 +18,9 @@ import Status from '@u/constants/Status';
 import { ImpactFeedbackStyle } from 'expo-haptics';
 import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { measure, runOnJS, runOnRuntime, runOnUI, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { runOnUIImmediately } from 'react-native-reanimated/lib/typescript/reanimated2/threads';
 
 const Recordings = () => {
   const measurements = useMeasurements();
@@ -34,6 +37,251 @@ const Recordings = () => {
   const previousWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(7));
   const nextWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(-7));
   const isToday = SimpleDate.daysBetween(today, selectedDate) === 0;
+  
+  const containerWidth = useSharedValue(0);
+  const translateX = useSharedValue(0);
+  const sharedSelectedDate = useSharedValue(selectedDate.toString());
+  const animatedSelectedDate = useSharedValue(selectedDate.toString());
+  sharedSelectedDate.value = selectedDate.toString();
+  console.log('2', animatedSelectedDate.value, sharedSelectedDate.value, selectedDate.toString());
+
+  // const [isAnimatingTimeline, setIsAnimatingTimeline] = useState(today.toString());
+  // const updateIsAnimating = () => {
+  //   setIsAnimatingTimeline(animatedSelectedDate.value);
+  // }
+  const updateAnimatedSelectedDate = (daysAgo: number) => {
+    const newDate = selectedDate.getDaysAgo(daysAgo);
+    const dateString = newDate.toString()
+
+    runOnUI(() => {
+      'worklet';
+      animatedSelectedDate.value = dateString;
+      console.log('1', animatedSelectedDate.value);
+    })();
+  };
+  const updateSelectedDate = (daysAgo: number) => {
+    const newDate = selectedDate.getDaysAgo(daysAgo);
+    setSelectedDate(newDate);
+  };
+
+  const handleSelectedDateChange = (date: SimpleDate) => {
+    setSelectedDate(date);
+    animatedSelectedDate.value = date.toString();
+  }
+  
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    containerWidth.value = event.nativeEvent.layout.width;
+    // translateX.value = -event.nativeEvent.layout.width;
+  }, []);
+  
+  // const tapGesture = Gesture.Tap();
+  const panGesture = Gesture.Pan()
+  .activeOffsetX(0)
+  .minDistance(15)
+  .onStart((event) => {
+    animatedSelectedDate.value = 'none';
+    console.log('0', animatedSelectedDate.value);
+  })
+  .onUpdate((event) => {
+    translateX.value = event.translationX;
+  })
+  .onEnd((event) => {
+    let shiftLeft = false;
+    let shiftRight = false;
+    if (event.translationX > 100 || (containerWidth.value - event.absoluteX < 100)) {
+      shiftLeft = true;
+    } else if (event.translationX < -100  || (event.absoluteX < 100)) {
+      shiftRight = true;
+    }
+
+    const daysAgo = shiftLeft ? 7 : shiftRight ? -7 : 0;
+    daysAgo && runOnJS(updateAnimatedSelectedDate)(daysAgo);
+    translateX.value = withSpring((shiftLeft ? containerWidth.value : 0) + (shiftRight ? -containerWidth.value : 0), {
+      damping: 40,
+      stiffness: 300,
+    }, (finished) => {
+      if (!finished) return;
+      !daysAgo && runOnJS(updateAnimatedSelectedDate)(daysAgo);
+      daysAgo && runOnJS(updateSelectedDate)(daysAgo);
+    });
+  });
+  
+  // const selectedDateString = selectedDate.toString();
+  const timelineContainerAnimated = useAnimatedStyle(() => {
+    if (sharedSelectedDate.value === animatedSelectedDate.value) {
+      translateX.value = 0;
+    }
+    console.log('3', animatedSelectedDate.value, sharedSelectedDate.value, translateX.value);
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+
+  const { width: WINDOW_WIDTH } = Dimensions.get('window');
+  const PAGE_WIDTH = WINDOW_WIDTH;
+  const THRESHOLD = 100; // Scroll threshold to trigger pagination
+  const SPRING_CONFIG = {
+    damping: 20,
+    stiffness: 90,
+  };
+  const scrollRef = useAnimatedRef();
+  const scrollX = useSharedValue(PAGE_WIDTH);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [weeks, setWeeks] = useState([
+    { id: -1, dates: previousWeekDates },
+    { id: 0, dates: selectedWeekDates },
+    { id: 1, dates: nextWeekDates },
+  ]);
+
+  const loadMorePages = useCallback((direction: string) => {
+    setWeeks(currentWeeks => {
+      console.log('direction: ', direction);
+      if (direction === 'left') {
+        const firstWeek = currentWeeks[0];
+        return [
+          { id: firstWeek.id - 1, dates: SimpleDate.generateWeek(firstWeek.dates[0].getDaysAgo(7)) },
+          ...currentWeeks,
+        ];
+      } else {
+        const lastWeek = currentWeeks[currentWeeks.length - 1];
+        return [
+          ...currentWeeks,
+          { id: lastWeek.id + 1, dates: SimpleDate.generateWeek(lastWeek.dates[0].getDaysAgo(-7)) },
+        ];
+      }
+    });
+  }, []);
+
+  const snapToPage = useCallback((index: number) => {
+    const targetOffset = index * PAGE_WIDTH;
+    scrollRef.current?.scrollTo({ x: targetOffset, animated: true });
+    setCurrentIndex(index);
+  }, []);
+
+  const isScrolling = useSharedValue(false);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      // scrollX.value = event.contentOffset.x;
+      
+      // // Check if we're near the edges to load more content
+      // if (event.contentOffset.x < PAGE_WIDTH * 0.5) {
+      //   runOnJS(loadMorePages)('left');
+      // } else if (event.contentOffset.x > (weeks.length - 1.5) * PAGE_WIDTH) {
+      //   runOnJS(loadMorePages)('right');
+      // }
+    },
+    onBeginDrag: () => {
+      // isScrolling.value = true;
+    },
+    onEndDrag: (event) => {
+      // isScrolling.value = false;
+      
+      // const currentOffset = event.contentOffset.x;
+      // const currentPage = Math.round(currentOffset / PAGE_WIDTH);
+      
+      // // Calculate the difference from the nearest page
+      // const offsetDiff = currentOffset - (currentPage * PAGE_WIDTH);
+      
+      // if (Math.abs(offsetDiff) >= THRESHOLD) {
+      //   // Determine direction and target page
+      //   const targetPage = offsetDiff > 0 ? currentPage + 1 : currentPage - 1;
+      //   runOnJS(snapToPage)(targetPage);
+      // } else {
+      //   // Snap back to current page
+      //   runOnJS(snapToPage)(currentPage);
+      // }
+    },
+  });
+
+  const flatList = (
+    <Animated.FlatList
+      ref={scrollRef}
+      data={weeks}
+      keyExtractor={( item ) => item.id.toString()}
+      horizontal
+      pagingEnabled
+      onScroll={scrollHandler}
+      scrollEventThrottle={16}
+      showsHorizontalScrollIndicator={false}
+      // initialScrollIndex={1}
+      onEndReached={() => loadMorePages('right')}
+      onStartReached={() => loadMorePages('left')}
+      // getItemLayout={(_, index) => ({
+      //   length: PAGE_WIDTH,
+      //   offset: PAGE_WIDTH * index,
+      //   index,
+      // })}
+      renderItem={({ item }) => {
+        return (
+          <View style={[styles.timelineContent, { width: WINDOW_WIDTH}]}>
+            {item.dates.map((date) => {
+              const dayOfWeek = date.getDayOfWeekLabel();
+              const isSelected = date.equals(selectedDate);
+              const isToday = date.equals(today);
+
+              return (
+                <View
+                  key={date.toString()}
+                  style={[
+                    styles.timelineDate,
+                    isToday && styles.timelineDateToday,
+                    isSelected && styles.timelineDateSelected,
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => handleSelectedDateChange(date)}
+                    style={[
+                      styles.timelineDateContainer,
+                      isToday && styles.timelineDateContainerToday,
+                      isSelected && styles.timelineDateContainerSelected,
+                    ]}
+                  >
+                    <>
+                      <View
+                        style={[
+                          styles.timelineDateContent,
+                          isToday && styles.timelineDateContentToday,
+                          isSelected && styles.timelineDateContentSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.timelineDateDayOfWeek,
+                            isToday && styles.timelineDateDayOfWeekToday,
+                            isSelected && styles.timelineDateDayOfWeekSelected,
+                          ]}
+                          >
+                          {dayOfWeek.toUpperCase()}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                          {isToday && <View
+                            style={[
+                              styles.todayIndicator,
+                              isSelected && styles.todayIndicatorToday,
+                            ]}
+                          />}
+                          <Text variant='titleMedium'
+                            style={[
+                              styles.timelineDateDay,
+                              isToday && styles.timelineDateDayToday,
+                              isSelected && styles.timelineDateDaySelected,
+                            ]}
+                          >
+                            {date.day}
+                          </Text>
+                        </View>
+                      </View>
+                    </>
+                  </Pressable>
+                </View>
+              )
+            })}
+          </View>
+        )
+      }}
+    />
+  )
   
   const theme = useTheme();
   const { globalPalette } = usePalettes();
@@ -250,10 +498,10 @@ const Recordings = () => {
   const updateRecording = (value: number | null, measurementId: string, date: string) => {
     const nextTempRecordingsMap = new Map([...tempRecordingsMap.entries()].map(([ id, recordingsMap]) => [
       id,
-      new Map([...recordingsMap.entries()].map((entry) => entry)),
+      new Map([...recordingsMap.entries()]),
     ]));
 
-    const recordingsMap = nextTempRecordingsMap.get(measurementId) || new Map<string,  | null>();
+    const recordingsMap = nextTempRecordingsMap.get(measurementId) || new Map<string, number | null>();
     recordingsMap.set(date, value);
     nextTempRecordingsMap.set(measurementId, recordingsMap);
     setTempRecordingsMap(nextTempRecordingsMap);
@@ -302,10 +550,36 @@ const Recordings = () => {
       prevMeasurementUpdateStatus.current === Status.Measurement.Update.IN_PROGRESS
       && measurementStatus.update === Status.Measurement.Update.SUCCESS
     ) {
-      setTempRecordingsMap(new Map());
+      const nextTempRecordingsMap = new Map();
+      [...tempRecordingsMap.entries()].forEach(([ id, recordingsMap]) => {
+        const measurement = measurements.find((m) => m.id === id);
+        if (!measurement) return;
+
+        const nextRecordings = new Map([...recordingsMap.entries()].filter(([date, value]) => {
+          const recording = measurement.recordings.find((r) => r.date === date);
+          return !recording || recording.value !== value;
+        }));
+
+        if (nextRecordings.size) nextTempRecordingsMap.set(id, nextRecordings);
+      });
+
+      setTempRecordingsMap(nextTempRecordingsMap);
+      setMeasurementPriorityOverrides(null);
     }
     prevMeasurementUpdateStatus.current = measurementStatus.update
   }, [measurementStatus.update]);
+
+  const habitStatus = useHabitStatus();
+  const prevHabitUpdateStatus = useRef(habitStatus.update);
+  useEffect(() => {
+    if (
+      prevHabitUpdateStatus.current === Status.Habit.Update.IN_PROGRESS
+      && habitStatus.update === Status.Habit.Update.SUCCESS
+    ) {
+      setHabitPriorityOverrides(null);
+    }
+    prevHabitUpdateStatus.current = habitStatus.update
+  }, [habitStatus.update]);
 
   const longPressPreviousTimeout = useRef<null | NodeJS.Timeout>(null);
   const longPressNextTimeout = useRef<null | NodeJS.Timeout>(null);
@@ -345,7 +619,7 @@ const Recordings = () => {
                 <Button
                   mode='text'
                   textColor={theme.colors.onSurface}
-                  onPress={() => setSelectedDate(today)}
+                  onPress={() => handleSelectedDateChange(today)}
                 >
                   TODAY
                 </Button>
@@ -376,108 +650,244 @@ const Recordings = () => {
           </>
         }
       />
-      <View style={styles.container}>
-        <View style={styles.timelineContainer}>
-          <View style={styles.timelineHeader}>
-            <IconButton
-              style={styles.timelineHeaderButton}
-              icon={Icons.left}
-              onPress={() => {
-                triggerHaptic('selection');
-                setSelectedDate(selectedDate.getDaysAgo(7));
-              }}
-              onLongPress={() => handleLongPressPrevious(selectedDate)}
-              onPressOut={() => {
-                if (longPressPreviousTimeout.current === null) return;
-                clearTimeout(longPressPreviousTimeout.current);
-                longPressPreviousTimeout.current = null;
-              }}
-              delayLongPress={600}
-            />
-            <Text variant='bodyMedium' style={styles.timeHeaderText}>
-              {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
-            </Text>
-            <IconButton
-              style={styles.timelineHeaderButton}
-              icon={Icons.right}
-              onPress={() => {
-                triggerHaptic('selection');
-                setSelectedDate(selectedDate.getDaysAgo(-7));
-              }}
-              onLongPress={() => handleLongPressNext(selectedDate)}
-              onPressOut={() => {
-                if (longPressNextTimeout.current === null) return;
-                clearTimeout(longPressNextTimeout.current);
-                longPressNextTimeout.current = null;
-              }}
-              delayLongPress={600}
-            />
-          </View>
-          <View style={styles.timelineContent}>
-            {selectedWeekDates.map((date) => {
-              const dayOfWeek = date.getDayOfWeekLabel();
-              const isSelected = date.equals(selectedDate);
-              const isToday = date.equals(today);
+      <View onLayout={onLayout} style={styles.container}>
+        {flatList}
+        {/* <GestureDetector gesture={panGesture}> */}
+          {/* <Animated.View style={[
+            styles.timelineContainer,
+            {left: -containerWidth.value},
+            timelineContainerAnimated,
+            // animatedSelectedDate.value === selectedDate.toString() && { transform: [{ translateX: 0}]}
+          ]}> */}
+            {/* <View style={styles.timelineHeader}>
+              <IconButton
+                style={styles.timelineHeaderButton}
+                icon={Icons.left}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setSelectedDate(selectedDate.getDaysAgo(7));
+                }}
+                onLongPress={() => handleLongPressPrevious(selectedDate)}
+                onPressOut={() => {
+                  if (longPressPreviousTimeout.current === null) return;
+                  clearTimeout(longPressPreviousTimeout.current);
+                  longPressPreviousTimeout.current = null;
+                }}
+                delayLongPress={600}
+              />
+              <Text variant='bodyMedium' style={styles.timeHeaderText}>
+                {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
+              </Text>
+              <IconButton
+                style={styles.timelineHeaderButton}
+                icon={Icons.right}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setSelectedDate(selectedDate.getDaysAgo(-7));
+                }}
+                onLongPress={() => handleLongPressNext(selectedDate)}
+                onPressOut={() => {
+                  if (longPressNextTimeout.current === null) return;
+                  clearTimeout(longPressNextTimeout.current);
+                  longPressNextTimeout.current = null;
+                }}
+                delayLongPress={600}
+              />
+            </View> */}
+            {/* <View style={[styles.timelineContent]}>
+              {previousWeekDates.map((date) => {
+                const dayOfWeek = date.getDayOfWeekLabel();
+                const isSelected = date.equals(selectedDate);
+                const isToday = date.equals(today);
 
-              return (
-                <View
-                  key={date.toString()}
-                  style={[
-                    styles.timelineDate,
-                    isToday && styles.timelineDateToday,
-                    isSelected && styles.timelineDateSelected,
-                  ]}
-                >
-                  <TouchableRipple
-                    onPressIn={() => setSelectedDate(date)}
+                return (
+                  <View
+                    key={date.toString()}
                     style={[
-                      styles.timelineDateContainer,
-                      isToday && styles.timelineDateContainerToday,
-                      isSelected && styles.timelineDateContainerSelected,
+                      styles.timelineDate,
+                      isToday && styles.timelineDateToday,
+                      isSelected && styles.timelineDateSelected,
                     ]}
                   >
-                    <>
-                      <View
-                        style={[
-                          styles.timelineDateContent,
-                          isToday && styles.timelineDateContentToday,
-                          isSelected && styles.timelineDateContentSelected,
-                        ]}
-                      >
-                        <Text
+                    <Pressable
+                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
+                      style={[
+                        styles.timelineDateContainer,
+                        isToday && styles.timelineDateContainerToday,
+                        isSelected && styles.timelineDateContainerSelected,
+                      ]}
+                    >
+                      <>
+                        <View
                           style={[
-                            styles.timelineDateDayOfWeek,
-                            isToday && styles.timelineDateDayOfWeekToday,
-                            isSelected && styles.timelineDateDayOfWeekSelected,
+                            styles.timelineDateContent,
+                            isToday && styles.timelineDateContentToday,
+                            isSelected && styles.timelineDateContentSelected,
                           ]}
-                          >
-                          {dayOfWeek.toUpperCase()}
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                          {isToday && <View
+                        >
+                          <Text
                             style={[
-                              styles.todayIndicator,
-                              isSelected && styles.todayIndicatorToday,
+                              styles.timelineDateDayOfWeek,
+                              isToday && styles.timelineDateDayOfWeekToday,
+                              isSelected && styles.timelineDateDayOfWeekSelected,
                             ]}
-                          />}
-                          <Text variant='titleMedium'
-                            style={[
-                              styles.timelineDateDay,
-                              isToday && styles.timelineDateDayToday,
-                              isSelected && styles.timelineDateDaySelected,
-                            ]}
-                          >
-                            {date.day}
+                            >
+                            {dayOfWeek.toUpperCase()}
                           </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                            {isToday && <View
+                              style={[
+                                styles.todayIndicator,
+                                isSelected && styles.todayIndicatorToday,
+                              ]}
+                            />}
+                            <Text variant='titleMedium'
+                              style={[
+                                styles.timelineDateDay,
+                                isToday && styles.timelineDateDayToday,
+                                isSelected && styles.timelineDateDaySelected,
+                              ]}
+                            >
+                              {date.day}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                    </>
-                  </TouchableRipple>
-                </View>
-              )
-            })}
-          </View>
-        </View>
+                      </>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View>
+            <View style={styles.timelineContent}>
+              {selectedWeekDates.map((date) => {
+                const dayOfWeek = date.getDayOfWeekLabel();
+                const isSelected = date.equals(selectedDate);
+                const isToday = date.equals(today);
+
+                return (
+                  <View
+                    key={date.toString()}
+                    style={[
+                      styles.timelineDate,
+                      isToday && styles.timelineDateToday,
+                      isSelected && styles.timelineDateSelected,
+                    ]}
+                  >
+                    <Pressable
+                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
+                      style={[
+                        styles.timelineDateContainer,
+                        isToday && styles.timelineDateContainerToday,
+                        isSelected && styles.timelineDateContainerSelected,
+                      ]}
+                    >
+                      <>
+                        <View
+                          style={[
+                            styles.timelineDateContent,
+                            isToday && styles.timelineDateContentToday,
+                            isSelected && styles.timelineDateContentSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.timelineDateDayOfWeek,
+                              isToday && styles.timelineDateDayOfWeekToday,
+                              isSelected && styles.timelineDateDayOfWeekSelected,
+                            ]}
+                            >
+                            {dayOfWeek.toUpperCase()}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                            {isToday && <View
+                              style={[
+                                styles.todayIndicator,
+                                isSelected && styles.todayIndicatorToday,
+                              ]}
+                            />}
+                            <Text variant='titleMedium'
+                              style={[
+                                styles.timelineDateDay,
+                                isToday && styles.timelineDateDayToday,
+                                isSelected && styles.timelineDateDaySelected,
+                              ]}
+                            >
+                              {date.day}
+                            </Text>
+                          </View>
+                        </View>
+                      </>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View>
+            <View style={styles.timelineContent}>
+              {nextWeekDates.map((date) => {
+                const dayOfWeek = date.getDayOfWeekLabel();
+                const isSelected = date.equals(selectedDate);
+                const isToday = date.equals(today);
+
+                return (
+                  <View
+                    key={date.toString()}
+                    style={[
+                      styles.timelineDate,
+                      isToday && styles.timelineDateToday,
+                      isSelected && styles.timelineDateSelected,
+                    ]}
+                  >
+                    <Pressable
+                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
+                      style={[
+                        styles.timelineDateContainer,
+                        isToday && styles.timelineDateContainerToday,
+                        isSelected && styles.timelineDateContainerSelected,
+                      ]}
+                    >
+                      <>
+                        <View
+                          style={[
+                            styles.timelineDateContent,
+                            isToday && styles.timelineDateContentToday,
+                            isSelected && styles.timelineDateContentSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.timelineDateDayOfWeek,
+                              isToday && styles.timelineDateDayOfWeekToday,
+                              isSelected && styles.timelineDateDayOfWeekSelected,
+                            ]}
+                            >
+                            {dayOfWeek.toUpperCase()}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                            {isToday && <View
+                              style={[
+                                styles.todayIndicator,
+                                isSelected && styles.todayIndicatorToday,
+                              ]}
+                            />}
+                            <Text variant='titleMedium'
+                              style={[
+                                styles.timelineDateDay,
+                                isToday && styles.timelineDateDayToday,
+                                isSelected && styles.timelineDateDaySelected,
+                              ]}
+                            >
+                              {date.day}
+                            </Text>
+                          </View>
+                        </View>
+                      </>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View> */}
+          {/* </Animated.View> */}
+        {/* </GestureDetector> */}
         <NestableScrollContainer style={styles.content}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderIcon}>
@@ -553,13 +963,22 @@ const Recordings = () => {
                 const isSelected = index === selectedDate.getDayOfWeek();
                 const isFuture = date.after(today);
                 const filteredMeasurements = displayedMeasurements.filter((measurement) => {
-                  const startDate = getMeasurementStartDate(measurement, mergedRecordingsMap.get(measurement.id));
+                  const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
                   return measurement.type !== 'combo' && startDate && date.toString() >= startDate;
                 });
-                const nonNullRecordingCount = [...selectedWeekMeasurementValues.entries()].filter(([measurementId, recordings]) => {
-                  if (filteredMeasurements.findIndex(({ id }) => id === measurementId) === -1) return false;
-                  return recordings[index] !== null;
-                }).length;
+
+                const isNullRecordings = filteredMeasurements.map((measurement) => {
+                  const recordings = selectedWeekMeasurementValues.get(measurement.id);
+                  return !recordings || !recordings.length || recordings[index] === null;
+                });
+
+                const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+                const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
+
+                // const nonNullRecordingCount = [...selectedWeekMeasurementValues.entries()].filter(([measurementId, recordings]) => {
+                //   if (filteredMeasurements.findIndex(({ id }) => id === measurementId) === -1) return false;
+                //   return recordings[index] !== null;
+                // }).length;
 
                 const noMeasurements = filteredMeasurements.length === 0;
                 const iconColor = isSelected ? globalPalette.primary : globalPalette.disabled;
@@ -571,11 +990,48 @@ const Recordings = () => {
                       isSelected ? styles.measurementsStatusSelected : {},
                     ]}
                   >
-                    <ProgressBar
+                    <View
+                      style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
+                    >
+                      {/* {isSelected
+                        ? <>
+                          {filteredMeasurements.map((measurement, index) => {
+                            const palette = getCombinedPalette(measurement.baseColor);
+                            const isNull = isNullRecordings[index];
+                            return !isNull && <View
+                              style={[styles.measurementsProgressPiece, {
+                                backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
+                              }]}
+                            />
+                          })}
+                          {filteredMeasurements.map((measurement, index) => {
+                            const isNull = isNullRecordings[index];
+                            return isNull && <View
+                              style={[styles.measurementsProgressPiece, {
+                                // backgroundColor: theme.colors.surfaceDisabled,
+                              }]}
+                            />
+                          })}
+                        </>
+                        : <View
+                        style={[styles.measurementsProgressBar, {
+                          width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                          backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
+                        }]}
+                      />
+                      } */}
+                      <View
+                          style={[styles.measurementsProgressBar, {
+                            width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                            backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
+                          }]}
+                        />
+                    </View>
+                    {/* <ProgressBar
                       style={styles.measurementsProgressBar}
-                      color={isSelected ? globalPalette.primary : globalPalette.backdrop}
+                      color={isSelected ? globalPalette.primary : globalPalette.alt}
                       progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
-                    />
+                    /> */}
                   </View>
                 )
               })}
@@ -629,7 +1085,7 @@ const Recordings = () => {
                             measurement={measurement}
                             currentDate={selectedDate}
                             weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                            mergedRecordingValues={mergedRecordingsMap.get(id)}
+                            mergedRecordingValues={mergedRecordingsMap}
                             expanded={displayedExpandedMeasurements.has(id)}
                             onValueChange={(nextValue: number | null) => {
                               triggerHaptic('impact', ImpactFeedbackStyle.Light);
@@ -684,7 +1140,7 @@ const Recordings = () => {
                 icon={Icons.move}
                 size={16}
                 onPress={() => {
-                  submitMeasurementOrder();
+                  submitHabitOrder();
                   setIsReorderingHabits(false);
                 }}
                 disabled={!habits.length}
@@ -744,16 +1200,25 @@ const Recordings = () => {
                 <>
                   {!!perWeekPointTarget &&
                     <View style={styles.pointsProgressContainer}>
+                      {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
+                        <View style={styles.pointsProgressTargetOuter}>
+                          <View style={{ flexGrow: daysThisWeek }} />
+                          <View style={styles.pointsProgressTarget}>
+                            <View style={styles.pointsProgressTargetInner} />
+                          </View>
+                          <View style={{ flexGrow: 7 - daysThisWeek }} />
+                        </View>
+                      )}
                       {selectedWeekDates.map((date, index) => {
                         const dailyPoints = selectedWeekDailyHabitPointTotals[index];
                         const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
                         
                         const isFuture = date.after(today);
                         const isSelected = date.equals(selectedDate);
-                        const backgroundColor = isSelected ? globalPalette.primary : isFuture ? theme.colors.surfaceDisabled : globalPalette.backdrop;
-                        return (
+                        const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
+                        return isFuture ? null : (
                           <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints, backgroundColor }]} />
-                        )
+                        );
                       })}
                       <View style={{
                         flexDirection: 'row',
@@ -802,7 +1267,7 @@ const Recordings = () => {
                         isSelected ? styles.dailyPointsSelected : {},
                         isToday ? styles.dailyPointsToday : {},
                       ]}
-                      onPress={() => setSelectedDate(date)}
+                      onPress={() => handleSelectedDateChange(date)}
                     >
                       <>
                         <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
@@ -941,12 +1406,14 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   timelineContainer: {
     position: 'relative',
-    backgroundColor: theme.colors.elevation.level3,
+    // backgroundColor: theme.colors.elevation.level3,
     flexGrow: 0,
     flexShrink: 0,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderColor: theme.colors.surfaceVariant,
+    flexDirection: 'row',
+    width: '300%',
   },
   timelineHeader: {
     flexDirection: 'row',
@@ -966,7 +1433,11 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     gap: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 0,
+    width: '100%',
   },
   timelineDate: {
     width: '100%',
@@ -1050,8 +1521,22 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   measurementsProgressBar: {
     height: 8,
-    borderRadius: 4,
+    borderRadius: 8,
+    width: '100%',
     backgroundColor: theme.colors.surfaceDisabled,
+    overflow: 'hidden',
+  },
+  measurementsProgressBarSelected: {
+    // height: 10,
+    // flexDirection: 'row',
+    // gap: 2,
+    // backgroundColor: 'none',
+  },
+  measurementsProgressPiece: {
+    // height: 10,
+    flexShrink: 1,
+    width: '100%',
+    // borderRadius: 100,
   },
   pointsProgressContainer: {
     width: '100%',
@@ -1059,11 +1544,36 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderRadius: 100,
+    marginVertical: 1,
   },
   pointsProgressBar: {
     height: 8,
     borderRadius: 8,
     flexBasis: 8,
+  },
+  pointsProgressTargetOuter: {
+    flexDirection: 'row',
+    height: 20,
+    width: '100%',
+    position: 'absolute',
+    top: -6,
+    zIndex: -1,
+
+  },
+  pointsProgressTarget: {
+    height: 4,
+    width: 4,
+    borderRadius: 2,
+    // backgroundColor: palette.backdrop,
+    justifyContent: 'center',
+    flexGrow: 0,
+  },
+  pointsProgressTargetInner: {
+    top: 16,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    // backgroundColor: palette.backdrop,
   },
   overlapProgress: {
     height: '100%',
@@ -1138,6 +1648,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     overflow: 'hidden',
   },
   measurementsStatusSelected: {
+    // flexShrink: 0.9,
   },
   dailyPointTotalContainer: {
     width: '100%',
@@ -1229,7 +1740,7 @@ type RecordingMeasurementItemProps = {
   measurement: Measurement,
   currentDate: SimpleDate,
   weekMeasurementValues: (number | null)[],
-  mergedRecordingValues?: Map<string, number | null>,
+  mergedRecordingValues?: Map<string, Map<string, number | null>>,
   expanded?: boolean,
   onValueChange?: (nextValue: number | null) => void,
   onPress?: (id: string) => void,
@@ -1256,6 +1767,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
+  const measurements = useMeasurements();
   if (!typeData) return null;
   
   const isDuration = measurement.type === 'duration';
@@ -1263,7 +1775,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const isTime = measurement.type === 'time';
   const isCombo = measurement.type === 'combo';
 
-  const startDate = getMeasurementStartDate(measurement, mergedRecordingValues);
+  const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingValues);
   const today = SimpleDate.today();
   
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
@@ -1298,33 +1810,26 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     if (isBool) {
       return (
         <>
+          {value !== null && (
+            <TouchableRipple style={styles.value} onLongPress={() => onValueChange ? onValueChange(null) : null} delayLongPress={600} disabled={isCombo}>
+              <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={18} />
+            </TouchableRipple>
+          )}
           <View style={styles.controls}>
             <IconButton
               style={styles.controlButton}
-              size={18}
-              mode={value === 0 ? 'contained' : undefined}
-              iconColor={value === 0 ? theme.colors.onSurface : theme.colors.onSurface}
+              size={16}
               icon={Icons.incomplete}
-              containerColor={value === 0 ? combinedPalette.backdrop : undefined}
               onPress={() => {
                 onValueChange ? onValueChange(0) : null;
-              }}
-              onLongPress={() => {
-                onValueChange ? onValueChange(null) : null;
               }}
               />
             <IconButton
               style={styles.controlButton}
-              size={18}
-              mode={value ? 'contained' : undefined}
-              iconColor={value ? theme.colors.onSurface : theme.colors.onSurface}
+              size={16}
               icon={Icons.complete}
-              containerColor={value ? combinedPalette.backdrop : undefined}
               onPress={() => {
                 onValueChange ? onValueChange(1) : null;
-              }}
-              onLongPress={() => {
-                onValueChange ? onValueChange(null) : null;
               }}
             />
           </View>
@@ -1339,7 +1844,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
               <Text style={styles.valueText} variant='titleMedium'>{valueString}</Text>
             </TouchableRipple>
           )}
-          {isCombo ? <View style={{ ...styles.controls, marginRight: -10 }} /> : (
+          {isCombo ? <View style={{ ...styles.controls, marginRight: -16 }} /> : (
             <View style={styles.controls}>
               <IconButton
                 style={styles.controlButton}
@@ -1390,14 +1895,14 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     const average = count === 0 ? null : total / count;
     const averageString = formatValue(average, isBool ? 'count' : measurement.type, measurement.unit, true);
     return expanded && [
-      !isCombo && (
+      (
         <View key={'completion'} style={styles.completionContent}>
           <View style={styles.completionStatuses}>
             {weekMeasurementValues.map((value, index) => {
               const date = currentDate.getDaysAgo(currentDate.getDayOfWeek() - index);
               const isFuture = date.after(today);
               const isSelected = index === currentDate.getDayOfWeek();
-              const hasNotStarted = !isSelected && (!startDate || startDate > date.toString());
+              const hasNotStarted = !startDate || startDate > date.toString();
 
               return (
                 <View key={date.toString()} style={styles.completionStatus}>
@@ -1449,7 +1954,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       <>
         <View style={[styles.content]}>
           <View style={styles.label}>
-            {!!measurement.baseColor && <View style={styles.colorSquare} />}
+            {!!measurement.baseColor && <View style={styles.colorSwatch} />}
             <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={styles.labelActivity}>{measurement.name}</Text>
             {measurement.variant ? (
               <>
@@ -1471,9 +1976,12 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 8,
-    borderColor: theme.colors.surfaceVariant,
     gap: 8,
     backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.elevation.level3,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
   },
   content: {
     flexDirection: 'row',
@@ -1488,10 +1996,10 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     alignItems: 'center',
     paddingLeft: 4,
   },
-  colorSquare: {
-    height: 10,
-    width: 10,
-    borderRadius: 3,
+  colorSwatch: {
+    height: 8,
+    width: 15,
+    borderRadius: 4,
     backgroundColor: measurementPalette.primary,
     marginRight: 8,
   },
@@ -1514,9 +2022,12 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexShrink: 0,
     textAlign: 'right',
     alignItems: 'flex-end',
+    justifyContent: 'center',
 
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    height: 40,
+    minWidth: 40,
+
+    paddingHorizontal: 16,
     borderRadius: 12,
   },
   valueText: {
@@ -1559,6 +2070,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 24,
+    paddingRight: 4,
   },
   aggregateMetric: {
     flexDirection: 'row',
@@ -1606,48 +2118,50 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     return complete;
   }).findIndex((completion) => completion) : -1;
 
-  const renderCompletionContent = () => (
-    <View style={styles.completionContent}>
-      {weekDates.map((weekDate, index) => {
-        const dates = habit.isWeekly ? weekDates : [weekDate];
-        const [complete] = getHabitCompletion(habit, measurements, dates, recordingData);
-        
-        const isSelected = index === date.getDayOfWeek();
-        const isFuture = weekDate.after(today);
-        let source = Icons.progressNone;
-        let color = combinedPalette.backdrop;
-        let size = 14;
-        if (isFuture) {
-          color = theme.colors.surfaceDisabled;
-          source = Icons.indeterminate;
-          size = 14;
-        } else if (habit.isWeekly && firstWeeklyCompletionIndex !== -1) {
-          if (index === firstWeeklyCompletionIndex) {
-            source = Icons.progressComplete;
-          } else if (index > firstWeeklyCompletionIndex) {
+  const renderCompletionContent = () => {
+    return (
+      <View style={styles.completionContent}>
+        {weekDates.map((weekDate, index) => {
+          const dates = habit.isWeekly ? weekDates : [weekDate];
+          const [complete] = getHabitCompletion(habit, measurements, dates, recordingData);
+          
+          const isSelected = index === date.getDayOfWeek();
+          const isFuture = weekDate.after(today);
+          let source = Icons.progressNone;
+          let color = combinedPalette.backdrop;
+          let size = 14;
+          if (isFuture) {
+            color = theme.colors.surfaceDisabled;
             source = Icons.indeterminate;
             size = 14;
+          } else if (habit.isWeekly && firstWeeklyCompletionIndex !== -1) {
+            if (index === firstWeeklyCompletionIndex) {
+              source = Icons.progressComplete;
+            } else if (index !== firstWeeklyCompletionIndex) {
+              source = Icons.indeterminate;
+              size = 14;
+            }
+          } else if (complete) {
+            color = combinedPalette.backdrop;
+            source = Icons.progressComplete;
           }
-        } else if (complete) {
-          color = combinedPalette.backdrop;
-          source = Icons.progressComplete;
-        }
+          
+          if (isSelected) {
+            color = combinedPalette.primary;
+          }
         
-        if (isSelected) {
-          color = combinedPalette.primary;
-        }
-      
-        return (
-          <View
-            key={weekDate.toString()}
-            style={styles.completionIcon}
-          >
-            <Icon source={source} size={size} color={color} />
-          </View>
-        );
-      })}
-    </View>
-  );
+          return (
+            <View
+              key={weekDate.toString()}
+              style={styles.completionIcon}
+            >
+              <Icon source={source} size={size} color={color} />
+            </View>
+          );
+        })}
+      </View>
+    )
+  };
 
   const dates = weekDates.slice(habit.isWeekly ? 0 : date.getDayOfWeek(), date.getDayOfWeek() + 1);
   const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, measurements, dates, recordingData);
@@ -1666,7 +2180,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           const conditionValue = conditionValues[index];
           const conditionProgress = conditionProgressions[index];
 
-          const valueString = conditionValue === null ? '-' : formatValue(conditionValue, measurement.type);
+          const valueString = conditionValue === null ? '-' : formatValue(conditionValue, measurement.type, measurement.unit, false);
           const targetString = formatValue(target, measurement.type, measurement.unit, true);
 
           const progressLabelColor = theme.colors.onSurface;
@@ -1674,7 +2188,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           return (
             <View key={`${measurementId}${operator}${target}`} style={styles.condition}>
               <View style={styles.conditionMeasurement}>
-                {!!measurement.baseColor && <View style={[styles.conditionColorSquare, { backgroundColor: palette.primary }]} />}
+                {!!measurement.baseColor && <View style={[styles.conditionColorSwatch, { backgroundColor: palette.primary }]} />}
                 <Text variant='labelLarge'>{measurement.name}</Text>
                 {measurement.variant ? (
                   <>
@@ -1734,7 +2248,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     >
       <>
         <View style={[styles.content]}>
-          {!!habit.baseColor && <View style={styles.colorSquare} />}
+          {!!habit.baseColor && <View style={styles.colorSwatch} />}
           <Text variant='titleMedium'>{habit.name}</Text>
           <View style={styles.scopeTag}>
             <Text variant='bodySmall' style={styles.scopeTagText}>
@@ -1788,6 +2302,11 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 8,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.elevation.level3,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    marginTop: index === 0 ? 0 : -1,
   },
   content: {
     flexDirection: 'row',
@@ -1795,10 +2314,10 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     paddingHorizontal: 4,
     gap: 8,
   },
-  colorSquare: {
-    height: 10,
-    width: 10,
-    borderRadius: 12,
+  colorSwatch: {
+    height: 8,
+    width: 15,
+    borderRadius: 4,
     backgroundColor: habitPalette.primary,
   },
   scopeTag: {
@@ -1808,7 +2327,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 10,
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.colors.elevation.level4,
     borderRadius: 6,
   },
   scopeTagText: {
@@ -1849,15 +2368,15 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     paddingVertical: 4,
     justifyContent: 'space-between',
   },
-  conditionColorSquare: {
-    height: 7,
-    width: 7,
-    borderRadius: 12,
+  conditionColorSwatch: {
+    height: 6,
+    width: 11,
+    borderRadius: 3,
   },
   conditionMeasurement: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   conditionProgressBarComplete: {
   },

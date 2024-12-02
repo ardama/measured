@@ -99,9 +99,9 @@ export const getCustomColor = (hue: number | undefined, theme: MD3Theme, disable
 }
 
 export type BaseColor =
-  '' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'violet';
+  undefined | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'violet';
 
-export const baseColors: BaseColor[] = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet'];
+export const baseColors: BaseColor[] = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet', undefined];
 
 export type Palette = {
   primary: string

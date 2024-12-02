@@ -158,7 +158,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     if (isCombo) return NoError;
     if (!formMeasurement.initial) return EmptyError;
     const initial = parseFloat(formMeasurement.initial);
-    if (isNaN(initial) || !isFinite(initial) || initial < 0) return Error('Invalid initial value');
+    if (isNaN(initial) || !isFinite(initial)) return Error('Invalid initial value');
     return NoError;
   }
   
@@ -725,15 +725,14 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     bottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
+    backgroundColor: theme.colors.elevation.level2,
   },
   button: {
     flexGrow: 1,
     borderRadius: 0,
   },
   buttonContent: {
-    height: 72,
+    height: 80,
     
   },
   buttonLabel: {
@@ -747,8 +746,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
 
   },
   cancelButtonContent: {
-    borderRightWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
+
   },
   cancelButtonText: {
     color: theme.colors.onSurface,

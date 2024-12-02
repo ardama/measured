@@ -28,6 +28,7 @@ export default function Header({
   const theme = useTheme();
 
   const styles = createStyles(theme);
+  const navigation = useNavigation();
 
   const titleContent = (
     <View style={styles.content}>
@@ -42,7 +43,7 @@ export default function Header({
         bordered ? styles.containerBordered : {},
       ]}
     >
-      {/* {showMenuButton ? <Appbar.Action icon={'menu'} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} /> : null} */}
+      {showMenuButton ? <Appbar.Action icon={'menu'} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} /> : null}
       {showBackButton ? <Appbar.Action icon={Icons.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
       <Appbar.Content
         style={{ paddingLeft: 4 }}
@@ -57,7 +58,7 @@ export default function Header({
 
 const createStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.colors.surface,
     height: 56,
   },
   containerBordered: {

@@ -8,7 +8,7 @@ export interface AuthCredentials {
   code?: string,
 }
 
-export type AuthAction = 'login' | 'signup' | 'reset' | 'signout';
+export type AuthAction = 'login' | 'signup' | 'reset' | 'signout' | 'guest';
 
 const initialState: AuthState = {
   user: null,
@@ -26,6 +26,23 @@ const authSlice = createSlice({
   reducers: {
     initialAuthCheckComplete: (state) => {
       state.initialAuthCheckComplete = true;
+    },
+    guestSignInRequest: (state: AuthState) => {
+      state.action = 'guest';
+      state.loading = true;
+      state.error = null;
+      state.info = null;
+    },
+    guestSignInSuccess: (state: AuthState, action: PayloadAction<User>) => {
+      state.user = action.payload;
+      state.loading = false;
+      state.error = null;
+      state.info = null;
+    },
+    guestSignInFailure: (state: AuthState, action: PayloadAction<string>) => {
+      state.loading = false;
+      state.error = action.payload;
+      state.info = null;
     },
     signUpRequest: (state: AuthState, _: PayloadAction<AuthCredentials>) => {
       state.action = 'signup';
@@ -114,6 +131,10 @@ const authSlice = createSlice({
 
 export const {
   initialAuthCheckComplete,
+
+  guestSignInRequest,
+  guestSignInSuccess,
+  guestSignInFailure,
 
   signUpRequest,
   signUpSuccess,

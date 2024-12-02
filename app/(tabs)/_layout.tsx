@@ -61,7 +61,7 @@ const TabLayout = () => {
         },
       }}
       tabBar={renderTabBar}
-      initialRouteName='index'
+      initialRouteName='home'
     >
       <Tabs.Screen
         name="history"
@@ -77,7 +77,7 @@ const TabLayout = () => {
         }}
         />
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Measure',
           tabBarIcon: ({ color, focused, size }) => (
