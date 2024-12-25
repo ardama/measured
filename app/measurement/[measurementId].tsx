@@ -2,7 +2,7 @@ import Header from '@c/Header';
 import LoadingScreen from '@c/Loading';
 import MeasurementForm from '@c/MeasurementForm';
 import { useMeasurement } from '@s/selectors';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import { useAuth } from '@u/hooks/useAuth';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -27,4 +27,4 @@ const MeasurementEditScreen = () => {
   )
 }
 
-export default withAuth(MeasurementEditScreen);
+export default withUser(MeasurementEditScreen);

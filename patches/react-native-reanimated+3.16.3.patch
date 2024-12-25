@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-reanimated/lib/module/js-reanimated/index.js b/node_modules/react-native-reanimated/lib/module/js-reanimated/index.js
+index 63d3d72..e258b3c 100644
+--- a/node_modules/react-native-reanimated/lib/module/js-reanimated/index.js
++++ b/node_modules/react-native-reanimated/lib/module/js-reanimated/index.js
+@@ -42,7 +42,7 @@ export const _updatePropsJS = (updates, viewRef, isAnimatedProps) => {
+           return;
+         }
+         const dashedKey = key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+-        component._touchableNode.setAttribute(dashedKey, rawStyles[key]);
++        component._touchableNode?.setAttribute(dashedKey, rawStyles[key]);
+       });
+     } else {
+       const componentName = 'className' in component ? component?.className : '';

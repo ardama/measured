@@ -17,6 +17,7 @@ interface AuthState {
   info: string | null
   action: AuthAction | null
   initialAuthCheckComplete: boolean
+  isGuest: boolean
 }
 
 interface DataState {

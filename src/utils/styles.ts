@@ -44,7 +44,7 @@ const FONT_FAMILIES: FontFamilyConfig = {
   }
 };
 
-const ACTIVE_FONT: FontFamily = 'fira';
+const ACTIVE_FONT: FontFamily = 'rubik';
 
 interface FontStyleType {
   fontFamily: string;

@@ -4,7 +4,7 @@ import { callCreateMeasurement } from '@s/dataReducer';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
 import { computeHabit, createInitialHabit } from '@t/habits';
 import { createMeasurement } from '@t/measurements';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import { useAuth } from '@u/hooks/useAuth';
 import { useDispatch } from 'react-redux';
 
@@ -31,4 +31,4 @@ const HabitCreateScreen = () => {
   )
 }
 
-export default withAuth(HabitCreateScreen);
+export default withUser(HabitCreateScreen);

@@ -1,6 +1,6 @@
 import LoadingScreen from '@c/Loading';
 import { signOutRequest } from '@s/authReducer';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import React, { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 
@@ -20,4 +20,4 @@ const SignoutScreen = () => {
   )
 }
 
-export default withAuth(SignoutScreen);
+export default withUser(SignoutScreen);

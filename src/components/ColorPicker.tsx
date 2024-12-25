@@ -1,11 +1,12 @@
 import { baseColors, type BaseColor } from '@u/colors';
+import { Icons } from '@u/constants/Icons';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { StyleSheet, View } from 'react-native';
-import { TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Icon, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 
 type ColorPickerProps = {
   value?: BaseColor
-  onSelect: (value: BaseColor | undefined) => void
+  onSelect: (value: BaseColor | null) => void
 }
 
 const ColorPicker: React.FC<ColorPickerProps> = (props) => {
@@ -26,12 +27,21 @@ const ColorPicker: React.FC<ColorPickerProps> = (props) => {
           <TouchableRipple
             key={baseColor || 'none'}
             style={[styles.colorOuter, { backgroundColor: isSelected ? (backdrop || primary) : undefined }]}
-            onPress={() => onSelect(isSelected ? undefined : baseColor)}
+            onPress={() => onSelect(isSelected ? null : baseColor)}
           >
             <View style={[styles.colorInner, { backgroundColor: primary }]} />
           </TouchableRipple>
         )
       })}
+      <TouchableRipple
+        key={'none'}
+        style={[styles.colorOuter, { padding: 8 }]}
+        onPress={() => onSelect(null)}
+      >
+        <View style={[styles.colorInner, { backgroundColor: undefined }]}>
+          <Icon source={Icons.close} size={14} color={value ? theme.colors.onSurfaceVariant : theme.colors.onSurfaceDisabled} />
+        </View>
+      </TouchableRipple>
     </View>
   )
 }
@@ -54,6 +64,8 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     height: 12,
     width: 12,
     borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -622,7 +622,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             onPress={() => handleCancel()}
             textColor={theme.colors.onSurface}
           >
-            <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>Discard</Text>
+            <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>{isNew ? 'Discard' : 'Cancel'}</Text>
           </Button>
           <Button
             mode="text"

@@ -1,5 +1,5 @@
 import Header from '@c/Header';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import { Stack } from 'expo-router';
 
 function MeasurementsLayout() {
@@ -19,4 +19,4 @@ function MeasurementsLayout() {
   )
 };
 
-export default withAuth(MeasurementsLayout);
+export default withUser(MeasurementsLayout);

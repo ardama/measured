@@ -115,12 +115,12 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
     borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: theme.colors.elevation.level2,
   },
   containerSelected: {
     backgroundColor: palette.backdrop,
   },
   containerUnselected: {
-    backgroundColor: theme.colors.elevation.level2,
   },
   containerDisabled: {
     backgroundColor: undefined,

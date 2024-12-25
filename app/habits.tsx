@@ -1,5 +1,5 @@
 import Habits from '@c/Habits'
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 
 const HabitsScreen = () => {
   return (
@@ -7,4 +7,4 @@ const HabitsScreen = () => {
   )
 }
 
-export default withAuth(HabitsScreen);
+export default withUser(HabitsScreen);

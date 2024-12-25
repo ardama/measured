@@ -2,7 +2,7 @@ import Header from '@c/Header';
 import MeasurementForm from '@c/MeasurementForm';
 import { useMeasurements } from '@s/selectors';
 import { createMeasurement } from '@t/measurements';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import { useAuth } from '@u/hooks/useAuth';
 
 const MeasurementCreateScreen = () => {
@@ -17,4 +17,4 @@ const MeasurementCreateScreen = () => {
   )
 }
 
-export default withAuth(MeasurementCreateScreen);
+export default withUser(MeasurementCreateScreen);

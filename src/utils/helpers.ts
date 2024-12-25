@@ -86,7 +86,7 @@ export const formatTime = (hours: number): string => {
 }
 
 export const formatDuration = (minutes: number): string => {
-  const h = Math.floor(minutes / 60);
+  const h = minutes < 0 ? Math.ceil(minutes / 60) : Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
 
   const hoursString = h ? `${h}h ` : '';

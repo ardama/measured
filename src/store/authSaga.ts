@@ -1,23 +1,39 @@
-import { call, delay, put, race, select, take, takeLatest } from 'redux-saga/effects';
+import { all, call, delay, put, race, select, take, takeLatest } from 'redux-saga/effects';
 import { signInRequest, signInSuccess, signInFailure, signOutRequest, signOutSuccess, signOutFailure, signUpSuccess, signUpFailure, signUpRequest, type AuthCredentials, initialAuthCheckComplete, resetRequest, resetSuccess, resetFailure, guestSignInRequest, guestSignInSuccess, guestSignInFailure } from '@s/authReducer';
 import { confirmPasswordReset, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User, type UserCredential } from 'firebase/auth';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { auth } from '@/firebase';
 import { serializeUser, type Account } from '@t/users';
 import { eventChannel, type EventChannel } from 'redux-saga';
-import { resetData, callUpdateAccount } from '@s/dataReducer';
+import { resetData, callUpdateAccount, setAccount, setMeasurements, setHabits } from '@s/dataReducer';
 import type { RootState } from '@t/redux';
 import { FirebaseError } from 'firebase/app';
+import { storageService } from '@s/storage';
+
+function* loadGuestData(): Generator<any, void, any> {
+  const [measurements, habits, account] = yield all([
+    call([storageService, storageService.getMeasurements]),
+    call([storageService, storageService.getHabits]),
+    call([storageService, storageService.getAccount]),
+  ]);
+  yield all([
+    put(setMeasurements(measurements)),
+    put(setHabits(habits)),
+    put(setAccount(account ? [account] : [])),
+  ]);
+}
 
 function* guestSignInRequestSaga() {
   try {
     yield put(resetData());
     
-    // GET OR CREATE LOCALLY STORED USER OBJECT, LOAD THEIR LOCALLY STORED DATA IF IT EXISTS
+    // Set active user ID to guest
+    yield call([storageService, storageService.setActiveUserId], 'guest');
+    yield call(loadGuestData);
+    
+    yield put(guestSignInSuccess());
   } catch (error) {
-    if (error instanceof FirebaseError) {
-      yield put(guestSignInFailure(error.code));
-    } else if (error instanceof Error) {
+    if (error instanceof Error) {
       yield put(guestSignInFailure(error.message));
     } else {
       yield put(guestSignInFailure('An unknown error occurred while signing in as guest'));
@@ -31,6 +47,8 @@ function* signUpSaga(action: PayloadAction<AuthCredentials>) {
   try {
     yield put(resetData());
     const result: UserCredential = yield call(createUserWithEmailAndPassword, auth, email.trim(), password.trim());
+    
+    yield call([storageService, storageService.setActiveUserId], result.user.uid);
     yield put(signUpSuccess(serializeUser(result.user)));
     
     const account: Account = yield select((state: RootState): Account => state.data.account);
@@ -53,6 +71,9 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
   try {
     yield put(resetData());
     const result: UserCredential = yield call(signInWithEmailAndPassword, auth, email.trim(), password.trim());
+
+    yield call([storageService, storageService.setActiveUserId], result.user.uid);
+
     yield put(signInSuccess(serializeUser(result.user)));
   } catch (error) {
     if (error instanceof FirebaseError) {
@@ -67,7 +88,13 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
 
 function* signOutSaga() {
   try {
-    yield call(signOut, auth);
+    const storedUserId: string | null = yield call([storageService, storageService.getActiveUserId]);
+
+    if (storedUserId !== 'guest') {
+      yield call(signOut, auth);
+    }
+    yield call([storageService, storageService.setActiveUserId], null);
+    
     yield put(resetData());
     yield put(signOutSuccess());
   } catch (error) {
@@ -94,7 +121,7 @@ function* resetSaga(action: PayloadAction<AuthCredentials>) {
     } else if (error instanceof Error) {
       yield put(resetFailure(error.message));
     } else {
-      yield put(resetFailure('An unknown error occurred while send password reset email'));
+      yield put(resetFailure('An unknown error occurred while sending password reset email'));
     }
   }
 }
@@ -130,28 +157,39 @@ export function createAuthChannel(): EventChannel<{ user?: User | null, error?: 
 }
 
 function* initialAuthCheckSaga() {
+  const storedUserId: string | null = yield call([storageService, storageService.getActiveUserId]);
+
+  // Load guest data if stored user ID is guest
+  if (storedUserId === 'guest') {
+    yield call(loadGuestData);
+    yield put(guestSignInSuccess());
+    return;
+  }
+
   const authChannel: EventChannel<{ user?: User | null, error?: Error | null}> = yield call(createAuthChannel);
+  try {
+    const { authState } = yield race({
+      authState: take(authChannel),
+      timeout: delay(2000),
+    });
 
-    try {
-      const { authState } = yield race({
-        authState: take(authChannel),
-        timeout: delay(2000),
-      });
 
-      if (authState?.user) {
-        yield put(signInSuccess(serializeUser(authState.user)));
-        return;
+    if (authState?.user) {
+      // Store the user ID if not already stored
+      if (storedUserId !== authState.user.uid) {
+        yield call([storageService, storageService.setActiveUserId], authState.user.uid);
       }
-
-      if (authState?.error) console.error(authState.error);
-      yield put(signOutSuccess());
-
-      // LOAD LOCALLY STORED USER AND THEIR LOCALLY STORED DATA IF IT EXISTS
-    } finally {
-      yield delay(750);
-      yield put(initialAuthCheckComplete());
-      authChannel.close();
+      yield put(signInSuccess(serializeUser(authState.user)));
+      return;
     }
+
+    if (authState?.error) console.error(authState.error);
+    yield put(signOutSuccess());
+  } finally {
+    yield delay(750);
+    yield put(initialAuthCheckComplete());
+    authChannel.close();
+  }
 }
 
 export function* authSaga() {

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect } from 'react';
-import { type StyleProp, type ViewStyle } from 'react-native';
+import { type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming, type WithSpringConfig, type WithTimingConfig } from 'react-native-reanimated';
 
 type AnimatedViewProps = {
-  children: (JSX.Element | null)[] | null,
+  children?: (JSX.Element | null)[] | null,
   style: StyleProp<ViewStyle>,
 
   startScale?: number,
@@ -12,6 +12,8 @@ type AnimatedViewProps = {
   endX?: number,
   startY?: number,
   endY?: number,
+  startLeft?: number,
+  endLeft?: number,
 
   isSpring?: boolean,
   springConfig?: WithSpringConfig,
@@ -31,6 +33,8 @@ const AnimatedView = (props: AnimatedViewProps) => {
     endX = 0,
     startY = 0,
     endY = 0,
+    startLeft = 0,
+    endLeft = 0,
 
     isSpring,
     springConfig = {
@@ -39,7 +43,7 @@ const AnimatedView = (props: AnimatedViewProps) => {
       stiffness: 100,
     },
     timingConfig = {
-      duration: 200,
+      duration: 250,
       easing: Easing.inOut(Easing.cubic),
     },
 
@@ -49,11 +53,14 @@ const AnimatedView = (props: AnimatedViewProps) => {
   const scale = useSharedValue(startScale);
   const x = useSharedValue(startX);
   const y = useSharedValue(startY);
+  const left = useSharedValue(startLeft);
 
-  const startStyle = {
+  const startStyle: StyleProp<ViewStyle> = {
+    left: `${startLeft}%`,
     transform: [{ scale: startScale }, { translateX: startX }, { translateY: startY }],
   }
   const animatedStyle = useAnimatedStyle(() => ({
+    left: `${left.value}%`,
     transform: [{ scale: scale.value }, { translateX: x.value }, { translateY: y.value }],
   }));
 
@@ -66,6 +73,7 @@ const AnimatedView = (props: AnimatedViewProps) => {
     scale.value = getAnimation(isEnd ? endScale : startScale);
     x.value = getAnimation(isEnd ? endX : startX)
     y.value = getAnimation(isEnd ? endY : startY)
+    left.value = getAnimation(isEnd ? endLeft : startLeft)
   }, [isEnd]);
 
 

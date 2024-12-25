@@ -1,5 +1,5 @@
 import History from '@c/History';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import React from 'react';
 
 
@@ -9,4 +9,4 @@ const HistoryScreen = () => {
   )
 }
 
-export default withAuth(HistoryScreen);
+export default withUser(HistoryScreen);

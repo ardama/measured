@@ -2,24 +2,25 @@ import React, { useEffect } from 'react';
 import { router } from 'expo-router';
 import { useAuth } from '@u/hooks/useAuth';
 
-export function withAuth<P extends object>(
+export function withUser<P extends object>(
   WrappedComponent: React.ComponentType<P>,
-  requireAuth: boolean = true
+  requireUser: boolean = true
 ) {
   return (props: P) => {
-    const { loading, user } = useAuth();
+    const { loading, isAuthenticated, isGuest } = useAuth();
+    const userExists = isAuthenticated || isGuest;
 
     useEffect(() => {
       if (loading) return;
 
       setTimeout(() => {
-        if (requireAuth && !user) {
+        if (requireUser && !userExists) {
           router.replace('/auth');
-        } else if (!requireAuth && user) {
+        } else if (!requireUser && userExists) {
           router.replace('/');
         }
       }, 0)
-    }, [user]);
+    }, [userExists]);
 
     return <WrappedComponent {...props} />;
   };

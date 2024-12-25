@@ -258,7 +258,7 @@ const getHabitCompletion = (
         conditionComplete = conditionValue >= condition.target;
         break;
       case '<':
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionProgress = 1 - Math.min(conditionValue / condition.target, 1.0) || 0;
         conditionComplete = conditionValue < condition.target;
         break;
       case '<=':
@@ -267,7 +267,7 @@ const getHabitCompletion = (
           conditionComplete = true;
           break;
         }
-        conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
+        conditionProgress = 1 - Math.min(conditionValue / condition.target, 1.0) || 0;
         conditionComplete = conditionValue <= condition.target;
         break;
       case '==':

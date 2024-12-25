@@ -2,12 +2,13 @@ import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
 import { callUpdateAccount } from '@s/dataReducer';
 import { useAccount } from '@s/selectors';
+import type { AccountSettings } from '@t/users';
 import { useAuth } from '@u/hooks/useAuth';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router'
 import React, { useEffect, useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { StyleSheet, View } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { Icon, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 
@@ -69,7 +70,7 @@ const Settings = () => {
       control: (
         <View style={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1, paddingLeft: 24 }}>
           <ColorPicker value={account.settings.baseColor} onSelect={(nextColor) => {
-            const nextSettings = { ...account.settings, baseColor: nextColor };
+            const nextSettings: AccountSettings = { ...account.settings, baseColor: nextColor };
             if (!nextColor) delete nextSettings['baseColor'];
             dispatch(callUpdateAccount({ ...account, settings: nextSettings }));
           }}/>
@@ -83,7 +84,7 @@ const Settings = () => {
       title: 'SIGN OUT',
       onPress: () => { router.push('/signout'); },
       control: (
-        <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email}</Text>
+        <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
       )
     },
   ];
@@ -167,7 +168,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     minHeight: 48,
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
+    borderColor: theme.colors.elevation.level5,
     marginTop: -1,
   },
   sectionHeaderTitle: {

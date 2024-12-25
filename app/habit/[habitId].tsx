@@ -1,7 +1,7 @@
 import HabitForm from '@c/HabitForm';
 import LoadingScreen from '@c/Loading';
 import { useHabit } from '@s/selectors';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import { useAuth } from '@u/hooks/useAuth';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -26,4 +26,4 @@ const HabitEditScreen = () => {
   )
 }
 
-export default withAuth(HabitEditScreen);
+export default withUser(HabitEditScreen);

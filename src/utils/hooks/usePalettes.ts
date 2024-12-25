@@ -29,5 +29,6 @@ export const usePalettes = () => {
     getPalette,
     getCombinedPalette,
     globalPalette,
+    basePalette,
   };
 }

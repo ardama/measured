@@ -159,7 +159,10 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, vi
                     key={`${item.title}::${item.value}`}
                     item={item}
                     selected={item.value === selectedItem?.value}
-                    onSelect={() => { onSelect(item); handleDismiss(); }}
+                    onSelect={() => {
+                      onSelect(item);
+                      handleDismiss();
+                    }}
                     palette={colorPalette}
                   />
                 );
@@ -196,11 +199,21 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
   const theme = useTheme();
   const styles = createStyles(theme, palette);
 
+  const pressed = useRef(0);
+
   return (
     <TouchableRipple
-      onPress={() => onSelect(item)}
+      onPressIn={(event) => {
+        pressed.current = event.nativeEvent.pageY;
+      }}
       style={[styles.item, selected && styles.itemSelected, item.disabled && styles.itemDisabled]}
       disabled={item.disabled}
+      onPressOut={(event) => {
+        const distance = Math.abs(event.nativeEvent.pageY - pressed.current);
+        if (!isNaN(distance) && distance < 10) {
+          onSelect(item);
+        }
+      }}
     >
       <View
         style={[styles.itemContent, selected ? styles.itemContentSelected : {}, item.disabled ? styles.itemContentDisabled : {}]}

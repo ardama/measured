@@ -1,8 +1,8 @@
-import { Dimensions, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Dimensions, FlatList, PixelRatio, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Divider, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import Header from '@c/Header';
 import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
@@ -20,9 +20,16 @@ import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { measure, runOnJS, runOnRuntime, runOnUI, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import { runOnUIImmediately } from 'react-native-reanimated/lib/typescript/reanimated2/threads';
+import useDimensions from '@u/hooks/useDimensions';
+import useGlobalStyles from '@u/hooks/useGlobalStyles';
+import { createFontStyle } from '@u/styles';
 
 const Recordings = () => {
+  const theme = useTheme();
+  const { basePalette, globalPalette, getCombinedPalette } = usePalettes();
+  const styles = createStyles(theme, globalPalette);
+  const globalStyles = useGlobalStyles(theme);
+
   const measurements = useMeasurements();
 
   const habits = useComputedHabits();
@@ -33,191 +40,185 @@ const Recordings = () => {
   const today = SimpleDate.today();
   
   const [selectedDate, setSelectedDate] = useState(today);
+  const selectedDayOfWeek = selectedDate.getDayOfWeek();
   const selectedWeekDates = SimpleDate.generateWeek(selectedDate);
-  const previousWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(7));
-  const nextWeekDates = SimpleDate.generateWeek(selectedDate.getDaysAgo(-7));
-  const isToday = SimpleDate.daysBetween(today, selectedDate) === 0;
-  
-  const containerWidth = useSharedValue(0);
-  const translateX = useSharedValue(0);
-  const sharedSelectedDate = useSharedValue(selectedDate.toString());
-  const animatedSelectedDate = useSharedValue(selectedDate.toString());
-  sharedSelectedDate.value = selectedDate.toString();
-  console.log('2', animatedSelectedDate.value, sharedSelectedDate.value, selectedDate.toString());
-
-  // const [isAnimatingTimeline, setIsAnimatingTimeline] = useState(today.toString());
-  // const updateIsAnimating = () => {
-  //   setIsAnimatingTimeline(animatedSelectedDate.value);
-  // }
-  const updateAnimatedSelectedDate = (daysAgo: number) => {
-    const newDate = selectedDate.getDaysAgo(daysAgo);
-    const dateString = newDate.toString()
-
-    runOnUI(() => {
-      'worklet';
-      animatedSelectedDate.value = dateString;
-      console.log('1', animatedSelectedDate.value);
-    })();
-  };
-  const updateSelectedDate = (daysAgo: number) => {
-    const newDate = selectedDate.getDaysAgo(daysAgo);
-    setSelectedDate(newDate);
-  };
+  const isToday = selectedDate.equals(today);
 
   const handleSelectedDateChange = (date: SimpleDate) => {
     setSelectedDate(date);
-    animatedSelectedDate.value = date.toString();
+    
+    if (!flatListRef.current) return;
+    flatListRef.current.scrollToIndex({ index: 52, animated: false});
   }
-  
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    containerWidth.value = event.nativeEvent.layout.width;
-    // translateX.value = -event.nativeEvent.layout.width;
-  }, []);
-  
-  // const tapGesture = Gesture.Tap();
-  const panGesture = Gesture.Pan()
-  .activeOffsetX(0)
-  .minDistance(15)
-  .onStart((event) => {
-    animatedSelectedDate.value = 'none';
-    console.log('0', animatedSelectedDate.value);
-  })
-  .onUpdate((event) => {
-    translateX.value = event.translationX;
-  })
-  .onEnd((event) => {
-    let shiftLeft = false;
-    let shiftRight = false;
-    if (event.translationX > 100 || (containerWidth.value - event.absoluteX < 100)) {
-      shiftLeft = true;
-    } else if (event.translationX < -100  || (event.absoluteX < 100)) {
-      shiftRight = true;
-    }
 
-    const daysAgo = shiftLeft ? 7 : shiftRight ? -7 : 0;
-    daysAgo && runOnJS(updateAnimatedSelectedDate)(daysAgo);
-    translateX.value = withSpring((shiftLeft ? containerWidth.value : 0) + (shiftRight ? -containerWidth.value : 0), {
-      damping: 40,
-      stiffness: 300,
-    }, (finished) => {
-      if (!finished) return;
-      !daysAgo && runOnJS(updateAnimatedSelectedDate)(daysAgo);
-      daysAgo && runOnJS(updateSelectedDate)(daysAgo);
-    });
-  });
-  
-  // const selectedDateString = selectedDate.toString();
-  const timelineContainerAnimated = useAnimatedStyle(() => {
-    if (sharedSelectedDate.value === animatedSelectedDate.value) {
-      translateX.value = 0;
-    }
-    console.log('3', animatedSelectedDate.value, sharedSelectedDate.value, translateX.value);
-    return {
-      transform: [{ translateX: translateX.value }],
-    };
-  });
+  const flatListRef = useAnimatedRef<FlatList<{ dates: SimpleDate[]}>>();
+  const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
 
-  const { width: WINDOW_WIDTH } = Dimensions.get('window');
-  const PAGE_WIDTH = WINDOW_WIDTH;
-  const THRESHOLD = 100; // Scroll threshold to trigger pagination
-  const SPRING_CONFIG = {
-    damping: 20,
-    stiffness: 90,
-  };
-  const scrollRef = useAnimatedRef();
-  const scrollX = useSharedValue(PAGE_WIDTH);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / timelineWidth);
+    const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
+    setSelectedDate(nextSelectedDate);
+  }, [weeks])
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [weeks, setWeeks] = useState([
-    { id: -1, dates: previousWeekDates },
-    { id: 0, dates: selectedWeekDates },
-    { id: 1, dates: nextWeekDates },
-  ]);
-
-  const loadMorePages = useCallback((direction: string) => {
-    setWeeks(currentWeeks => {
-      console.log('direction: ', direction);
-      if (direction === 'left') {
-        const firstWeek = currentWeeks[0];
-        return [
-          { id: firstWeek.id - 1, dates: SimpleDate.generateWeek(firstWeek.dates[0].getDaysAgo(7)) },
-          ...currentWeeks,
-        ];
-      } else {
-        const lastWeek = currentWeeks[currentWeeks.length - 1];
-        return [
-          ...currentWeeks,
-          { id: lastWeek.id + 1, dates: SimpleDate.generateWeek(lastWeek.dates[0].getDaysAgo(-7)) },
-        ];
-      }
-    });
-  }, []);
-
-  const snapToPage = useCallback((index: number) => {
-    const targetOffset = index * PAGE_WIDTH;
-    scrollRef.current?.scrollTo({ x: targetOffset, animated: true });
-    setCurrentIndex(index);
-  }, []);
-
-  const isScrolling = useSharedValue(false);
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      // scrollX.value = event.contentOffset.x;
-      
-      // // Check if we're near the edges to load more content
-      // if (event.contentOffset.x < PAGE_WIDTH * 0.5) {
-      //   runOnJS(loadMorePages)('left');
-      // } else if (event.contentOffset.x > (weeks.length - 1.5) * PAGE_WIDTH) {
-      //   runOnJS(loadMorePages)('right');
-      // }
-    },
-    onBeginDrag: () => {
-      // isScrolling.value = true;
-    },
-    onEndDrag: (event) => {
-      // isScrolling.value = false;
-      
-      // const currentOffset = event.contentOffset.x;
-      // const currentPage = Math.round(currentOffset / PAGE_WIDTH);
-      
-      // // Calculate the difference from the nearest page
-      // const offsetDiff = currentOffset - (currentPage * PAGE_WIDTH);
-      
-      // if (Math.abs(offsetDiff) >= THRESHOLD) {
-      //   // Determine direction and target page
-      //   const targetPage = offsetDiff > 0 ? currentPage + 1 : currentPage - 1;
-      //   runOnJS(snapToPage)(targetPage);
-      // } else {
-      //   // Snap back to current page
-      //   runOnJS(snapToPage)(currentPage);
-      // }
-    },
-  });
-
-  const flatList = (
-    <Animated.FlatList
-      ref={scrollRef}
+  const { window: dimensions } = useDimensions();
+  const timelineWidth = PixelRatio.roundToNearestPixel(dimensions.width);
+  const timelineFlatList = (
+    <FlatList
+      style={{ width: timelineWidth, flexShrink: 0 }}
+      ref={flatListRef}
       data={weeks}
-      keyExtractor={( item ) => item.id.toString()}
-      horizontal
+      keyExtractor={( item ) => item.dates[0].toString()}
       pagingEnabled
-      onScroll={scrollHandler}
-      scrollEventThrottle={16}
+      horizontal
+      initialScrollIndex={52}
       showsHorizontalScrollIndicator={false}
-      // initialScrollIndex={1}
-      onEndReached={() => loadMorePages('right')}
-      onStartReached={() => loadMorePages('left')}
-      // getItemLayout={(_, index) => ({
-      //   length: PAGE_WIDTH,
-      //   offset: PAGE_WIDTH * index,
-      //   index,
-      // })}
+      scrollEventThrottle={32}
+      onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
+      getItemLayout={(_, index) => ({
+        length: timelineWidth,
+        offset: timelineWidth * index,
+        index,
+      })}
       renderItem={({ item }) => {
+        // return (
+        //   <View style={[styles.timelineContainer, { width: timelineWidth }]}>
+        //     <Text variant='bodyMedium' style={styles.timeHeaderText}>
+        //       {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
+        //     </Text>
+        //     <View style={styles.dailyPointTotalContainer}>
+        //       {selectedWeekDates.map((date, index) => {
+        //         const isToday = date.toString() === today.toString();
+        //         const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+        //         const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+        //         const total = daily + weekly;
+        //         const isSelected = index === selectedDayOfWeek;
+        //         const isFuture = date.after(today);
+
+        //         const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
+        //           const recordings = selectedWeekMeasurementValues.get(measurement.id);
+        //           return !recordings || !recordings.length || recordings[index] === null;
+        //         });
+
+        //         const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+        //         const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
+        //         const noMeasurements = isNullRecordings.length === 0;
+        //         const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
+                                  
+        //         const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+        //         return (
+        //           <TouchableRipple
+        //             key={date.toString()}
+        //             style={[
+        //               styles.dailyPoints,
+        //               // isSelected ? styles.dailyPointsSelected : {},
+        //               isToday ? styles.dailyPointsToday : {},
+        //             ]}
+        //             onPress={() => handleSelectedDateChange(date)}
+        //           >
+        //             <>
+        //               <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
+        //                 {/* <Text variant='titleMedium'
+        //                   style={[
+        //                     styles.timelineDateDay,
+        //                     isToday && styles.timelineDateDayToday,
+        //                     isSelected && styles.timelineDateDaySelected,
+        //                   ]}
+        //                 >
+        //                   {date.day}
+        //                 </Text> */}
+        //                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        //                   <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+        //                   <Icon
+        //                     source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
+        //                     size={10}
+        //                     color={color}
+        //                   />
+        //                 </View>
+        //                 {isFuture ? (
+        //                   <View style={{ padding: 4 }}>
+        //                     <Icon source={Icons.indeterminate} size={16} color={color} />
+        //                   </View>
+        //                 ) : (
+        //                   <Points
+        //                     style={styles.dailyPointTotal}
+        //                     points={total}
+        //                     size='medium'
+        //                     disabled={!isSelected}
+        //                     color={color}
+        //                   />
+        //                 )}
+        //               </View>
+        //             </>
+        //           </TouchableRipple>
+        //         )
+        //       })}
+        //     </View>
+        //     {displayedHabits.length ? (
+        //       <>
+        //         {!!perWeekPointTarget &&
+        //           <View style={styles.pointsProgressContainer}>
+        //             {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
+        //               <View style={styles.pointsProgressTargetOuter}>
+        //                 <View style={{ flexGrow: daysThisWeek }} />
+        //                 <View style={styles.pointsProgressTarget}>
+        //                   <View style={styles.pointsProgressTargetInner} />
+        //                 </View>
+        //                 <View style={{ flexGrow: 7 - daysThisWeek }} />
+        //               </View>
+        //             )}
+        //             {selectedWeekDates.map((date, index) => {
+        //               const dailyPoints = selectedWeekDailyHabitPointTotals[index];
+        //               const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
+                      
+        //               const isFuture = date.after(today);
+        //               const isSelected = date.equals(selectedDate);
+        //               const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
+        //               return isFuture ? null : (
+        //                 <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
+        //                   <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
+        //                   <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
+        //                   <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
+        //                 </View>
+        //               );
+        //             })}
+        //             <View style={{
+        //               flexDirection: 'row',
+        //               flexBasis: 8,
+        //               flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
+        //               justifyContent: 'flex-end',
+        //               alignItems: 'center',
+        //             }}>
+        //               {/* <View style={{
+        //                 flexGrow: 1,
+        //                 height: 8,
+        //                 borderRadius: 8,
+        //                 backgroundColor: theme.colors.surfaceDisabled,
+        //               }} /> */}
+        //             </View>
+        //           </View>
+        //         }
+        //         <View style={styles.weekPointsContainer}>
+        //           <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
+        //           <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
+        //           <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+        //           <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        //           <View style={{ flexGrow: 1 }} />
+        //           <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
+        //           <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
+        //           <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+        //           <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        //         </View>
+        //       </>
+        //     ) : null}
+        //   </View>
+        // )
+        
         return (
-          <View style={[styles.timelineContent, { width: WINDOW_WIDTH}]}>
+          <View style={[styles.timelineContent, { width: timelineWidth }]}>
             {item.dates.map((date) => {
               const dayOfWeek = date.getDayOfWeekLabel();
-              const isSelected = date.equals(selectedDate);
+              const isSelected = date.getDayOfWeek() === selectedDayOfWeek;
               const isToday = date.equals(today);
 
               return (
@@ -226,6 +227,7 @@ const Recordings = () => {
                   style={[
                     styles.timelineDate,
                     isToday && styles.timelineDateToday,
+                    // isSelected && globalStyles.elevation1,
                     isSelected && styles.timelineDateSelected,
                   ]}
                 >
@@ -282,10 +284,7 @@ const Recordings = () => {
       }}
     />
   )
-  
-  const theme = useTheme();
-  const { globalPalette } = usePalettes();
-  const styles = createStyles(theme, globalPalette);
+
 
   const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
   const [showArchivedMeasurements, setShowArchivedMeasurements] = useState(false);
@@ -322,6 +321,12 @@ const Recordings = () => {
 
   const measurementMenuItems: BottomDrawerItem<string>[] = [
     {
+      icon: Icons.measurement,
+      title: 'Create',
+      value: 'create',
+      subtitle: 'Define a new measurement.',
+    },
+    {
       icon: Icons.move,
       title: isReorderingMeasurements ? 'Save order' : 'Reorder',
       value: 'reorder',
@@ -355,6 +360,7 @@ const Recordings = () => {
       value: 'reset',
     },
   ];
+
   const [isHabitMenuVisible, setIsHabitMenuVisible] = useState(false);
   const [showArchivedHabits, setShowArchivedHabits] = useState(false);
   const [isReorderingHabits, setIsReorderingHabits] = useState(false);
@@ -389,8 +395,14 @@ const Recordings = () => {
 
   const habitMenuItems: BottomDrawerItem<string>[] = [
     {
+      icon: Icons.habit,
+      title: 'Create',
+      value: 'create',
+      subtitle: 'Define a new habit.',
+    },
+    {
       icon: Icons.move,
-      title: isReorderingHabits ? 'Save order' : 'Reorder habits',
+      title: isReorderingHabits ? 'Save order' : 'Reorder',
       value: 'reorder',
       subtitle: isReorderingHabits ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
       disabled: habits.length <= 1,
@@ -449,35 +461,47 @@ const Recordings = () => {
     mergedRecordingsMap.set(id, mergedRecordings);
   });
 
-  const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date) => {
+  const selectedWeekHabitCompletionMaps = [
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+    new Map<string, boolean>(),
+  ];
+  const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date, index) => {
     return date.after(today) ? 0 : dailyHabits.reduce((previous: number, habit: ComputedHabit) => {
       const [complete, _, __] = getHabitCompletion(habit, measurements, [date], mergedRecordingsMap);  
+      selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
       return previous + (complete ? habit.points : 0);
     }, 0);
   });
-
+  
   const selectedWeekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
   weeklyHabits.forEach((habit) => {
     selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
       const dates = selectedWeekDates.slice(0, index + 1);
       const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
+      selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
 
       if (complete) selectedWeekWeeklyHabitPointTotals[index] += habit.points;
       return complete;
     });
   });
+  const selectedWeekHabitPointTotals = selectedWeekWeeklyHabitPointTotals.map((curr, index) => curr + (selectedWeekDailyHabitPointTotals[index] || 0));
 
   // const selectedDatePointTotal = (
-  //   selectedWeekDailyHabitPointTotals[selectedDate.getDayOfWeek()]
-  //   + selectedWeekWeeklyHabitPointTotals[selectedDate.getDayOfWeek()]
+  //   selectedWeekDailyHabitPointTotals[selectedDayOfWeek]
+  //   + selectedWeekWeeklyHabitPointTotals[selectedDayOfWeek]
   // );
 
   // const selectedDateCumulativePointTotal = (
-  //   selectedWeekDailyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
-  //   + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDate.getDayOfWeek() + 1).reduce((previous: number, current: number) => previous + current, 0)
+  //   selectedWeekDailyHabitPointTotals.slice(0, selectedDayOfWeek + 1).reduce((previous: number, current: number) => previous + current, 0)
+  //   + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDayOfWeek + 1).reduce((previous: number, current: number) => previous + current, 0)
   // );
 
-  const selectedWeekPointTotal = selectedWeekWeeklyHabitPointTotals.reduce((acc, curr, index) => acc + curr + (selectedWeekDailyHabitPointTotals[index] || 0), 0);
+  const selectedWeekPointTotal = selectedWeekHabitPointTotals.reduce((acc, curr) => acc + curr, 0);
   const perWeekPointTarget = activeHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
@@ -600,32 +624,546 @@ const Recordings = () => {
     const nextDelay = Math.max(delay - 25, 100);
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
+
+  const measurementsWithStartDates = useMemo(() => {
+    const result: [Measurement, SimpleDate][] = [];
+    displayedMeasurements.map((measurement) => {
+      const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
+      if (measurement.type !== 'combo' && startDate) result.push([measurement, SimpleDate.fromString(startDate)]);
+    });
+    return result;
+  }, [displayedMeasurements, measurements, mergedRecordingsMap]);
+
+  const measurementStatuses = (
+    <View style={styles.measurementsStatusContainer}>
+      {selectedWeekDates.map((date, index) => {
+        const isSelected = index === selectedDayOfWeek;
+        const isFuture = date.after(today);
+
+        const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
+          const recordings = selectedWeekMeasurementValues.get(measurement.id);
+          return !recordings || !recordings.length || recordings[index] === null;
+        });
+
+        const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+        const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
+        const noMeasurements = isNullRecordings.length === 0;
+        const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
+
+        const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+        const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+        const total = daily + weekly;
+        
+        const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+        return (
+          <View
+            key={date.toString()}
+            style={[
+              styles.measurementsStatus,
+              isSelected ? styles.measurementsStatusSelected : {},
+            ]}
+          >
+            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-end' }}> */}
+            {/* <View style)={{ width: 1, borderRadius: 100, backgroundColor: color, alignSelf: 'stretch' }} /> */}
+            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-start' }}> */}
+            <View>
+              <Icon
+                source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
+                size={14}
+                color={color}
+              />
+            </View>
+            {/* <View
+              style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
+            > */}
+              {/* {isSelected
+                ? <>
+                  {filteredMeasurements.map((measurement, index) => {
+                    const palette = getCombinedPalette(measurement.baseColor);
+                    const isNull = isNullRecordings[index];
+                    return !isNull && <View
+                      style={[styles.measurementsProgressPiece, {
+                        backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
+                      }]}
+                    />
+                  })}
+                  {filteredMeasurements.map((measurement, index) => {
+                    const isNull = isNullRecordings[index];
+                    return isNull && <View
+                      style={[styles.measurementsProgressPiece, {
+                        // backgroundColor: theme.colors.surfaceDisabled,
+                      }]}
+                    />
+                  })}
+                </>
+                : <View
+                style={[styles.measurementsProgressBar, {
+                  width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                  backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
+                }]}
+              />
+              } */}
+              {/* <View
+                  style={[styles.measurementsProgressBar, {
+                    width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                    backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
+                  }]}
+                />
+            </View> */}
+            {/* <ProgressBar
+              style={styles.measurementsProgressBar}
+              color={isSelected ? globalPalette.primary : globalPalette.alt}
+              progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
+            /> */}
+          </View>
+        )
+      })}
+    </View>
+  );
+
+  // const weeklyPoints = (
+  //   <>
+  //     {selectedWeekDates.map((date) => {
+        
+
+  //       return (
+  //         <>
+  //           {isFuture ? (
+  //             <View style={{ padding: 4 }}>
+  //               <Icon source={Icons.indeterminate} size={16} color={color} />
+  //             </View>
+  //           ) : (
+  //             <Points
+  //               style={styles.dailyPointTotal}
+  //               points={total}
+  //               size='medium'
+  //               disabled={!isSelected}
+  //               color={color}
+  //             />
+  //           )}
+  //         </>
+  //       )
+  //     })}
+  //   </>
+  // )
+
+  const measurementDailyProgressSection = (() => {
+    const filteredMeasurements = displayedMeasurements.filter((measurement) => {
+      const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
+      return startDate && selectedDate.toString() >= startDate;
+    });
+
+    const isNullRecordings = filteredMeasurements.map((measurement) => {
+      const recordings = selectedWeekMeasurementValues.get(measurement.id);
+      return !recordings || !recordings.length || recordings[selectedDayOfWeek] === null;
+    });
+    
+    const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+    const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
+
+    return (
+      <View>
+        <View style={styles.measurementDailyProgress}>
+          {filteredMeasurements.map((measurement, index) => {
+            
+            const isNull = isNullRecordings[index];
+            const palette = getCombinedPalette(measurement.baseColor);
   
+            const color = palette.primary;
+            return (
+              <View
+                key={measurement.id.toString()}
+                style={[
+                  styles.measurementDailyProgressIcon,
+                ]}
+              >
+                <View>
+                  <Icon
+                    source={isNull ? Icons.progressNone : Icons.progressComplete}
+                    size={8}
+                    color={color}
+                  />
+                </View>
+              </View>
+            )
+          })}
+        </View>
+        <View style={styles.weekPointsContainer}>
+          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Day</Text>
+          <View style={{ flexGrow: 1 }} />
+          <Text variant='titleSmall'>{formatNumber(nonNullRecordingCount, 0)}</Text>
+          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+          <Text variant='titleSmall'>{formatNumber(filteredMeasurements.length, 0)}</Text>
+        </View>
+      </View>
+    );
+  })();
+
+  const measurementWeeklyProgressSection = (() => {
+    const measurementCounts: number[] = [];
+    const measurementCompletions: number[] = [];
+    selectedWeekDates.forEach((date, index) => {
+      const isFuture = date.after(today);
+      const filteredMeasurements = displayedMeasurements.filter((measurement) => {
+        const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
+        return startDate && date.toString() >= startDate;
+      });
+      
+      const isNullRecordings = filteredMeasurements.map((measurement) => {
+        const recordings = selectedWeekMeasurementValues.get(measurement.id);
+        return !recordings || !recordings.length || recordings[index] === null;
+      });
+      const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+      const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
+      const noMeasurements = filteredMeasurements.length === 0;
+      
+      
+      measurementCompletions[index] = noMeasurements || isFuture ? 0 : nonNullRecordingCount;
+      measurementCounts[index] = filteredMeasurements.length;
+    });
+
+    const weekMeasurementCount = measurementCounts.reduce((acc, curr) => acc + curr, 0);
+    const weekMeasurementCompletions = measurementCompletions.reduce((acc, curr) => acc + curr, 0);
+
+    return (
+      <View>
+        <View style={styles.measurementsStatusContainer}>
+          {selectedWeekDates.map((date, index) => {
+            const isSelected = index === selectedDayOfWeek;
+            
+            const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+            return (
+              <View
+                key={date.toString()}
+                style={[
+                  styles.measurementsStatus,
+                  isSelected ? styles.measurementsStatusSelected : {},
+                ]}
+              >
+                <View>
+                  <Icon
+                    source={measurementCompletions[index] === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletions[index] / measurementCounts[index])}
+                    size={12}
+                    color={color}
+                  />
+                </View>
+              </View>
+            )
+          })}
+        </View>
+        <View style={styles.weekPointsContainer}>
+          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Week</Text>
+          <View style={{ flexGrow: 1 }} />
+          <Text variant='titleSmall'>{formatNumber(weekMeasurementCompletions, 0)}</Text>
+          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+          <Text variant='titleSmall'>{formatNumber(weekMeasurementCount, 0)}</Text>
+        </View>
+      </View>
+    );
+  })();
+
+  const habitStatuses = (
+    <View style={styles.measurementsStatusContainer}>
+      {selectedWeekDates.map((date, index) => {
+        const isSelected = index === selectedDayOfWeek;
+        const isFuture = date.after(today);
+        const filteredMeasurements = displayedMeasurements.filter((measurement) => {
+          const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
+          return measurement.type !== 'combo' && startDate && date.toString() >= startDate;
+        });
+
+        const isNullRecordings = filteredMeasurements.map((measurement) => {
+          const recordings = selectedWeekMeasurementValues.get(measurement.id);
+          return !recordings || !recordings.length || recordings[index] === null;
+        });
+
+        const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+        const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
+        const noMeasurements = filteredMeasurements.length === 0;
+        const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length;
+
+        const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+        const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+        const total = daily + weekly;
+        
+        const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+        return (
+          <View
+            key={date.toString()}
+            style={[
+              styles.measurementsStatus,
+              isSelected ? styles.measurementsStatusSelected : {},
+            ]}
+          >
+            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-end' }}> */}
+            {/* <View style)={{ width: 1, borderRadius: 100, backgroundColor: color, alignSelf: 'stretch' }} /> */}
+            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-start' }}> */}
+            <View>
+              {isFuture || noMeasurements ? (
+                <View style={{ padding: 5 }}>
+                  <Icon source={Icons.indeterminate} size={14} color={color} />
+                </View>
+              ) : (
+                <Points
+                  style={styles.dailyPointTotal}
+                  points={total}
+                  size='medium'
+                  disabled={!isSelected}
+                  color={color}
+                  inline
+                />
+              )}
+            </View>
+            {/* <View
+              style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
+            > */}
+              {/* {isSelected
+                ? <>
+                  {filteredMeasurements.map((measurement, index) => {
+                    const palette = getCombinedPalette(measurement.baseColor);
+                    const isNull = isNullRecordings[index];
+                    return !isNull && <View
+                      style={[styles.measurementsProgressPiece, {
+                        backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
+                      }]}
+                    />
+                  })}
+                  {filteredMeasurements.map((measurement, index) => {
+                    const isNull = isNullRecordings[index];
+                    return isNull && <View
+                      style={[styles.measurementsProgressPiece, {
+                        // backgroundColor: theme.colors.surfaceDisabled,
+                      }]}
+                    />
+                  })}
+                </>
+                : <View
+                style={[styles.measurementsProgressBar, {
+                  width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                  backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
+                }]}
+              />
+              } */}
+              {/* <View
+                  style={[styles.measurementsProgressBar, {
+                    width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
+                    backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
+                  }]}
+                />
+            </View> */}
+            {/* <ProgressBar
+              style={styles.measurementsProgressBar}
+              color={isSelected ? globalPalette.primary : globalPalette.alt}
+              progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
+            /> */}
+          </View>
+        )
+      })}
+    </View>
+  );
+  
+  const habitProgressSection = displayedHabits.length ? !!perWeekPointTarget &&
+    <>
+      <View style={styles.pointsProgressContainer}>
+        {!today.after(selectedWeekDates[5]) && !today.before(selectedWeekDates[0]) && (
+          <View style={styles.pointsProgressTargetOuter}>
+            <View style={{ flexGrow: daysThisWeek }} />
+            <View style={styles.pointsProgressTarget}>
+              <View style={styles.pointsProgressTargetInner} />
+            </View>
+            <View style={{ flexGrow: 7 - daysThisWeek }} />
+          </View>
+        )}
+        {selectedWeekDates.map((date, index) => {
+          const dailyPoints = selectedWeekDailyHabitPointTotals[index];
+          const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
+          
+          const isFuture = date.after(today);
+          const isSelected = date.equals(selectedDate);
+          const backgroundColor = globalPalette.primary;
+          return isFuture ? null : (
+            <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
+              {/* <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} /> */}
+              {/* <View style={[styles.pointsProgressBarEnd, { right: -2 }]} /> */}
+              {/* <View style={[styles.pointsProgressBarBackdrop]} /> */}
+              <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
+            </View>
+          );
+        })}
+        <View style={{
+          flexDirection: 'row',
+          flexBasis: 8,
+          flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+        }}>
+        </View>
+      </View>
+      <View style={styles.weekPointsContainer}>
+        <View style={{ flexGrow: 1 }} />
+        {/* <Text variant='bodySmall' style={styles.weekPointsLabel}>Day</Text>
+        <Points size={'small'} points={selectedWeekHabitPointTotals[selectedDayOfWeek]} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        <View style={{ flexGrow: 0, width: 12 }} /> */}
+        <Text variant='bodySmall' style={styles.weekPointsLabel}>Week</Text>
+        <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
+        <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+        <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        {/* <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
+        <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
+        <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+        <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} /> */}
+      </View>
+    </> : null;
+
+
+  const habitDailyProgressSection = (
+      <View style={{ paddingHorizontal: 0 }}>
+        <View style={styles.pointsProgressContainer}>
+          {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
+            <View style={styles.pointsProgressTargetOuter}>
+              <View style={{ flexGrow: daysThisWeek }} />
+              <View style={styles.pointsProgressTarget}>
+                <View style={styles.pointsProgressTargetInner} />
+              </View>
+              <View style={{ flexGrow: 7 - daysThisWeek }} />
+            </View>
+          )}
+          {(() => {
+            
+            const isFuture = selectedDate.after(today);
+            const isSelected = selectedDate.equals(selectedDate);
+
+            return displayedHabits.map((habit, index) => {
+              const palette = getCombinedPalette(habit.baseColor);
+              const backgroundColor = isSelected ? palette.primary : palette.alt;
+              const isComplete = selectedWeekHabitCompletionMaps[selectedDayOfWeek].get(habit.id);
+              return isComplete ? (
+                <View key={habit.id} style={[styles.pointsProgressBar, { flexGrow: habit.points }]}>
+                  <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
+                  <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
+                  <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
+                </View>
+              ) : null;
+            });
+          })()}
+          <View style={{
+            flexDirection: 'row',
+            flexBasis: 0,
+            flexGrow: Math.max(0, (perWeekPointTarget / 7) - selectedWeekHabitPointTotals[selectedDayOfWeek]),
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+          }}>
+            {/* <View style={{
+              flexGrow: 1,
+              height: 8,
+              borderRadius: 8,
+              backgroundColor: theme.colors.surfaceDisabled,
+            }} /> */}
+          </View>
+        </View>
+        <View style={styles.weekPointsContainer}>
+          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Day</Text>
+          <View style={{ flexGrow: 1 }} />
+          <Text variant='titleSmall'>{formatNumber(selectedWeekHabitPointTotals[selectedDayOfWeek], 1)}</Text>
+          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+          <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} inline textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        </View>
+      </View>
+  );
+  
+  const habitWeeklyProgressSection = (
+    displayedHabits.length ? (
+      <View style={{ paddingHorizontal: 0 }}>
+        {!!perWeekPointTarget &&
+          <View style={styles.pointsProgressContainer}>
+            {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
+              <View style={styles.pointsProgressTargetOuter}>
+                <View style={{ flexGrow: daysThisWeek }} />
+                <View style={styles.pointsProgressTarget}>
+                  <View style={styles.pointsProgressTargetInner} />
+                </View>
+                <View style={{ flexGrow: 7 - daysThisWeek }} />
+              </View>
+            )}
+            {selectedWeekDates.map((date, index) => {
+              const dailyPoints = selectedWeekDailyHabitPointTotals[index];
+              const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
+              
+              const isFuture = date.after(today);
+              const isSelected = date.equals(selectedDate);
+              const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
+              return isFuture ? null : (
+                <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
+                  <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
+                  <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
+                  <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
+                </View>
+              );
+            })}
+            <View style={{
+              flexDirection: 'row',
+              flexBasis: 0,
+              flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+            }}>
+              {/* <View style={{
+                flexGrow: 1,
+                height: 8,
+                borderRadius: 8,
+                backgroundColor: theme.colors.surfaceDisabled,
+              }} /> */}
+            </View>
+          </View>
+        }
+        <View style={styles.weekPointsContainer}>
+          <Text variant='bodySmall' style={styles.weekPointsLabel}>Week</Text>
+          <View style={{ flexGrow: 1 }} />
+          <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
+          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+          <Points size={'small'} points={perWeekPointTarget} inline textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+        </View>
+      </View>
+    ) : null
+  );
+
   return (
     <>
       <Header
+        // color={theme.colors.elevation.level3}
+        color={theme.dark ? globalPalette.backdrop : theme.colors.elevation.level5}
         showMenuButton
-        title={isReorderingMeasurements || isReorderingHabits ? 'Reordering' : 'Measure'}
-        subtitle={
-          isReorderingMeasurements ? ' : Measurements' :
-          isReorderingHabits ? ' : Habits' : 
-          isToday ? ' : Today' :
-          ` : ${selectedDate.toFormattedString(true, false, true)}`
+        // bordered
+        // title={'Measure'}
+        title={
+          isToday ? 'Today' :
+          `${selectedDate.toFormattedString(true, false, true)}`
         }
+        // subtitle={
+        //   isReorderingMeasurements ? ' : Measurements' :
+        //   isReorderingHabits ? ' : Habits' : 
+        //   ''
+        // }
         actionContent={
           <>
-            {
+            {/* {
               !isToday ? (
                 <Button
                   mode='text'
+                  style={{ borderRadius: 12, marginRight: 4 }}
                   textColor={theme.colors.onSurface}
-                  onPress={() => handleSelectedDateChange(today)}
+                  onPress={() => {
+                    setSelectedDate(today);
+
+                    if (!flatListRef.current) return;
+                    flatListRef.current.scrollToIndex({ index: 52, animated: false});
+                  }}
                 >
                   TODAY
                 </Button>
               ) : null
-            }
-            <BottomDrawer
+            } */}
+            {/* <BottomDrawer
               title='Create'
               visible={isAddMenuVisible}
               onDismiss={() => setIsAddMenuVisible(false)}
@@ -646,12 +1184,56 @@ const Recordings = () => {
                   router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
                 }, 0);
               }}
-            />
+            /> */}
           </>
         }
       />
-      <View onLayout={onLayout} style={styles.container}>
-        {flatList}
+      <View
+        // onLayout={onLayout}
+        style={styles.container}
+      >
+        <View style={[styles.timelineContainer]}>
+          {/* <Text variant='bodyMedium' style={styles.timeHeaderText}>
+            {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
+          </Text> */}
+          {timelineFlatList}
+          {/* {measurementStatuses} */}
+          {/* {habitStatuses} */}
+          {habitProgressSection}
+        </View>
+        {/* <View style={{ flexDirection: 'row', paddingHorizontal: 8, gap: 12, marginBottom: 8 }}>
+          <View style={{ width: '100%', flexGrow: 1, flexShrink: 1, }}>
+            <View style={[{ borderRadius: 20, width: '100%', gap: 8, flexGrow: 1, flexShrink: 1, padding: 16 }, globalStyles.elevation1]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 0, gap: 8 }}>
+              <Text variant='bodyLarge' style={{ flexShrink: 0, textAlign: 'left', marginTop: 4, marginBottom: 2 }}>
+                Measurements
+              </Text>
+
+              <Text variant='titleMedium' style={{ flexGrow: 0, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
+                {selectedDate.toFormattedString()}
+              </Text>
+            </View>
+              {measurementDailyProgressSection}
+              {measurementWeeklyProgressSection}
+            </View>
+          </View>
+          <View style={{ width: '100%', flexGrow: 1, flexShrink: 1, }}>
+            <View style={[{ borderRadius: 20, width: '100%', gap: 8, flexGrow: 1, flexShrink: 1, padding: 16 }, globalStyles.elevation1]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 0, gap: 8 }}>
+                <Text variant='bodyLarge' style={{ flexShrink: 0, textAlign: 'left', marginTop: 4, marginBottom: 2 }}>
+                  Habits
+                </Text>
+
+                <Text variant='titleMedium' style={{ flexGrow: 0, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
+                  {selectedWeekDates[0].toFormattedString(false, false, false, true)} - {selectedWeekDates[6].toFormattedString(false, false, false, true)}
+                </Text>
+              </View>
+              {habitDailyProgressSection}
+              {habitWeeklyProgressSection}
+            </View>
+          </View>
+
+        </View> */}
         {/* <GestureDetector gesture={panGesture}> */}
           {/* <Animated.View style={[
             styles.timelineContainer,
@@ -888,156 +1470,130 @@ const Recordings = () => {
             </View> */}
           {/* </Animated.View> */}
         {/* </GestureDetector> */}
-        <NestableScrollContainer style={styles.content}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderIcon}>
-              <Icon source={Icons.measurement} size={14} />
-            </View>
-            <Text style={styles.sectionHeaderTitle} variant='labelLarge'>MEASUREMENTS</Text>
-            {!!measurements.length && isReorderingMeasurements && <IconButton
-              style={styles.sectionHeaderButton}
-              icon={Icons.move}
-              size={16}
-              onPress={() => {
-                submitMeasurementOrder();
-                setIsReorderingMeasurements(false);
-              }}
-              disabled={!measurements.length}
-              containerColor={globalPalette.backdrop}
-            />}
-            {!!measurements.length && showArchivedMeasurements && <IconButton
-              style={styles.sectionHeaderButton}
-              icon={Icons.show}
-              size={16}
-              onPress={() => {
-                setShowArchivedMeasurements(false)
-              }}
-              disabled={!measurements.length}
-              containerColor={globalPalette.backdrop}
-            />}
-            {<BottomDrawer
-                title='Measurements'
-                visible={isMeasurementMenuVisible}
-                onDismiss={() => setIsMeasurementMenuVisible(false)}
-                anchor={
-                  <IconButton
-                    style={styles.sectionHeaderButton}
-                    icon={Icons.settings}
-                    size={16}
-                    onPress={() => {
-                      setIsMeasurementMenuVisible(true);
-                    }}
-                    disabled={!measurements.length}
-                  />
-                }
-                items={measurementMenuItems}
-                onSelect={({ value }) => {
-                  switch (value) {
-                    case 'reorder':
-                      if (isReorderingMeasurements) submitMeasurementOrder()
-                      else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
-                      setIsReorderingMeasurements(!isReorderingMeasurements);
-                      break;
-                    case 'expand':
-                      setExpandedMeasurements(new Set(displayedMeasurementIds));
-                      break;
-                    case 'collapse':
-                      setExpandedMeasurements(new Set());
-                      break;
-                    case 'visibility':
-                      setShowArchivedMeasurements(!showArchivedMeasurements);
-                      break;
-                    case 'reset':
-                      setTempRecordingsMap(new Map());
-                      clearRecordings();
-                      break;
-                    default:
-                      break;
-                  }
-                  setIsMeasurementMenuVisible(false);
-                }}
-              />
-            }
-            <View style={styles.measurementsStatusContainer}>
-              {selectedWeekDates.map((date, index) => {
-                const isSelected = index === selectedDate.getDayOfWeek();
-                const isFuture = date.after(today);
-                const filteredMeasurements = displayedMeasurements.filter((measurement) => {
-                  const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
-                  return measurement.type !== 'combo' && startDate && date.toString() >= startDate;
-                });
+        {/* <View style={[styles.sectionHeader, { borderBottomWidth: 1 }]}>
 
-                const isNullRecordings = filteredMeasurements.map((measurement) => {
+        </View> */}
+        <NestableScrollContainer style={styles.content}>
+          <View style={[globalStyles.elevation1, styles.section]}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderIcon}>
+                <Icon source={Icons.measurement} size={14} />
+              </View>
+              <Text style={styles.sectionHeaderTitle} variant='labelLarge'>MEASUREMENTS</Text>
+              {!!measurements.length && isReorderingMeasurements && <IconButton
+                style={styles.sectionHeaderButton}
+                icon={Icons.move}
+                size={16}
+                onPress={() => {
+                  submitMeasurementOrder();
+                  setIsReorderingMeasurements(false);
+                }}
+                disabled={!measurements.length}
+                containerColor={globalPalette.backdrop}
+              />}
+              {!!measurements.length && showArchivedMeasurements && <IconButton
+                style={styles.sectionHeaderButton}
+                icon={Icons.show}
+                size={16}
+                onPress={() => {
+                  setShowArchivedMeasurements(false)
+                }}
+                disabled={!measurements.length}
+                containerColor={globalPalette.backdrop}
+              />}
+              {<BottomDrawer
+                  title='Measurements'
+                  visible={isMeasurementMenuVisible}
+                  onDismiss={() => setIsMeasurementMenuVisible(false)}
+                  anchor={
+                    <IconButton
+                      style={styles.sectionHeaderButton}
+                      icon={Icons.settings}
+                      size={16}
+                      onPress={() => {
+                        setIsMeasurementMenuVisible(true);
+                      }}
+                    />
+                  }
+                  items={measurementMenuItems}
+                  onSelect={({ value }) => {
+                    switch (value) {
+                      case 'create':
+                        router.push('/measurement/create');
+                        break;
+                      case 'reorder':
+                        if (isReorderingMeasurements) submitMeasurementOrder()
+                        else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
+                        setIsReorderingMeasurements(!isReorderingMeasurements);
+                        break;
+                      case 'expand':
+                        setExpandedMeasurements(new Set(displayedMeasurementIds));
+                        break;
+                      case 'collapse':
+                        setExpandedMeasurements(new Set());
+                        break;
+                      case 'visibility':
+                        setShowArchivedMeasurements(!showArchivedMeasurements);
+                        break;
+                      case 'reset':
+                        setTempRecordingsMap(new Map());
+                        clearRecordings();
+                        break;
+                      default:
+                        break;
+                    }
+                    setIsMeasurementMenuVisible(false);
+                  }}
+                />
+              }
+            <View style={styles.dailyPointTotalContainer}>
+              {selectedWeekDates.map((date, index) => {
+                const isToday = date.toString() === today.toString();
+                const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+                const total = daily + weekly;
+                const isSelected = index === selectedDayOfWeek;
+                const isFuture = date.after(today);
+
+                const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
                   const recordings = selectedWeekMeasurementValues.get(measurement.id);
                   return !recordings || !recordings.length || recordings[index] === null;
                 });
 
                 const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-                const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
-
-                // const nonNullRecordingCount = [...selectedWeekMeasurementValues.entries()].filter(([measurementId, recordings]) => {
-                //   if (filteredMeasurements.findIndex(({ id }) => id === measurementId) === -1) return false;
-                //   return recordings[index] !== null;
-                // }).length;
-
-                const noMeasurements = filteredMeasurements.length === 0;
-                const iconColor = isSelected ? globalPalette.primary : globalPalette.disabled;
+                const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
+                const noMeasurements = isNullRecordings.length === 0;
+                const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
+                                  
+                const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
                 return (
-                  <View
+                  <TouchableRipple
                     key={date.toString()}
                     style={[
-                      styles.measurementsStatus,
-                      isSelected ? styles.measurementsStatusSelected : {},
+                      styles.dailyPoints,
+                      // isSelected ? styles.dailyPointsSelected : {},
+                      isToday ? styles.dailyPointsToday : {},
                     ]}
+                    onPress={() => handleSelectedDateChange(date)}
                   >
-                    <View
-                      style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
-                    >
-                      {/* {isSelected
-                        ? <>
-                          {filteredMeasurements.map((measurement, index) => {
-                            const palette = getCombinedPalette(measurement.baseColor);
-                            const isNull = isNullRecordings[index];
-                            return !isNull && <View
-                              style={[styles.measurementsProgressPiece, {
-                                backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
-                              }]}
-                            />
-                          })}
-                          {filteredMeasurements.map((measurement, index) => {
-                            const isNull = isNullRecordings[index];
-                            return isNull && <View
-                              style={[styles.measurementsProgressPiece, {
-                                // backgroundColor: theme.colors.surfaceDisabled,
-                              }]}
-                            />
-                          })}
-                        </>
-                        : <View
-                        style={[styles.measurementsProgressBar, {
-                          width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                          backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
-                        }]}
-                      />
-                      } */}
-                      <View
-                          style={[styles.measurementsProgressBar, {
-                            width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                            backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
-                          }]}
-                        />
-                    </View>
-                    {/* <ProgressBar
-                      style={styles.measurementsProgressBar}
-                      color={isSelected ? globalPalette.primary : globalPalette.alt}
-                      progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
-                    /> */}
-                  </View>
+                    <>
+                      <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
+                        <View style={{ alignItems: 'center', gap: 4 }}>
+                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+                          <Icon
+                            source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
+                            size={12}
+                            color={color}
+                          />
+                        </View>
+                      </View>
+                    </>
+                  </TouchableRipple>
                 )
               })}
             </View>
-          </View>
-          <View style={styles.sectionContent}>
+            </View>
+            <View style={styles.sectionContent}>
             <View style={styles.recordingView}>
               {displayedMeasurements.length ? (
                 <>
@@ -1128,610 +1684,755 @@ const Recordings = () => {
                 </>
               )}
             </View>
-          </View>
-          {!!measurements.length && (  
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderIcon}>
-                <Icon source={Icons.habit} size={14} />
-              </View>
-              <Text style={styles.sectionHeaderTitle} variant='labelLarge'>HABITS</Text>
-              {!!habits.length && isReorderingHabits && <IconButton
-                style={styles.sectionHeaderButton}
-                icon={Icons.move}
-                size={16}
-                onPress={() => {
-                  submitHabitOrder();
-                  setIsReorderingHabits(false);
-                }}
-                disabled={!habits.length}
-                containerColor={globalPalette.backdrop}
-              />}
-              {!!habits.length && showArchivedHabits && <IconButton
-                style={styles.sectionHeaderButton}
-                icon={Icons.show}
-                size={16}
-                onPress={() => {
-                  setShowArchivedHabits(false)
-                }}
-                disabled={!habits.length}
-                containerColor={globalPalette.backdrop}
-              />}
-              <BottomDrawer
-                title='Habits'
-                visible={isHabitMenuVisible}
-                onDismiss={() => setIsHabitMenuVisible(false)}
-                anchor={
-                  <IconButton
-                    style={styles.sectionHeaderButton}
-                    icon={Icons.settings}
-                    size={16}
-                    onPress={() => {
-                      setIsHabitMenuVisible(true);
-                    }}
-                    disabled={!habits.length}
-                  />
-                }
-                items={habitMenuItems}
-                onSelect={({ value }) => {
-                  setTimeout(() => {
-                    switch (value) {
-                      case 'reorder':
-                        if (isReorderingHabits) submitHabitOrder();
-                        else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
-                        setIsReorderingHabits(!isReorderingHabits);
-                        break;
-                      case 'expand':
-                        setExpandedHabits(new Set(displayedHabitIds));
-                        break;
-                      case 'collapse':
-                        setExpandedHabits(new Set());
-                        break;
-                      case 'visibility':
-                        setShowArchivedHabits(!showArchivedHabits);
-                        break;
-                      default:
-                        break;
-                    }
-                  }, 150);
-                  setIsHabitMenuVisible(false);
-                }}
-              />
-              {displayedHabits.length ? (
-                <>
-                  {!!perWeekPointTarget &&
-                    <View style={styles.pointsProgressContainer}>
-                      {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
-                        <View style={styles.pointsProgressTargetOuter}>
-                          <View style={{ flexGrow: daysThisWeek }} />
-                          <View style={styles.pointsProgressTarget}>
-                            <View style={styles.pointsProgressTargetInner} />
-                          </View>
-                          <View style={{ flexGrow: 7 - daysThisWeek }} />
-                        </View>
-                      )}
-                      {selectedWeekDates.map((date, index) => {
-                        const dailyPoints = selectedWeekDailyHabitPointTotals[index];
-                        const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
-                        
-                        const isFuture = date.after(today);
-                        const isSelected = date.equals(selectedDate);
-                        const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
-                        return isFuture ? null : (
-                          <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints, backgroundColor }]} />
-                        );
-                      })}
-                      <View style={{
-                        flexDirection: 'row',
-                        flexBasis: 0,
-                        flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
-                        justifyContent: 'flex-end',
-                        alignItems: 'center',
-                      }}>
-                        <View style={{
-                          flexGrow: 1,
-                          height: 8,
-                          borderRadius: 8,
-                          backgroundColor: theme.colors.surfaceDisabled,
-                        }} />
-                      </View>
-                    </View>
-                  }
-                  <View style={styles.weekPointsContainer}>
-                    <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
-                    <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
-                    <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-                    <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                    <View style={{ flexGrow: 1 }} />
-                    <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
-                    <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
-                    <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-                    <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                  </View>
-                </>
-              ) : null}
-              <View style={styles.dailyPointTotalContainer}>
-                {selectedWeekDates.map((date, index) => {
-                  const isToday = date.toString() === today.toString();
-                  const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                  const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                  const total = daily + weekly;
-                  const isSelected = index === selectedDate.getDayOfWeek();
-                  const isFuture = date.after(today);
-                  
-                  const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-                  return (
-                    <TouchableRipple
-                      key={date.toString()}
-                      style={[
-                        styles.dailyPoints,
-                        isSelected ? styles.dailyPointsSelected : {},
-                        isToday ? styles.dailyPointsToday : {},
-                      ]}
-                      onPress={() => handleSelectedDateChange(date)}
-                    >
-                      <>
-                        <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                          {isFuture ? (
-                            <View style={{ padding: 4 }}>
-                              <Icon source={Icons.indeterminate} size={16} color={color} />
-                            </View>
-                          ) : (
-                            <Points
-                              style={styles.dailyPointTotal}
-                              points={total}
-                              size='medium'
-                              disabled={!isSelected}
-                              color={color}
-                            />
-                          )}
-                        </View>
-                      </>
-                    </TouchableRipple>
-                  )
-                })}
-              </View>
             </View>
-            
-          )}
-          <View style={styles.sectionContent}>
-            {!!measurements.length && (
-              <View style={styles.recordingView}>
-                {displayedHabits.length ? (
+          </View>
+            <View style={[globalStyles.elevation1, styles.section]}>
+            {!!measurements.length && (  
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderIcon}>
+                  <Icon source={Icons.habit} size={14} />
+                </View>
+                <Text style={styles.sectionHeaderTitle} variant='labelLarge'>HABITS</Text>
+                {!!habits.length && isReorderingHabits && <IconButton
+                  style={styles.sectionHeaderButton}
+                  icon={Icons.move}
+                  size={16}
+                  onPress={() => {
+                    submitHabitOrder();
+                    setIsReorderingHabits(false);
+                  }}
+                  disabled={!habits.length}
+                  containerColor={globalPalette.backdrop}
+                />}
+                {!!habits.length && showArchivedHabits && <IconButton
+                  style={styles.sectionHeaderButton}
+                  icon={Icons.show}
+                  size={16}
+                  onPress={() => {
+                    setShowArchivedHabits(false)
+                  }}
+                  disabled={!habits.length}
+                  containerColor={globalPalette.backdrop}
+                />}
+                <BottomDrawer
+                  title='Habits'
+                  visible={isHabitMenuVisible}
+                  onDismiss={() => setIsHabitMenuVisible(false)}
+                  anchor={
+                    <IconButton
+                      style={styles.sectionHeaderButton}
+                      icon={Icons.settings}
+                      size={16}
+                      onPress={() => {
+                        setIsHabitMenuVisible(true);
+                      }}
+                    />
+                  }
+                  items={habitMenuItems}
+                  onSelect={({ value }) => {
+                    setTimeout(() => {
+                      switch (value) {
+                        case 'create':
+                          router.push('/habit/create');
+                          break;
+                        case 'reorder':
+                          if (isReorderingHabits) submitHabitOrder();
+                          else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
+                          setIsReorderingHabits(!isReorderingHabits);
+                          break;
+                        case 'expand':
+                          setExpandedHabits(new Set(displayedHabitIds));
+                          break;
+                        case 'collapse':
+                          setExpandedHabits(new Set());
+                          break;
+                        case 'visibility':
+                          setShowArchivedHabits(!showArchivedHabits);
+                          break;
+                        default:
+                          break;
+                      }
+                    }, 150);
+                    setIsHabitMenuVisible(false);
+                  }}
+                />
+                {/* {displayedHabits.length ? (
                   <>
-                    {isReorderingHabits ? (
-                      <NestableDraggableFlatList
-                        data={habitPriorityOverrides || []}
-                        onDragEnd={({ data }) => {
-                          setHabitPriorityOverrides(data);
-                        }}
-                        keyExtractor={(id) => id}
-                        activationDistance={forWeb(1, 20)}
-                        renderItem={({ item: habitId, getIndex, drag, isActive }) => {
-                          const habit = habits.find(({ id }) => id === habitId);
-                          if (!habit) return;
-    
-                          return (
-                            <ScaleDecorator activeScale={1.05}>
+                    {!!perWeekPointTarget &&
+                      <View style={styles.pointsProgressContainer}>
+                        {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
+                          <View style={styles.pointsProgressTargetOuter}>
+                            <View style={{ flexGrow: daysThisWeek }} />
+                            <View style={styles.pointsProgressTarget}>
+                              <View style={styles.pointsProgressTargetInner} />
+                            </View>
+                            <View style={{ flexGrow: 7 - daysThisWeek }} />
+                          </View>
+                        )}
+                        {selectedWeekDates.map((date, index) => {
+                          const dailyPoints = selectedWeekDailyHabitPointTotals[index];
+                          const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
+                          
+                          const isFuture = date.after(today);
+                          const isSelected = date.equals(selectedDate);
+                          const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
+                          return isFuture ? null : (
+                            <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
+                              <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
+                              <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
+                              <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
+                            </View>
+                          );
+                        })}
+                        <View style={{
+                          flexDirection: 'row',
+                          flexBasis: 8,
+                          flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                        }}>
+                          <View style={{
+                            flexGrow: 1,
+                            height: 8,
+                            borderRadius: 8,
+                            backgroundColor: theme.colors.surfaceDisabled,
+                          }} />
+                        </View>
+                      </View>
+                    }
+                    <View style={styles.weekPointsContainer}>
+                      <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
+                      <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
+                      <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+                      <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+                      <View style={{ flexGrow: 1 }} />
+                      <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
+                      <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
+                      <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
+                      <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+                    </View>
+                  </>
+                ) : null}
+                <View style={styles.dailyPointTotalContainer}>
+                  {selectedWeekDates.map((date, index) => {
+                    const isToday = date.toString() === today.toString();
+                    const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                    const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+                    const total = daily + weekly;
+                    const isSelected = index === selectedDayOfWeek;
+                    const isFuture = date.after(today);
+                    
+                    const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+                    return (
+                      <TouchableRipple
+                        key={date.toString()}
+                        style={[
+                          styles.dailyPoints,
+                          isSelected ? styles.dailyPointsSelected : {},
+                          isToday ? styles.dailyPointsToday : {},
+                        ]}
+                        onPress={() => handleSelectedDateChange(date)}
+                      >
+                        <>
+                          <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
+                            <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+                            {isFuture ? (
+                              <View style={{ padding: 4 }}>
+                                <Icon source={Icons.indeterminate} size={16} color={color} />
+                              </View>
+                            ) : (
+                              <Points
+                                style={styles.dailyPointTotal}
+                                points={total}
+                                size='medium'
+                                disabled={!isSelected}
+                                color={color}
+                              />
+                            )}
+                          </View>
+                        </>
+                      </TouchableRipple>
+                    )
+                  })}
+                </View> */}
+                <View style={styles.dailyPointTotalContainer}>
+              {selectedWeekDates.map((date, index) => {
+                const isToday = date.toString() === today.toString();
+                const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+                const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+                const total = daily + weekly;
+                const isSelected = index === selectedDayOfWeek;
+                const isFuture = date.after(today);
+                                  
+                const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+                return (
+                  <TouchableRipple
+                    key={date.toString()}
+                    style={[
+                      styles.dailyPoints,
+                      // isSelected ? styles.dailyPointsSelected : {},
+                      isToday ? styles.dailyPointsToday : {},
+                    ]}
+                    onPress={() => handleSelectedDateChange(date)}
+                  >
+                    <>
+                      <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
+                        </View>
+
+                        {isFuture ? (
+                          <View style={{ padding: 3 }}>
+                            <Icon source={Icons.indeterminate} size={16} color={color} />
+                          </View>
+                        ) : (
+                          <Points
+                          style={styles.dailyPointTotal}
+                          points={total}
+                          size='medium'
+                          inline
+                          disabled={!isSelected}
+                          color={color}
+                          />
+                        )}
+                      </View>
+                    </>
+                  </TouchableRipple>
+                )
+              })}
+            </View>
+              </View>
+              
+            )}
+            <View style={styles.sectionContent}>
+              {!!measurements.length && (
+                <View style={styles.recordingView}>
+                  {displayedHabits.length ? (
+                    <>
+                      {isReorderingHabits ? (
+                        <NestableDraggableFlatList
+                          data={habitPriorityOverrides || []}
+                          onDragEnd={({ data }) => {
+                            setHabitPriorityOverrides(data);
+                          }}
+                          keyExtractor={(id) => id}
+                          activationDistance={forWeb(1, 20)}
+                          renderItem={({ item: habitId, getIndex, drag, isActive }) => {
+                            const habit = habits.find(({ id }) => id === habitId);
+                            if (!habit) return;
+      
+                            return (
+                              <ScaleDecorator activeScale={1.05}>
+                                <RecordingDataHabit
+                                  index={getIndex() || 0}
+                                  habit={habit}
+                                  date={selectedDate}
+                                  weekDates={selectedWeekDates}
+                                  measurements={measurements}
+                                  recordingData={mergedRecordingsMap}
+                                  onLongPress={forWeb(null, () => {
+                                    if (isReorderingHabits) {
+                                      drag();
+                                      triggerHaptic('selection');
+                                    }
+                                  })}
+                                  onPressIn={forWeb(() => isReorderingHabits && drag(), null)}
+                                  disabled={isActive}
+                                  reordering
+                                />
+                              </ScaleDecorator>
+                            );
+                          }}
+                        />
+                      ) : (
+                        <>
+                          {displayedHabits.map((habit, index) => {
+                            const { id } = habit;
+                            return (
                               <RecordingDataHabit
-                                index={getIndex() || 0}
+                                key={habit.id}
+                                index={index}
                                 habit={habit}
                                 date={selectedDate}
                                 weekDates={selectedWeekDates}
                                 measurements={measurements}
+                                expanded={expandedHabits.has(id)}
                                 recordingData={mergedRecordingsMap}
-                                onLongPress={forWeb(null, () => {
-                                  if (isReorderingHabits) {
-                                    drag();
-                                    triggerHaptic('selection');
-                                  }
-                                })}
-                                onPressIn={forWeb(() => isReorderingHabits && drag(), null)}
-                                disabled={isActive}
-                                reordering
+                                onPress={() => {
+                                  const nextExpandedHabits = new Set([...expandedHabits]);
+                                  nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
+                                  setExpandedHabits(nextExpandedHabits);
+                                }}
+                                onLongPress={(id) => {
+                                  triggerHaptic('selection');
+                                  router.push(`/habit/${id}`);
+                                }}
                               />
-                            </ScaleDecorator>
-                          );
-                        }}
-                      />
-                    ) : (
-                      <>
-                        {displayedHabits.map((habit, index) => {
-                          const { id } = habit;
-                          return (
-                            <RecordingDataHabit
-                              key={habit.id}
-                              index={index}
-                              habit={habit}
-                              date={selectedDate}
-                              weekDates={selectedWeekDates}
-                              measurements={measurements}
-                              expanded={expandedHabits.has(id)}
-                              recordingData={mergedRecordingsMap}
-                              onPress={() => {
-                                const nextExpandedHabits = new Set([...expandedHabits]);
-                                nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
-                                setExpandedHabits(nextExpandedHabits);
-                              }}
-                              onLongPress={(id) => {
-                                triggerHaptic('selection');
-                                router.push(`/habit/${id}`);
-                              }}
-                            />
-                          );
-                        })}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.noData}>
-                      <View style={styles.noDataIcon}>
-                        <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                            );
+                          })}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.noData}>
+                        <View style={styles.noDataIcon}>
+                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                        </View>
+                        <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
                       </View>
-                      <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
-                    </View>
-                    {!habits.length && (
-                      <Button
-                        style={styles.noDataButton}
-                        mode='contained'
-                        onPress={() => { router.push('/habit/create'); }}
-                      >
-                        <Text variant='labelLarge' style={styles.noDataButtonText}>
-                          Create your first habit
-                        </Text>
-                      </Button>
-                    )}
-                  </>
-                )}
-              </View>
-            )}
+                      {!habits.length && (
+                        <Button
+                          style={styles.noDataButton}
+                          mode='contained'
+                          onPress={() => { router.push('/habit/create'); }}
+                        >
+                          <Text variant='labelLarge' style={styles.noDataButtonText}>
+                            Create your first habit
+                          </Text>
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
           </View>
         </NestableScrollContainer>
+        <BottomDrawer
+          title='Create'
+          visible={isAddMenuVisible}
+          onDismiss={() => setIsAddMenuVisible(false)}
+          anchor={
+            <IconButton
+              style={[globalStyles.elevation2, styles.createButton, ]}
+              containerColor={globalPalette.primary}
+              iconColor={theme.colors.inverseOnSurface}
+              icon={Icons.add}
+              size={18}
+              onPress={() => setIsAddMenuVisible(true)}
+            />
+          }
+          items={addMenuItems}
+          onSelect={(item) => {
+            setIsAddMenuVisible(false);
+            setTimeout(() => {
+              router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
+            }, 0);
+          }}
+        />
       </View>
     </>
   );
 }
 
-const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerCreateButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    margin: 0,
-    marginRight: 14,
-  },
-  timelineContainer: {
-    position: 'relative',
-    // backgroundColor: theme.colors.elevation.level3,
-    flexGrow: 0,
-    flexShrink: 0,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
-    flexDirection: 'row',
-    width: '300%',
-  },
-  timelineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  timelineHeaderButton: {
-    margin: 0,
-    borderRadius: 16,
-  },
-  timeHeaderText: {
-    flexGrow: 1,
-    textAlign: 'center',
-  },
-  timelineContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 16,
-    paddingHorizontal: 8,
-    flexGrow: 1,
-    flexShrink: 0,
-    flexBasis: 0,
-    width: '100%',
-  },
-  timelineDate: {
-    width: '100%',
-    flexShrink: 1,
-    alignItems: 'center',
-    borderRadius: 15,
-    overflow: 'hidden',
-  },
-  timelineDateToday: {
-  },
-  timelineDateSelected: {
-  },
-  timelineDateContainer: {
-    borderRadius: 15,
-    
-    alignSelf: 'stretch',
-    alignItems: 'stretch',
-    gap: 4,
-    
-    overflow: 'hidden',
-  },
-  timelineDateContainerToday: {
-    marginBottom: -4,
-  },
-  timelineDateContainerSelected: {
-    backgroundColor: theme.colors.elevation.level4,
-  },
-  timelineDateContent: {
-    borderRadius: 19,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 1,
-    borderWidth: 0,
-  },
-  timelineDateContentToday: {
-  },
-  timelineDateContentSelected: {
-  },
-  timelineDateDayOfWeek: {
-    textAlign: 'center',
-    color: theme.colors.onSurfaceDisabled,
-    fontSize: 14,
-  },
-  timelineDateDayOfWeekToday: {
-    
-  },
-  timelineDateDayOfWeekSelected: {
-    color: palette.primary,
-  },
-  timelineDateDay: {
-    textAlign: 'center',
-    color: theme.colors.onSurfaceDisabled,
-    fontSize: 18,
-    lineHeight: 24,
-    alignItems: 'center',
-    display: 'flex',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  timelineDateDayToday: {
-  },
-  timelineDateDaySelected: {
-    color: palette.primary,
-  },
-  timelineDateIcon: {
-    marginTop: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexGrow: 1,
-  },
-  todayIndicator: {
-    marginRight: 2,
-    width: 5,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: theme.colors.onSurfaceDisabled,
-    transform: [{ translateX: -2 }],
-  },
-  todayIndicatorToday: {
-    backgroundColor: palette.primary,
-  },
-  measurementsProgressBar: {
-    height: 8,
-    borderRadius: 8,
-    width: '100%',
-    backgroundColor: theme.colors.surfaceDisabled,
-    overflow: 'hidden',
-  },
-  measurementsProgressBarSelected: {
-    // height: 10,
-    // flexDirection: 'row',
-    // gap: 2,
-    // backgroundColor: 'none',
-  },
-  measurementsProgressPiece: {
-    // height: 10,
-    flexShrink: 1,
-    width: '100%',
-    // borderRadius: 100,
-  },
-  pointsProgressContainer: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 100,
-    marginVertical: 1,
-  },
-  pointsProgressBar: {
-    height: 8,
-    borderRadius: 8,
-    flexBasis: 8,
-  },
-  pointsProgressTargetOuter: {
-    flexDirection: 'row',
-    height: 20,
-    width: '100%',
-    position: 'absolute',
-    top: -6,
-    zIndex: -1,
+const createStyles = (theme: MD3Theme, palette: Palette) => {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      // backgroundColor: theme.dark ? palette.backdrop : theme.colors.surface,
+    },
+    headerCreateButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      margin: 0,
+      marginRight: 14,
+    },
+    timelineContainer: {
 
-  },
-  pointsProgressTarget: {
-    height: 4,
-    width: 4,
-    borderRadius: 2,
-    // backgroundColor: palette.backdrop,
-    justifyContent: 'center',
-    flexGrow: 0,
-  },
-  pointsProgressTargetInner: {
-    top: 16,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    // backgroundColor: palette.backdrop,
-  },
-  overlapProgress: {
-    height: '100%',
-    borderRadius: 8,
-    flexGrow: 0,
-    
-    backgroundColor: 'transparent',
-  },
-  baseProgress: {
-    height: '100%',
-    borderRadius: 8,
-    flexGrow: 0,
-  },
-  weekPointsContainer: {
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginTop: 2,
-  },
-  weekPointsLabel: {},
-  weekPointsDivider: {
-  },
-  content: {
-    
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    rowGap: 6,
-    backgroundColor: theme.colors.elevation.level3,
-    borderTopWidth: 1,
-    borderColor: theme.colors.surfaceVariant,
-    marginTop: -1,
-  },
-  sectionHeaderIcon: {
-    marginLeft: 4,
-  },
-  sectionHeaderTitle: {
-    flex: 1,
-  },
-  sectionHeaderButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    margin: 0,
-    marginRight: 0,
-  },
-  sectionContent: {
-  },
-  recordingView: {
-    
-  },
-  measurementsStatusContainer: {
-    width: '100%',
-    marginBottom: 4,
-    marginTop: -4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    gap: 4,
-  },
-  measurementsStatus: {
-    paddingVertical: 6,
-    width: '100%',
-    flexShrink: 1,
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  measurementsStatusSelected: {
-    // flexShrink: 0.9,
-  },
-  dailyPointTotalContainer: {
-    width: '100%',
-    paddingVertical: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    gap: 16,
-  },
-  dailyPoints: {
-    paddingVertical: 8,
-    width: '100%',
-    flexShrink: 1,
-    alignItems: 'stretch',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  dailyPointsSelected: {
-    backgroundColor: theme.colors.elevation.level4,
-  },
-  dailyPointsToday: {
-  },
-  dailyPointsContainer: {
-    alignItems: 'center',
-  },
-  dailyPointsContainerToday: {
-  },
-  dailyPointsContainerSelected: {    
-  },
-  dailyPointDayOfWeek: {
-    
-  },
-  dailyPointTotal: {
-    justifyContent: 'center',
-  },
-  noData: {
-    flexDirection: 'row',
-    paddingVertical: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  noDataText: {
-    textAlign: 'center',
-    color: theme.colors.outline,
-  },
-  noDataIcon: {
-    marginRight: 8,
-  },
-  noDataButton: {
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
-  noDataButtonText: {
-    paddingHorizontal: 4,
-    color: theme.colors.surface,
-  },
-  createButtonContainer: {
-    position: 'absolute',
-    bottom: 16,
-    right: 24,
-  },
-  createButton: {
-    borderRadius: 24,
-    backgroundColor: palette.backdrop,
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 12,
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  createButtonContent: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    gap: 4,
-  },
-  createButtonText: {
-    color: theme.colors.onSurface,
-  },
-});
+      // marginHorizontal: 12,
+      // paddingHorizontal: 12,
+      paddingBottom: 8,
+      // borderRadius: 20,
+      backgroundColor: theme.dark ? palette.backdrop : theme.colors.elevation.level5,
+      // borderBottomWidth: 1,
+      // borderColor: theme.colors.elevation.level3,
+      // position: 'relative',
+      // backgroundColor: theme.colors.elevation.level3,
+      // flexGrow: 0,
+      // flexShrink: 0,
+      // borderBottomWidth: 1,
+      // borderColor: theme.colors.surfaceVariant,
+      // width: '100%',
+      // marginVertical: 8,
+      // marginHorizontal: 16,
+      // borderRadius: 24,
+      // gap: 4,
+      // paddingBottom: 40,
+      // marginBottom: -28,
+      // borderBottomLeftRadius: 20,
+      // borderBottomRightRadius: 20,
+    },
+    timelineHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    timelineHeaderButton: {
+      margin: 0,
+      borderRadius: 16,
+    },
+    timeHeaderText: {
+      flexGrow: 1,
+      textAlign: 'center',
+      color: theme.colors.onSurfaceDisabled,
+    },
+    timelineContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      gap: 8,
+      paddingHorizontal: 8,
+      flexGrow: 1,
+      flexShrink: 0,
+      alignItems: 'stretch',
+      width: '100%',
+      paddingTop: 2,
+      paddingBottom: 10,
+      // marginBottom: -8,
+    },
+    timelineDate: {
+      flexBasis: 100,
+      flexShrink: 1,
+      // paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 15,
+      overflow: 'hidden',
+    },
+    timelineDateToday: {},
+    timelineDateSelected: {
+      backgroundColor: 'transparent',
+      // backgroundColor: theme.colors.surfaceDisabled,
+    },
+    timelineDateContainer: {
+      flexGrow: 1,
+      borderRadius: 15,
+
+      justifyContent: 'center',
+      alignSelf: 'stretch',
+      alignItems: 'stretch',
+      gap: 4,
+
+      overflow: 'hidden',
+    },
+    timelineDateContainerToday: {},
+    timelineDateContainerSelected: {},
+    timelineDateContent: {
+      borderRadius: 19,
+      paddingTop: 10,
+      paddingBottom: 10,
+      paddingHorizontal: 1,
+      borderWidth: 0,
+    },
+    timelineDateContentToday: {},
+    timelineDateContentSelected: {},
+    timelineDateDayOfWeek: {
+      textAlign: 'center',
+      color: theme.colors.onSurfaceDisabled,
+      fontSize: 12,
+    },
+    timelineDateDayOfWeekToday: {},
+    timelineDateDayOfWeekSelected: {
+      // color: palette.primary,
+      // color: palette.secondary,
+      color: theme.colors.onSurface,
+    },
+    timelineDateDay: {
+      textAlign: 'center',
+      color: theme.colors.onSurfaceDisabled,
+      fontSize: 20,
+      lineHeight: 24,
+      alignItems: 'center',
+      display: 'flex',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    timelineDateDayToday: {},
+    timelineDateDaySelected: {
+      color: theme.colors.onSurface,
+      // color: palette.secondary,
+      // color: palette.primary,
+    },
+    timelineDateIcon: {
+      marginTop: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexGrow: 1,
+    },
+    todayIndicator: {
+      marginRight: 2,
+      width: 5,
+      height: 5,
+      borderRadius: 4,
+      backgroundColor: theme.colors.onSurfaceDisabled,
+      transform: [{ translateX: -2 }],
+    },
+    todayIndicatorToday: {
+      backgroundColor: palette.primary,
+    },
+    measurementsProgressBar: {
+      height: 8,
+      borderRadius: 8,
+      width: '100%',
+      backgroundColor: theme.colors.surfaceDisabled,
+      overflow: 'hidden',
+    },
+    measurementsProgressBarSelected: {
+      // height: 10,
+      // flexDirection: 'row',
+      // gap: 2,
+      // backgroundColor: 'none',
+    },
+    measurementsProgressPiece: {
+      // height: 10,
+      flexShrink: 1,
+      width: '100%',
+      // borderRadius: 100,
+    },
+    pointsProgressContainer: {
+      marginHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 0,
+      borderRadius: 100,
+      overflow: 'hidden',
+      backgroundColor: theme.colors.surfaceDisabled,
+      height: 6,
+    },
+    pointsProgressBar: {
+      position: 'relative',
+      height: 6,
+      // borderRadius: 8,
+      flexBasis: 0,
+    },
+    pointsProgressBarInner: {
+      flexGrow: 1,
+      alignSelf: 'stretch',
+      // borderRadius: 8,
+      // borderTopLeftRadius: 0,
+      // borderBottomLeftRadius: 0,
+    },
+    pointsProgressBarEnd: {
+      position: 'absolute',
+      top: -2,
+      height: 12,
+      width: 12,
+      borderRadius: 12,
+      zIndex: -1,
+      // backgroundColor: palette.backdrop,
+      // backgroundColor: 'red',
+      // backgroundColor: theme.colors.elevation.level3,
+    },
+    pointsProgressBarBackdrop: {
+      position: 'absolute',
+      top: 0,
+      height: 8,
+      width: '100%',
+      // borderRadius: 8,
+      // borderTopLeftRadius: 0,
+      // borderBottomLeftRadius: 0,
+      zIndex: -1,
+      backgroundColor: palette.backdrop,
+      // backgroundColor: theme.colors.elevation.level3,
+    },
+    pointsProgressTargetOuter: {
+      flexDirection: 'row',
+      height: 6,
+      width: '100%',
+      position: 'absolute',
+      top: 0,
+      zIndex: 1,
+    },
+    pointsProgressTarget: {
+      height: 6,
+      width: 2,
+      borderRadius: 0,
+      backgroundColor: palette.backdrop,
+      // backgroundColor: theme.colors.elevation.level3,
+      justifyContent: 'center',
+      flexGrow: 0,
+    },
+    pointsProgressTargetInner: {
+      // top: 16,
+      // width: 4,
+      // height: 4,
+      // borderRadius: 2,
+      // backgroundColor: palette.primary,
+    },
+    overlapProgress: {
+      height: '100%',
+      borderRadius: 8,
+      flexGrow: 0,
+
+      backgroundColor: 'transparent',
+    },
+    baseProgress: {
+      height: '100%',
+      borderRadius: 8,
+      flexGrow: 0,
+    },
+    weekPointsContainer: {
+      flexGrow: 1,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      marginHorizontal: 16,
+      marginVertical: 4,
+      // justifyContent: 'flex-start',
+      gap: 6,
+    },
+    weekPointsLabel: {
+      // color: theme.colors.onSurfaceDisabled,
+    },
+    weekPointsDivider: {},
+    content: {
+      paddingBottom: 80,
+    },
+    section: {
+      margin: 8,
+      borderRadius: 20,
+      overflow: 'hidden',
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 12,
+      backgroundColor: theme.colors.elevation.level2,
+      // backgroundColor: theme.colors.surface,
+      borderTopWidth: 1,
+      borderColor: theme.colors.elevation.level5,
+      marginTop: -1,
+      gap: 4,
+    },
+    sectionHeaderIcon: {
+      marginLeft: 8,
+    },
+    sectionHeaderTitle: {
+      flex: 1,
+    },
+    sectionHeaderButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      margin: 0,
+      marginRight: 0,
+    },
+    sectionContent: {},
+    recordingView: {},
+    measurementDailyProgress: {
+      width: '100%',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      gap: 4,
+      rowGap: 4,
+    },
+    measurementDailyProgressIcon: {
+      paddingVertical: 2,
+    },
+    measurementsStatusContainer: {
+      width: '100%',
+      marginBottom: 4,
+      // marginTop: -4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      gap: 16,
+      // paddingHorizontal: 8,
+    },
+    measurementsStatus: {
+      // paddingVertical: 6,
+      width: '100%',
+      flexShrink: 1,
+      alignItems: 'center',
+      overflow: 'hidden',
+      // flexDirection: 'row',
+      // justifyContent: 'center',
+      gap: 4,
+    },
+    measurementsStatusSelected: {
+      // flexShrink: 0.9,
+    },
+    dailyPointTotalContainer: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      gap: 8,
+    },
+    dailyPoints: {
+      paddingVertical: 8,
+      width: '100%',
+      flexShrink: 1,
+      alignItems: 'stretch',
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    dailyPointsSelected: {
+      backgroundColor: theme.colors.elevation.level4,
+    },
+    dailyPointsToday: {},
+    dailyPointsContainer: {
+      alignItems: 'center',
+    },
+    dailyPointsContainerToday: {},
+    dailyPointsContainerSelected: {},
+    dailyPointDayOfWeek: {},
+    dailyPointTotal: {
+      justifyContent: 'center',
+    },
+    noData: {
+      flexDirection: 'row',
+      paddingVertical: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    noDataText: {
+      textAlign: 'center',
+      color: theme.colors.outline,
+    },
+    noDataIcon: {
+      marginRight: 8,
+    },
+    noDataButton: {
+      alignSelf: 'center',
+      marginBottom: 24,
+    },
+    noDataButtonText: {
+      paddingHorizontal: 4,
+      color: theme.colors.surface,
+    },
+    createButtonContainer: {
+      position: 'absolute',
+      bottom: 16,
+      right: 24,
+    },
+    createButton: {
+      position: 'absolute',
+      bottom: 16,
+      right: 16,
+      margin: 0,
+      height: 48,
+      width: 48,
+      borderRadius: 16,
+      backgroundColor: palette.primary,
+    },
+    createButtonContent: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      width: 56,
+      height: 56,
+      alignItems: 'center',
+      gap: 4,
+    },
+    createButtonText: {
+      color: theme.colors.onSurface,
+    },
+  });
+};
 
 export default Recordings;
 

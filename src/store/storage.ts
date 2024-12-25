@@ -1,18 +1,15 @@
-import { auth } from '@/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { dataActions } from '@s/dataReducer';
 import type { Habit } from '@t/habits';
 import type { Measurement } from '@t/measurements';
 import type { Account, User } from '@t/users';
-import { Platform } from 'react-native';
-import type { Middleware } from 'redux-saga';
 
-type StorageKey = 'user' | 'account' | 'measurements' | 'habits';
+type StorageKey = 'user' | 'account' | 'measurements' | 'habits' | 'activeUserId';
 const StorageKeys: {[key: string]: StorageKey} = {
   USER: 'user',
   ACCOUNT: 'account',
   MEASUREMENTS: 'measurements',
   HABITS: 'habits',
+  ACTIVE_USER_ID: 'activeUserId',
 }
 
 class StorageService {
@@ -96,10 +93,22 @@ class StorageService {
       this.setAccount(account),
     ]);
   }
+
+  async getActiveUserId(): Promise<string | null> {
+    const userId = await AsyncStorage.getItem(StorageKeys.ACTIVE_USER_ID);
+    return userId;
+  }
+
+  async setActiveUserId(userId: string | null): Promise<void> {
+    if (userId) {
+      await AsyncStorage.setItem(StorageKeys.ACTIVE_USER_ID, userId);
+    } else {
+      await AsyncStorage.removeItem(StorageKeys.ACTIVE_USER_ID);
+    }
+  }
 }
 
 export const storageService = new StorageService();
-
 
 // const isUserPremium = async (): Promise<boolean> => {
 //   try {

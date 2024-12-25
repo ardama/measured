@@ -1,5 +1,5 @@
 import Measurements from '@c/Measurements'
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 
 const MeasurementsScreen = () => {
   return (
@@ -7,4 +7,4 @@ const MeasurementsScreen = () => {
   )
 }
 
-export default withAuth(MeasurementsScreen);
+export default withUser(MeasurementsScreen);

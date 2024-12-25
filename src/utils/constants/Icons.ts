@@ -12,12 +12,16 @@ export const Icons = {
   operatorEq: 'equal',
   operatorNot: 'not-equal-variant',
   
+  // habit: 'check',
+  // habitFilled: 'minus',
   habit: 'bullseye-arrow',
   habitFilled: 'bullseye-arrow',
   pastHabit: 'history',
   
-  measurement: 'beaker-outline',
-  measurementFilled: 'beaker',
+  measurement: 'ruler',
+  measurementFilled: 'ruler',
+  // measurement: 'beaker-outline',
+  // measurementFilled: 'beaker',
 
   measurementTypeDuration: 'timer-outline',
   measurementTypeTime: 'clock-outline',
@@ -32,10 +36,12 @@ export const Icons = {
 
   recording: 'clipboard-edit-outline',
   recordingFilled: 'clipboard-edit',
+  recorded: 'check',
 
   warning: 'alert-circle-outline',
 
   move: 'priority-low',
+  drag: 'drag',
   up: 'chevron-up',
   down: 'chevron-down',
   left: 'chevron-left',
@@ -43,8 +49,9 @@ export const Icons = {
   
   close: 'window-close',
   hide: 'eye-off-outline',
-  show: 'eye-off-outline',
-  delete: 'delete-alert-outline',
+  show: 'eye-outline',
+  delete: 'delete-outline',
+  edit: 'pencil-outline',
   
   chart: 'chart-box-outline',
   chartFilled: 'chart-box',
@@ -64,7 +71,8 @@ export const Icons = {
   account: 'account-cog-outline',
   accountFilled: 'account-cog',
 
-  settings: 'tune',
+  settings: 'menu',
+  // settings: 'tune',
   menu: 'dots-vertical',
   back: 'chevron-left',
 

@@ -26,6 +26,13 @@ export const useAuthLoading = () => useSelector(selectAuthLoading);
 const selectAuthError = (state: RootState): string | null => state.auth.error;
 export const useAuthError = () => useSelector(selectAuthError);
 
+export const selectIsAuthenticated = (state: RootState): boolean => 
+  !!state.auth.user || state.auth.isGuest;
+export const useIsAuthenticated = () => useSelector(selectIsAuthenticated);
+
+export const selectIsGuest = (state: RootState): boolean => state.auth.isGuest;
+export const useIsGuest = () => useSelector(selectIsGuest);
+
 // -----------------------------------------
 // Measurement selectors -------------------
 const selectMeasurements = (state: RootState): Measurement[] => state.data.measurements;

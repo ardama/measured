@@ -2,12 +2,13 @@ import { Tabs } from 'expo-router';
 import React, { type ReactNode } from 'react';
 
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { BottomNavigation, Icon, useTheme } from 'react-native-paper';
+import { BottomNavigation, Icon, TouchableRipple, useTheme } from 'react-native-paper';
 import { CommonActions } from '@react-navigation/native';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import Header from '@c/Header';
 import { Icons } from '@u/constants/Icons';
 import { usePalettes } from '@u/hooks/usePalettes';
+import { StatusBar } from 'react-native';
 
 const TabLayout = () => {
   const theme = useTheme();
@@ -46,6 +47,7 @@ const TabLayout = () => {
           const { options } = descriptors[route.key];
           return options?.title || '';
         }}
+        renderTouchable={({ key, ...props }) => <TouchableRipple key={key} {...props} />}
       />
     )
   }
@@ -56,7 +58,14 @@ const TabLayout = () => {
         header: ({ layout, options, route, navigation }) => {
           const { title } = options
           return (
-            <Header showMenuButton title={title || ''} />
+            <>
+              <StatusBar
+                backgroundColor={theme.colors.surface}
+                barStyle={theme.dark ? 'light-content' : 'dark-content'}
+                // translucent
+              />
+              <Header showMenuButton title={title || ''} />
+            </>
           )
         },
       }}
@@ -66,7 +75,7 @@ const TabLayout = () => {
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
+          title: 'Data',
           tabBarIcon: ({ color, focused, size }) => 
             <Icon
               source={focused ? Icons.chartFilled : Icons.chart}
@@ -79,13 +88,13 @@ const TabLayout = () => {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Measure',
+          title: 'Home',
           tabBarIcon: ({ color, focused, size }) => (
             <Icon
-                source={focused ? Icons.recordingFilled : Icons.recording}
-                color={color}
-                size={size}
-              />
+            source={focused ? Icons.recordingFilled : Icons.recording}
+            color={color}
+            size={size}
+            />
           ),
           headerShown: false,
         }}
@@ -108,4 +117,4 @@ const TabLayout = () => {
   );
 }
 
-export default withAuth(TabLayout);
+export default withUser(TabLayout);

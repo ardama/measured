@@ -18,6 +18,7 @@ const initialState: AuthState = {
   info: null,
   action: null,
   initialAuthCheckComplete: false,
+  isGuest: false,
 };
 
 const authSlice = createSlice({
@@ -33,8 +34,9 @@ const authSlice = createSlice({
       state.error = null;
       state.info = null;
     },
-    guestSignInSuccess: (state: AuthState, action: PayloadAction<User>) => {
-      state.user = action.payload;
+    guestSignInSuccess: (state: AuthState) => {
+      state.user = null;
+      state.isGuest = true;
       state.loading = false;
       state.error = null;
       state.info = null;
@@ -87,6 +89,7 @@ const authSlice = createSlice({
     signOutSuccess: (state: AuthState) => {
       state.action = null;
       state.user = null;
+      state.isGuest = false;
       state.loading = false;
       state.error = null;
       state.info = null;

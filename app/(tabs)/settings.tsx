@@ -1,5 +1,5 @@
 import Settings from '@c/Settings';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import React from 'react';
 
 
@@ -9,4 +9,4 @@ const SettingsScreen = () => {
   )
 }
 
-export default withAuth(SettingsScreen);
+export default withUser(SettingsScreen);

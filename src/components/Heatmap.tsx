@@ -79,5 +79,5 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     height: '100%',
   },
 });
-
 export default Heatmap;
+

@@ -145,6 +145,18 @@ export class SimpleDate {
       : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
   }
 
+  getMonthLabel(abbreviated: boolean = true) {
+    const months = abbreviated
+      ? [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ] : [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+    return months[this.month - 1];
+  }
+
   equals(date: SimpleDate): boolean {
     return this.toString() === date.toString();
     // return this.day === date.day && this.month === date.month && this.year === date.year;
@@ -208,7 +220,7 @@ export class SimpleDate {
     const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
     const time1 = date1.toDate().getTime();
     const time2 = date2.toDate().getTime();
-    const diffDays = Math.round(Math.abs((time1 - time2) / oneDay));
+    const diffDays = Math.round((time1 - time2) / oneDay);
     return diffDays;
   }
   

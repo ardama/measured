@@ -7,6 +7,8 @@
     "icon": "./src/assets/images/icon_yellow_192x192.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "jsEngine": "hermes",
     "splash": {
       "image": "./src/assets/images/splash_yellow_1242x1242.png",
       "resizeMode": "cover",
@@ -30,7 +32,8 @@
       "favicon": "./src/assets/images/icon_yellow_64x64.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import Header from '@c/Header';
 import { Drawer } from 'expo-router/drawer';
 
@@ -47,4 +47,4 @@ const DrawerLayout = () => {
   );
 }
 
-export default withAuth(DrawerLayout);
+export default withUser(DrawerLayout);

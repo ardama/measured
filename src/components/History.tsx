@@ -16,6 +16,61 @@ import { Icons } from '@u/constants/Icons';
 import type { Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 
+type BucketSize = 'day' | 'week' | 'month';
+
+const HABIT_CHART_DURATION_ITEMS: BottomDrawerItem<number>[] = [
+  { title: '1M', value: 1 },
+  { title: '3M', value: 3 },
+  { title: '1Y', value: 12 },
+  { title: 'ALL', value: 100000 },
+];
+
+const HABIT_BUCKET_SIZE_ITEMS: BottomDrawerItem<BucketSize>[] = [
+  { title: 'Day', value: 'day' },
+  { title: 'Week', value: 'week' },
+  { title: 'Month', value: 'month' },
+];
+
+const MEASUREMENT_CHART_DURATION_ITEMS: BottomDrawerItem<number>[] = [
+  { title: '1W', value: 7 },
+  { title: '1M', value: 30 },
+  { title: '3M', value: 90 },
+  { title: '1Y', value: 365 },
+  { title: 'ALL', value: 100000 },
+];
+
+const getTrendlineItems = (bucketSize: BucketSize): BottomDrawerItem<number>[] => {
+  if (bucketSize === 'day') {
+    return [
+      { title: 'None', value: 0, icon: undefined },
+      { title: '7-day average', value: 7, icon: undefined },
+      { title: '14-day average', value: 14, icon: undefined },
+      { title: '30-day average', value: 30, icon: undefined },
+    ];
+  }
+  if (bucketSize === 'week') {
+    return [
+      { title: 'None', value: 0, icon: undefined },
+      { title: '4-week average', value: 4, icon: undefined },
+      { title: '13-week average', value: 13, icon: undefined },
+      { title: '26-week average', value: 26, icon: undefined },
+    ];
+  }
+  return [
+    { title: 'None', value: 0, icon: undefined },
+    { title: '3-month average', value: 3, icon: undefined },
+    { title: '6-month average', value: 6, icon: undefined },
+    { title: '12-month average', value: 12, icon: undefined },
+  ];
+};
+
+const MEASUREMENT_TRENDLINE_ITEMS: BottomDrawerItem<number>[] = [
+  { title: 'None', value: 0, icon: undefined },
+  { title: '7-day average', value: 7, icon: undefined },
+  { title: '14-day average', value: 14, icon: undefined },
+  { title: '30-day average', value: 30, icon: undefined },
+];
+
 const History = () => {  
   const measurements = useMeasurements();
   const dimensions = useDimensions();
@@ -25,26 +80,15 @@ const History = () => {
     
   const [selectedHabitDataIndex, setSelectedHabitDataIndex] = useState(-1);
 
-  const habitChartDurationItems = [
-    { title: '1M', value: 1 },
-    { title: '3M', value: 3 },
-    { title: '1Y', value: 12 },
-    { title: 'ALL', value: 100000 },
-  ];
-  const [habitChartDuration, setHabitChartDuration] = useState(habitChartDurationItems[1]);
+  const [habitChartDuration, setHabitChartDuration] = useState(HABIT_CHART_DURATION_ITEMS[1]);
   
-  const habitBucketSizeItems: BottomDrawerItem<string>[] = [
-    { title: 'Day', value: 'day' },
-    { title: 'Week', value: 'week' },
-    { title: 'Month', value: 'month' },
-  ];
-  const [habitBucketSize, setHabitBucketSize] = useState(habitBucketSizeItems[1]);
+  const [habitBucketSize, setHabitBucketSize] = useState(HABIT_BUCKET_SIZE_ITEMS[1]);
   const habitBucketSizeDropdown = (
     <ChartDropdown
       label='Duration'
       palette={globalPalette}
       selectedItem={habitBucketSize}
-      items={habitBucketSizeItems}
+      items={HABIT_BUCKET_SIZE_ITEMS}
       onChange={(item) => {
         setHabitBucketSize(item);
         setSelectedHabitDataIndex(-1);
@@ -52,27 +96,7 @@ const History = () => {
     />
   );
 
-  const habitTrendlineItems: BottomDrawerItem<number>[] =
-    habitBucketSize.value === 'day' ? [
-      { title: 'None', value: 0, icon: undefined },
-      { title: '7-day average', value: 7, icon: undefined },
-      { title: '14-day average', value: 14, icon: undefined },
-      { title: '30-day average', value: 30, icon: undefined },
-    ] :
-    habitBucketSize.value === 'week' ? [
-      { title: 'None', value: 0, icon: undefined },
-      { title: '4-week average', value: 4, icon: undefined },
-      { title: '13-week average', value: 13, icon: undefined },
-      { title: '26-week average', value: 26, icon: undefined },
-    ] :
-    habitBucketSize.value === 'month' ? [
-      { title: 'None', value: 0, icon: undefined },
-      { title: '3-month average', value: 3, icon: undefined },
-      { title: '6-month average', value: 6, icon: undefined },
-      { title: '12-month average', value: 12, icon: undefined },
-    ] : []
-  ;
-
+  const habitTrendlineItems = getTrendlineItems(habitBucketSize.value);
   const [habitTrendlineValue, setHabitTrendlineValue] = useState(habitTrendlineItems[1].value);
   const habitTrendline = habitTrendlineItems.find(({ value }) => value === habitTrendlineValue) || habitTrendlineItems[1];
   const habitTrendlineDropdown = (
@@ -89,14 +113,7 @@ const History = () => {
 
   const [selectedMeasurementDataIndex, setSelectedMeasurementDataIndex] = useState(-1);
 
-  const measurementChartDurationItems = [
-    { title: '1W', value: 7 },
-    { title: '1M', value: 30 },
-    { title: '3M', value: 90 },
-    { title: '1Y', value: 365 },
-    { title: 'ALL', value: 100000 },
-  ];
-  const [measurementChartDuration, setmeasurementChartDuration] = useState(measurementChartDurationItems[1]);
+  const [measurementChartDuration, setmeasurementChartDuration] = useState(MEASUREMENT_CHART_DURATION_ITEMS[1]);
   
   const [measurementId, setMeasurementId] = useState(measurements[0]?.id);
   const selectedMeasurement = measurements.find(({ id }) => id === measurementId) || null;
@@ -124,19 +141,13 @@ const History = () => {
     />
   );
 
-  const measurementTrendlineItems: BottomDrawerItem<number>[] = [
-    { title: 'None', value: 0, icon: undefined },
-    { title: '7-day average', value: 7, icon: undefined },
-    { title: '14-day average', value: 14, icon: undefined },
-    { title: '30-day average', value: 30, icon: undefined },
-  ]
-  const [measurementTrendline, setMeasurementTrendline] = useState(measurementTrendlineItems[1]);
+  const [measurementTrendline, setMeasurementTrendline] = useState(MEASUREMENT_TRENDLINE_ITEMS[1]);
   const measurementTrendlineDropdown = (
     <ChartDropdown
       label='Trendline'
       palette={measurementPalette}
       selectedItem={measurementTrendline}
-      items={measurementTrendlineItems}
+      items={MEASUREMENT_TRENDLINE_ITEMS}
       onChange={(item) => {
         setMeasurementTrendline(item);
       }}
@@ -147,7 +158,7 @@ const History = () => {
 
   const today = SimpleDate.today();
   
-  const computeAllMeasurementRecordingDates = (measurements: Measurement[], startDate?: SimpleDate, endDate?: SimpleDate) => {
+  const computeAllMeasurementRecordingDates = (measurements: Measurement[], startDate?: SimpleDate, endDate: SimpleDate = SimpleDate.today()) => {
     const dates = new Map<string, SimpleDate[]>();
     measurements.forEach((measurement) => {
       let recordings = measurement.recordings;
@@ -156,7 +167,7 @@ const History = () => {
         const rightMeasurement = measurements.find(({ id }) => id === measurement.comboRightId);
         recordings = [...(leftMeasurement?.recordings || []), ...(rightMeasurement?.recordings || [])];
       }
-      dates.set(measurement.id, computeMeasurementRecordingDates(recordings, startDate, endDate,))
+      dates.set(measurement.id, computeMeasurementRecordingDates(recordings, startDate, endDate))
     });
     return dates;
   }
@@ -410,7 +421,7 @@ const History = () => {
               <Points points={total} size='medium' inline />
             </View>
             <View style={s.chartStat}>
-              <Text variant='bodyMedium'>{habitBucketSize.title}s</Text>
+              <Text variant='bodyMedium'>Count</Text>
               <Text variant='titleMedium'>{visibleBucketData.length}</Text>
             </View>
           </View>
@@ -418,28 +429,30 @@ const History = () => {
         <View style={s.cardRow}>
           {isFocused ? (
             <View style={{ paddingTop: 52, paddingBottom: 0 }}>
-              <Chart
-                xDomain={{
-                  min: horizontalMin - horizontalOffset,
-                  max: horizontalMax + horizontalOffset,
-                }}
-                yDomain={{
-                  min: verticalMinUnits - verticalOffset,
-                  max: verticalMaxUnits + verticalOffset,
-                }}
-                style={{
-                  height: chartHeight,
-                  width: chartWidth,
-                }}
-                padding={{
-                  top: 0,
-                  bottom: 0,
-                }}
-              >
-                {habitArea}
-                {habitAverage}
-                {habitLine}
-              </Chart>
+              <View style={{ overflow: 'hidden' }}>
+                <Chart
+                  xDomain={{
+                    min: horizontalMin - horizontalOffset,
+                    max: horizontalMax + horizontalOffset,
+                  }}
+                  yDomain={{
+                    min: verticalMinUnits - verticalOffset,
+                    max: verticalMaxUnits + verticalOffset,
+                  }}
+                  style={{
+                    height: chartHeight,
+                    width: chartWidth,
+                  }}
+                  padding={{
+                    top: 0,
+                    bottom: 0,
+                  }}
+                >
+                  {habitArea}
+                  {habitAverage}
+                  {habitLine}
+                </Chart>
+              </View>
               <View style={s.chartTicks} pointerEvents='none'>
                 {ticks.map((value) => {
                   const height = 24;
@@ -498,7 +511,7 @@ const History = () => {
           ) : null}
         </View>
         <View style={{ ...s.cardRow, ...s.chartDurationButtons }}>
-          {habitChartDurationItems.map((item) => {
+          {HABIT_CHART_DURATION_ITEMS.map((item) => {
             const isMonthly = habitBucketSize.value === 'month';
             const selected = (isMonthly && item.title === 'ALL') || (!isMonthly && item.value === habitChartDuration.value);
             const disabled = isMonthly && item.title !== 'ALL';
@@ -533,11 +546,11 @@ const History = () => {
 
   const firstDateWithData = selectedMeasurementRecordingDates[0];
   let chartDuration = measurementChartDuration.value;
-  if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(firstDateWithData, today), chartDuration - 1);
+  if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(today, firstDateWithData), chartDuration - 1);
   chartDuration = Math.max(chartDuration, 1);
 
   const selectedMeasurementData = useMemo(() => selectedMeasurementRecordingDates.map((date) => {
-    const daysAgo = SimpleDate.daysBetween(date, today);
+    const daysAgo = SimpleDate.daysBetween(today, date);
     const value = getMeasurementRecordingValue(id, date, measurements);
     return value === null ? null : {
       x: chartDuration - daysAgo,
@@ -615,7 +628,7 @@ const History = () => {
     const average = recordingCount ? total / recordingCount : 0;
     const averageString = !!selectedMeasurement ? formatValue(average, isBool ? 'count' : selectedMeasurement.type, selectedMeasurement.unit, true) : '--';
 
-    const measurementChartInputs = [id, measurements, measurementChartDuration.value, measurementTrendline.value];
+    const measurementChartInputs = [id, measurements, measurementChartDuration.value, measurementTrendline.value, globalPalette.primary];
     const measurementArea = useMemo(() => {
       return selectedMeasurementData.length > 1 ? (
         <Area
@@ -706,7 +719,7 @@ const History = () => {
               <Text variant='titleMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{totalString}</Text>
             </View>
             <View style={s.chartStat}>
-              <Text variant='bodyMedium'>Recordings</Text>
+              <Text variant='bodyMedium'>Count</Text>
               <Text variant='titleMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{recordingCount}</Text>
             </View>
           </View>
@@ -714,28 +727,30 @@ const History = () => {
         <View style={s.cardRow}>
           {isFocused ? (
             <View style={{ paddingTop: 52, paddingBottom: 0 }}>
-              <Chart
-                xDomain={{
-                  min: horizontalMin - horizontalOffset,
-                  max: horizontalMax + horizontalOffset,
-                }}
-                yDomain={{
-                  min: verticalMinUnits - verticalOffset,
-                  max: verticalMaxUnits + verticalOffset,
-                }}
-                style={{
-                  height: chartHeight,
-                  width: chartWidth,
-                }}
-                padding={{
-                  top: 0,
-                  bottom: 0,
-                }}
-              >
-                {measurementArea}
-                {measurementAverageLine}
-                {measurementLine}
-              </Chart>
+              <View style={{ overflow: 'hidden' }}>
+                <Chart
+                  xDomain={{
+                    min: horizontalMin - horizontalOffset,
+                    max: horizontalMax + horizontalOffset,
+                  }}
+                  yDomain={{
+                    min: verticalMinUnits - verticalOffset,
+                    max: verticalMaxUnits + verticalOffset,
+                  }}
+                  style={{
+                    height: chartHeight,
+                    width: chartWidth,
+                  }}
+                  padding={{
+                    top: 0,
+                    bottom: 0,
+                  }}
+                >
+                  {measurementArea}
+                  {measurementAverageLine}
+                  {measurementLine}
+                </Chart>
+              </View>
               <View style={s.chartTicks} pointerEvents='none'>
                 {ticks.map((value) => {
                   const height = 24;
@@ -799,7 +814,7 @@ const History = () => {
           ) : null}
         </View>
         <View style={{ ...s.cardRow, ...s.chartDurationButtons }}>
-          {measurementChartDurationItems.map((item) => {
+          {MEASUREMENT_CHART_DURATION_ITEMS.map((item) => {
             const selected = item.value === measurementChartDuration.value;
             return (
               <Button
@@ -827,7 +842,7 @@ const History = () => {
   return (
     <ScrollView style={s.container}>
       <View style={s.cards}>
-        <MonthSummaryCard />
+        {useMemo(() => <MonthSummaryCard />, [])}
         <Divider  horizontalInset />
         {renderHabitChartCard()}
         <Divider  horizontalInset />
@@ -930,7 +945,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     borderTopColor: theme.colors.onSurface,
     borderTopWidth: 1,
     height: 0,
-    opacity: 0.35,
+    opacity: 0.3,
   },
   chartSelectionContainer: {
     top: 6,
@@ -1127,7 +1142,8 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   return (
     <Surface style={cardStyles.cardContainer} elevation={0}>
       <View style={cardStyles.header}>
-        <Text style={[cardStyles.title, styles.title]} variant='titleLarge'>{firstDate.toFormattedMonthYear()}</Text>
+        <Text style={[styles.title]} variant='titleLarge'>Habits: </Text>
+        <Text style={[cardStyles.title, styles.title]} variant='bodyLarge'>{firstDate.toFormattedMonthYear()}</Text>
         <IconButton
           style={styles.headerButton}
           icon={Icons.left}
@@ -1194,6 +1210,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
 
 const createMonthSummaryStyles = (theme: MD3Theme, globalPalette: Palette) => StyleSheet.create({
   title: {
+    fontSize: 22,
   },
   headerButton: {
     width: 40,

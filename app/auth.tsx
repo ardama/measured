@@ -1,7 +1,7 @@
 import { guestSignInRequest, resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
 import { useAuthState, useSettings } from '@s/selectors';
 import { Error, NoError } from '@u/constants/Errors';
-import { withAuth } from '@u/hocs/withAuth';
+import { withUser } from '@u/hocs/withUser';
 import React, { useEffect, useState } from 'react';
 import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
@@ -305,4 +305,4 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
   }
 })
 
-export default withAuth(LoginScreen, false);
+export default withUser(LoginScreen, false);

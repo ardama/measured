@@ -99,9 +99,9 @@ export const getCustomColor = (hue: number | undefined, theme: MD3Theme, disable
 }
 
 export type BaseColor =
-  undefined | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'violet';
+  null | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'violet';
 
-export const baseColors: BaseColor[] = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet', undefined];
+export const baseColors: BaseColor[] = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet'];
 
 export type Palette = {
   primary: string
@@ -115,73 +115,75 @@ export type Palette = {
 const darkPalettes = new Map<BaseColor, Palette>([
   [
     'pink', {
-      primary: '#ec79c0',
-      secondary: '#fdd3ed',
-      backdrop: '#602048',
-      surface: '#602048',
+      primary: 'hsl(323, 75%, 70%)',
+      secondary: 'hsl(323, 91%, 91%)',
+      backdrop: 'hsl(323, 50%, 25%)',
+      surface: 'hsl(323, 50%, 25%)',
       disabled: '',
     }
   ],
   [
     'red', {
-      primary: '#ff7575',
-      secondary: '#ffcccf',
-      backdrop: '#60202b',
-      surface: '#60202b',
+      // primary: 'hsl(350, 85%, 65%)',
+      // backdrop: 'hsl(350, 50%, 25%)',
+      primary: 'hsl(0, 100%, 73%)',
+      secondary: 'hsl(356, 100%, 90%)',
+      backdrop: 'hsl(350, 50%, 25%)',
+      surface: 'hsl(350, 50%, 25%)',
       disabled: '',
     }
   ],
   [
     'orange', {
-      primary: '#FF972F',
-      secondary: '#ffdcc2',
-      backdrop: '#7a4006',
-      surface: '#7a4006',
+      primary: 'hsl(30, 100%, 59%)',
+      secondary: 'hsl(26, 100%, 88%)',
+      backdrop: 'hsl(30, 91%, 25%)',
+      surface: 'hsl(30, 91%, 25%)',
       disabled: '',
     }
   ],
   [
     'yellow', {
-      primary: '#ffb914',
-      secondary: '#f4dfaf',
-      backdrop: '#805700',
-      surface: '#805700',
+      primary: 'hsl(42, 100%, 54%)',
+      secondary: 'hsl(42, 76%, 82%)',
+      backdrop: 'hsl(41, 100%, 25%)',
+      surface: 'hsl(41, 100%, 25%)',
       disabled: '',
     }
   ],
   [
     'green', {
-      primary: '#2dd272',
-      secondary: '#b6edcb',
-      backdrop: '#265941',
-      surface: '#265941',
+      primary: 'hsl(145, 65%, 50%)',
+      secondary: 'hsl(143, 60%, 82%)',
+      backdrop: 'hsl(152, 40%, 25%)',
+      surface: 'hsl(152, 40%, 25%)',
       disabled: '',
     }
   ],
   [
     'teal', {
-      primary: '#5cc8d6',
-      secondary: '#b9e5ee',
-      backdrop: '#1f5361',
-      surface: '#1f5361',
+      primary: 'hsl(187, 60%, 60%)',
+      secondary: 'hsl(190, 61%, 83%)',
+      backdrop: 'hsl(193, 52%, 25%)',
+      surface: 'hsl(193, 52%, 25%)',
       disabled: '',
     }
   ],
   [
     'blue', {
-      primary: '#7891ed',
-      secondary: '#c6d6fb',
-      backdrop: '#203360',
-      surface: '#203360',
+      primary: 'hsl(227, 76%, 70%)',
+      secondary: 'hsl(222, 87%, 88%)',
+      backdrop: 'hsl(222, 50%, 25%)',
+      surface: 'hsl(222, 50%, 25%)',
       disabled: '',
     }
   ],
   [
     'violet', {
-      primary: '#c588f1',
-      secondary: '#e7cdf9',
-      backdrop: '#412956',
-      surface: '#412956',
+      primary: 'hsl(275, 79%, 74%)',
+      secondary: 'hsl(275, 79%, 89%)',
+      backdrop: 'hsl(272, 35%, 25%)',
+      surface: 'hsl(272, 35%, 25%)',
       disabled: '',
     }
   ],
@@ -190,107 +192,92 @@ const darkPalettes = new Map<BaseColor, Palette>([
 const lightPalettes = new Map<BaseColor, Palette>([
   [
     'pink', {
-      primary: '#ec79c0',
-      secondary: '#602048',
-      backdrop: '#fdd3ed',
-      surface: '#fdd3ed',
+      primary: 'hsl(323, 75%, 70%)',
+      secondary: 'hsl(323, 50%, 25%)',
+      backdrop: 'hsl(323, 91%, 91%)',
+      surface: 'hsl(323, 91%, 91%)',
       disabled: '',
     }
   ],
   [
     'red', {
-      primary: '#ff7575',
-      secondary: '#60202b',
-      backdrop: '#ffcccf',
-      surface: '#ffcccf',
+      // primary: 'hsl(350, 85%, 65%)',
+      // backdrop: 'hsl(350, 80%, 85%)',
+      primary: 'hsl(0, 100%, 73%)',
+      secondary: 'hsl(350, 50%, 25%)',
+      backdrop: 'hsl(356, 100%, 90%)',
+      surface: 'hsl(356, 100%, 90%)',
       disabled: '',
     }
   ],
   [
     'orange', {
-      primary: '#FF972F',
-      secondary: '#7a4006',
-      backdrop: '#ffdcc2',
-      surface: '#ffdcc2',
+      primary: 'hsl(30, 100%, 59%)',
+      secondary: 'hsl(30, 91%, 25%)',
+      backdrop: 'hsl(26, 100%, 88%)',
+      surface: 'hsl(26, 100%, 88%)',
       disabled: '',
     }
   ],
   [
     'yellow', {
-      primary: '#ffb914',
-      secondary: '#805700',
-      backdrop: '#f4dfaf',
-      surface: '#f4dfaf',
+      primary: 'hsl(42, 100%, 54%)',
+      secondary: 'hsl(41, 100%, 25%)',
+      backdrop: 'hsl(42, 76%, 82%)',
+      surface: 'hsl(42, 76%, 82%)',
       disabled: '',
     }
   ],
   [
     'green', {
-      primary: '#2dd272',
-      secondary: '#265941',
-      backdrop: '#b6edcb',
-      surface: '#b6edcb',
+      primary: 'hsl(145, 65%, 50%)',
+      secondary: 'hsl(152, 40%, 25%)',
+      backdrop: 'hsl(143, 60%, 82%)',
+      surface: 'hsl(143, 60%, 82%)',
       disabled: '',
     }
   ],
   [
     'teal', {
-      primary: '#5cc8d6',
-      secondary: '#1f5361',
-      backdrop: '#b9e5ee',
-      surface: '#b9e5ee',
+      primary: 'hsl(187, 60%, 60%)',
+      secondary: 'hsl(193, 52%, 25%)',
+      backdrop: 'hsl(190, 61%, 83%)',
+      surface: 'hsl(190, 61%, 83%)',
       disabled: '',
     }
   ],
   [
     'blue', {
-      primary: '#7891ed',
-      secondary: '#203360',
-      backdrop: '#c6d6fb',
-      surface: '#c6d6fb',
+      primary: 'hsl(227, 76%, 70%)',
+      secondary: 'hsl(222, 50%, 25%)',
+      backdrop: 'hsl(222, 87%, 88%)',
+      surface: 'hsl(222, 87%, 88%)',
       disabled: '',
     }
   ],
   [
     'violet', {
-      primary: '#c588f1',
-      secondary: '#412956',
-      backdrop: '#e7cdf9',
-      surface: '#e7cdf9',
+      primary: 'hsl(275, 79%, 74%)',
+      secondary: 'hsl(272, 35%, 25%)',
+      backdrop: 'hsl(275, 79%, 89%)',
+      surface: 'hsl(275, 79%, 89%)',
       disabled: '',
     }
   ],
 ]);
 
-// export const generateCustomPalette = (hue: number | undefined, theme: MD3Theme): Palette => {
-//   if (!hue) return getBasePalette(theme);
-//   const customColor = HSLToHex(hue, theme.dark ? 90 : 75, theme.dark ? 70 : 65);
-//   return {
-//     primary: customColor,
-//     secondary: hexWithAlpha(customColor, theme.dark ? 0.40 : 0.50),
-//     backdrop: HSLToHex(hue, theme.dark ? 80 : 70, theme.dark ? 40 : 75),
-
-//   };
-// }
-
 export const generateStandardPalette = (baseColor: BaseColor | undefined, darkMode: boolean): Palette => {
-  // const basePalette = getBasePalette(theme);
   if (!baseColor) return emptyPalette;
   return (darkMode ? darkPalettes : lightPalettes).get(baseColor) || emptyPalette;
-  // return {
-  //   primary: palette?.primary || basePalette.primary,
-  //   secondary: palette?.secondary || basePalette.secondary,
-  //   backdrop: palette?.backdrop || basePalette.backdrop,
-  // };
 }
 
 export const getBasePalette = (theme: MD3Theme) => ({
   primary: theme.colors.onSurface,
-  secondary: theme.colors.outline,
-  backdrop: theme.colors.surfaceDisabled,
+  secondary: !theme.dark ? '#2f3333' : '#dde2e3',
+  backdrop: theme.dark ? '#2f3333' : '#dde2e3',
   surface: theme.colors.surface,
-  disabled: theme.colors.onSurfaceDisabled,
-  alt: theme.colors.onSurfaceDisabled,
+  disabled: 'hsl(180, 2.73%, 64.12%)',
+  alt: 'hsl(180, 2.73%, 64.12%)',
 });
 
 const emptyPalette: Palette = {
@@ -300,149 +287,3 @@ const emptyPalette: Palette = {
   surface: '',
   disabled: '',
 };
-
-// interface HSLColor {
-//   h: number;
-//   s: number;
-//   l: number;
-// }
-
-// interface ColorResult {
-//   hex: string;
-//   hsl: HSLColor;
-//   contrast: number;
-// }
-
-// interface ColorPalette {
-//   background: {
-//     hex: string;
-//     hsl: HSLColor;
-//   };
-//   primary: ColorResult;
-//   secondary: ColorResult;
-//   text: ColorResult;
-//   timestamp: number;
-// }
-
-// class ColorCache {
-//   private lightCache: Map<number, ColorPalette>;
-//   private darkCache: Map<number, ColorPalette>;
-//   private maxSize: number;
-
-//   constructor(maxSize: number = 100) {
-//     this.lightCache = new Map();
-//     this.darkCache = new Map();
-//     this.maxSize = maxSize;
-//   }
-
-//   private normalizeHue(hue: number): number {
-//     return Math.round(((hue % 100) + 100) % 100);
-//   }
-
-//   get(hue: number, dark: boolean = false): ColorPalette | undefined {
-//     return (dark ? this.darkCache : this.lightCache).get(this.normalizeHue(hue));
-//   }
-
-//   set(hue: number, dark: boolean = false, value: ColorPalette): void {
-//     hue = this.normalizeHue(hue);
-
-//     const cache = dark ? this.darkCache : this.lightCache;
-      
-//     if (cache.size >= this.maxSize) {
-//       const firstKey = cache.keys().next().value;
-//       firstKey ? cache.delete(firstKey) : null;
-//     }
-        
-//     cache.set(hue, value);
-//   }
-
-//   clear(): void {
-//     this.lightCache.clear();
-//     this.darkCache.clear();
-//   }
-// }
-
-// function getLuminance(hex: string): number {
-//   const rgb = hex.replace('#', '').match(/.{2}/g)!
-//     .map(x => parseInt(x, 16) / 255)
-//     .map(x => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4));
-//   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-// }
-
-// function getContrastRatio(color1: string, color2: string): number {
-//   const l1 = getLuminance(color1);
-//   const l2 = getLuminance(color2);
-//   const brightest = Math.max(l1, l2);
-//   const darkest = Math.min(l1, l2);
-//   return (brightest + 0.05) / (darkest + 0.05);
-// }
-
-// function findAccessibleColor(
-//   hue: number,
-//   backgroundColor: string,
-//   targetContrast: number = 2.5
-// ): ColorResult {
-//   let bestColor: ColorResult | null = null;
-//   let bestContrast = 0;
-  
-//   for (let s = 100; s >= 30; s -= 10) {
-//     for (let l = 0; l <= 100; l += 2) {
-//       const testColor = HSLToHex(hue, s, l);
-//       const contrast = getContrastRatio(testColor, backgroundColor);
-          
-//       if (contrast >= targetContrast && (bestColor === null || Math.abs(contrast - targetContrast) < Math.abs(bestContrast - targetContrast))) {
-//         bestColor = {
-//           hex: testColor,
-//           hsl: { h: hue, s, l },
-//           contrast
-//         };
-//         bestContrast = contrast;
-                
-//         if (Math.abs(contrast - targetContrast) < 0.1) {
-//           return bestColor;
-//         }
-//       }
-//     }
-//   }
-    
-//   if (!bestColor) {
-//     const l = backgroundColor.startsWith('#fff') ? 0 : 100;
-//     bestColor = {
-//       hex: HSLToHex(hue, 100, l),
-//       hsl: { h: hue, s: 100, l },
-//       contrast: bestContrast
-//     };
-//   }
-    
-//   return bestColor;
-// }
-
-// const colorCache = new ColorCache();
-
-// export function generateAccessiblePalette(hue: number, theme: MD3Theme): ColorPalette {
-//   // Check cache first
-//   const cached = colorCache.get(hue, theme.dark);
-//   if (cached) {
-//     return cached;
-//   }
-
-//   // If not in cache, calculate new palette
-//   const background = theme.dark ? HSLToHex(hue, 15, 10) : HSLToHex(hue, 15, 97);
-//   const primary = findAccessibleColor(hue, background, 4.5);
-//   const secondary = findAccessibleColor((hue + 10) % 100, background, 4.5);
-//   const text = findAccessibleColor(hue, background, 7);
-
-//   const palette: ColorPalette = {
-//     background: {
-//       hex: background,
-//       hsl: { h: hue, s: 15, l: 97 }
-//     },
-//     primary,
-//     secondary,
-//     text,
-//     timestamp: Date.now()
-//   };
-
-//   colorCache.set(hue, theme.dark, palette);
-//   return palette;
-// }

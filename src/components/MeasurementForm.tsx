@@ -279,6 +279,52 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         <ScrollView contentContainerStyle={s.scrollContainer}>
           <View style={s.content}>
             <View style={s.formSectionHeader}>
+              <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
+              <Text variant='bodySmall' style={s.labelSubtitle}>
+                {`How the measurement is displayed.`}
+              </Text>
+            </View>
+            <View style={s.formSection}>
+              <TextInput
+                label='Name'
+                placeholder='Read, Work out, Study'
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
+                style={s.input}
+                mode='outlined'
+                error={saveAttempted && getNameErrors().hasError}
+                value={formMeasurement.name || ''}
+                onChangeText={(text) => {
+                  const nextMeasurement = { ...formMeasurement, name: text };
+                  handleFormEdit(nextMeasurement);
+                }}
+                activeOutlineColor={palette.primary || undefined}
+                />
+              <TextInput
+                label='Variant (optional)'
+                placeholder='Nonfiction, Cardio, Biology'
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
+                style={s.input}
+                mode='outlined'
+                error={saveAttempted && getVariantErrors().hasError}
+                value={formMeasurement.variant || ''}
+                onChangeText={(text) => {
+                  const nextMeasurement = { ...formMeasurement, variant: text };
+                  handleFormEdit(nextMeasurement);
+                }}
+                activeOutlineColor={palette.primary || undefined}
+              />
+              <View style={{ marginTop: 8 }}>
+                <ColorPicker
+                  value={formMeasurement.baseColor}
+                  onSelect={(nextColor) => {
+                    const nextMeasurement = { ...formMeasurement, baseColor: nextColor };
+                    handleFormEdit(nextMeasurement);
+                  }}
+                />
+              </View>
+            </View>
+            <Divider style={s.formSectionDivider} />
+            <View style={s.formSectionHeader}>
               <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
               <Text variant='bodySmall' style={s.labelSubtitle}>
                 {`${isNew ? 'The' : 'The'} kind of data this measurement represents.`}
@@ -326,52 +372,6 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
             </View>
             {!isUnset && (
               <>
-                <Divider style={s.formSectionDivider} />
-                <View style={s.formSectionHeader}>
-                  <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
-                  <Text variant='bodySmall' style={s.labelSubtitle}>
-                    {`How the measurement is displayed.`}
-                  </Text>
-                </View>
-                <View style={s.formSection}>
-                  <TextInput
-                    label='Name'
-                    placeholder='Read, Work out, Study'
-                    placeholderTextColor={theme.colors.onSurfaceDisabled}
-                    style={s.input}
-                    mode='outlined'
-                    error={saveAttempted && getNameErrors().hasError}
-                    value={formMeasurement.name || ''}
-                    onChangeText={(text) => {
-                      const nextMeasurement = { ...formMeasurement, name: text };
-                      handleFormEdit(nextMeasurement);
-                    }}
-                    activeOutlineColor={palette.primary || undefined}
-                    />
-                  <TextInput
-                    label='Variant (optional)'
-                    placeholder='Nonfiction, Cardio, Biology'
-                    placeholderTextColor={theme.colors.onSurfaceDisabled}
-                    style={s.input}
-                    mode='outlined'
-                    error={saveAttempted && getVariantErrors().hasError}
-                    value={formMeasurement.variant || ''}
-                    onChangeText={(text) => {
-                      const nextMeasurement = { ...formMeasurement, variant: text };
-                      handleFormEdit(nextMeasurement);
-                    }}
-                    activeOutlineColor={palette.primary || undefined}
-                  />
-                  <View style={{ marginTop: 8 }}>
-                    <ColorPicker
-                      value={formMeasurement.baseColor}
-                      onSelect={(nextColor) => {
-                        const nextMeasurement = { ...formMeasurement, baseColor: nextColor };
-                        handleFormEdit(nextMeasurement);
-                      }}
-                    />
-                  </View>
-                </View>
                 {!isBool && <>
                   <Divider style={s.formSectionDivider} />
                   <View style={s.formSectionHeader}>
@@ -519,6 +519,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                           null
                         }
                         activeOutlineColor={palette.primary || undefined}
+                        keyboardType="numeric"
                       />
                     ) : null}
                     {!isCombo ? (
@@ -564,7 +565,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
             onPress={() => handleCancel()}
             textColor={theme.colors.onSurface}
           >
-            <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>Discard</Text>
+            <Text variant='labelLarge' style={[s.buttonText, s.cancelButtonText]}>{isNew ? 'Discard' : 'Cancel'}</Text>
           </Button>
           <Button
             mode="text"
