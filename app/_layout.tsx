@@ -12,6 +12,7 @@ import { useAuthState, useDataLoaded, useSettings } from '@s/selectors';
 import LoadingScreen from '@c/Loading';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
+import { ImportDialog } from '@c/ImportDialog';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -20,11 +21,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <Provider store={store}>
-          <SafeAreaProvider>
-            <ThemeProvider>
-              <RootStack />
-            </ThemeProvider>
-          </SafeAreaProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <RootStack />
+          </ThemeProvider>
+        </SafeAreaProvider>
       </Provider>
     </GestureHandlerRootView>
   );
@@ -68,18 +69,24 @@ const RootStack = () => {
 
   if (!fontsLoaded) return null;
 
+  const showLoading = loading || !initialAuthCheckComplete || (!!user && !dataLoaded);
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="signout" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="+not-found" />
-        <Stack.Screen name="measurement" />
-        <Stack.Screen name="habit" />
-      </Stack>
-      <LoadingScreen visible={loading || !initialAuthCheckComplete || (!!user && !dataLoaded)} />
+      {!showLoading && (
+        <>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="signout" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="+not-found" />
+            <Stack.Screen name="measurement" />
+            <Stack.Screen name="habit" />
+          </Stack>
+          <ImportDialog />
+        </>
+      )}
+      <LoadingScreen visible={showLoading} />
     </>
   )
 };

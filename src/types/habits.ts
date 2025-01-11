@@ -68,7 +68,6 @@ const computeHabit = (habit: Habit, date: SimpleDate = SimpleDate.today()): Comp
   }, initialHabit);
 
   if (!computedHabit.id) console.error('Habit id unset');
-  if (!computedHabit.userId) console.error('Habit userId unset');
 
   return computedHabit;
 }

@@ -113,7 +113,7 @@ const OptionButton = ({
 
 const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: theme.colors.elevation.level2,
   },
@@ -126,7 +126,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     backgroundColor: undefined,
   },
   content: {
-    borderRadius: 16,
+    borderRadius: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

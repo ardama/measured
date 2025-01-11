@@ -12,7 +12,7 @@ const SignoutScreen = () => {
 
     setTimeout(() => {
       dispatch(signOutRequest());
-    }, 500);
+    }, 100);
     signoutTriggered.current = true;
   })
   return (

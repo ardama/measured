@@ -12,11 +12,11 @@ import { createFontStyle } from '@u/styles';
 import { generateStandardPalette, getBasePalette, type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 
-const LoginScreen = () => {
+const LoginScreen = ({ initialAction = 'login' }: { initialAction?: AuthAction }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [userAction, setUserAction] = useState<AuthAction>('login');
+  const [userAction, setUserAction] = useState<AuthAction>(initialAction);
   const isLogin = userAction === 'login';
   const isSignUp = userAction === 'signup';
   const isReset = userAction === 'reset'; 
@@ -117,7 +117,7 @@ const LoginScreen = () => {
             {isSignUp ? 'Create an account' : isLogin ? 'Log in to your account' : 'Reset password'}
           </Text>
           <Text style={styles.subtitle} variant='bodyLarge'>
-            {isSignUp ? 'Start meauring your life.' : isLogin ? 'Continue measuring your life.' : 'Enter your email to receive a password reset link.'}
+            {isSignUp ? 'Start measuring your life.' : isLogin ? 'Continue measuring your life.' : 'Enter your email to receive a password reset link.'}
           </Text>
           <TextInput
             value={email}
@@ -167,6 +167,7 @@ const LoginScreen = () => {
         <View style={styles.controlContainer}>
           <Button
             style={styles.button}
+            contentStyle={styles.buttonContent}
             mode="contained"
             loading={loading}
             onPress={handleSubmit}
@@ -177,6 +178,7 @@ const LoginScreen = () => {
           </Button>
           <Button
             style={styles.button}
+            contentStyle={styles.buttonContent}
             mode="text"
             loading={loading}
             onPress={handleGuest}
@@ -211,7 +213,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     width: '100%',
     overflow: 'visible',
     alignItems: 'center',
-    backgroundColor: theme.colors.elevation.level3,
+    backgroundColor: theme.colors.elevation.level2,
   },
   logoContainer: {
     justifyContent: 'flex-start',
@@ -239,7 +241,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
 
   },
   logoTitle: {
-    color: theme.colors.onSurfaceDisabled,
+    color: theme.colors.onSurface,
     marginTop: 4,
     fontSize: 30,
     // opacity: 0.8,
@@ -270,7 +272,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     color: palette.primary,
   },
   subtitle: {
-    color: theme.colors.outline,
+    color: theme.colors.onSurface,
     marginTop: 2,
     marginBottom: 12,
   },
@@ -293,6 +295,10 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
   },
   button: {
     marginVertical: 8,
+    borderRadius: 4,
+  },
+  buttonContent: {
+    paddingVertical: 4,
   },
   toggle: {
     marginTop: 8,

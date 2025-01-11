@@ -1,15 +1,16 @@
 import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
-import { callUpdateAccount } from '@s/dataReducer';
+import { callUpdateAccount, callDeleteAll } from '@s/dataReducer';
 import { useAccount } from '@s/selectors';
 import type { AccountSettings } from '@t/users';
+import { Icons } from '@u/constants/Icons';
 import { useAuth } from '@u/hooks/useAuth';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router'
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { StyleSheet, View } from 'react-native';
-import { Icon, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Dialog, Icon, Portal, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 
 type SettingsItem = {
@@ -36,6 +37,7 @@ const Settings = () => {
   const darkMode = account.settings.darkMode;
 
   const [darkModeValue, setDarkModeValue] = useState(darkMode);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
 
   const darkModeChange = useRef<NodeJS.Timeout | null>(null);
   const handleDarkModeChange = (nextDarkMode: boolean) => {
@@ -52,7 +54,7 @@ const Settings = () => {
 
   const displayItems: SettingsItem[] = [
     {
-      icon: 'theme-light-dark',
+      icon: Icons.darkMode,
       title: 'dark mode',
       control: <Switch
         color={globalPalette.primary}
@@ -65,7 +67,7 @@ const Settings = () => {
       },
     },
     {
-      icon: 'palette',
+      icon: Icons.palette,
       title: 'accent color',
       control: (
         <View style={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1, paddingLeft: 24 }}>
@@ -80,14 +82,22 @@ const Settings = () => {
   ];
   const accountItems: SettingsItem[] = [
     {
-      icon: 'logout',
-      title: 'SIGN OUT',
-      onPress: () => { router.push('/signout'); },
+      icon: user ? Icons.logout : Icons.login,
+      title: user ? 'SIGN OUT' : 'SIGN IN',
+      onPress: () => { user ? router.push('/signout') : router.push('/signout'); },
       control: (
         <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
       )
     },
   ];
+
+  if (user) {
+    accountItems.push({
+      icon: Icons.delete,
+      title: 'DELETE DATA',
+      onPress: () => setShowDeleteAllDialog(true),
+    });
+  }
 
   const sections: SettingsSection[] = [
     {
@@ -148,6 +158,40 @@ const Settings = () => {
           })}
         </ScrollView>
       </View>
+      <Portal>
+        <Dialog
+          visible={showDeleteAllDialog}
+          onDismiss={() => setShowDeleteAllDialog(false)}
+        >
+          <Dialog.Title>Delete Data</Dialog.Title>
+          <Dialog.Content>
+            <Text variant='bodyMedium'>
+              Are you sure you want to delete your account data? This action cannot be undone.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              onPress={() => setShowDeleteAllDialog(false)}
+              mode='text'
+              textColor={theme.colors.onSurface}
+              contentStyle={styles.dialogButton}
+            >
+              CANCEL
+            </Button>
+            <Button
+              onPress={() => {
+                dispatch(callDeleteAll());
+                setShowDeleteAllDialog(false);
+              }}
+              mode='text'
+              textColor={theme.colors.error}
+              contentStyle={styles.dialogButton}
+            >
+              DELETE
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </>
   )
 }
@@ -155,6 +199,7 @@ const Settings = () => {
 const createStyles = (theme: MD3Theme) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.surface,
   },
   scrollContainer: {
     padding: 0,
@@ -199,9 +244,10 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   itemTitle: {
+    flexShrink: 0,
   },
   itemContent: {
     flexDirection: 'row',
@@ -210,7 +256,10 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexShrink: 1,
   },
   itemIcon: {
-    
+    marginRight: -2,
+  },
+  dialogButton: {
+    paddingHorizontal: 8,
   },
 });
 

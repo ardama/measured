@@ -1,5 +1,5 @@
 import { all, call, delay, put, race, select, take, takeLatest } from 'redux-saga/effects';
-import { signInRequest, signInSuccess, signInFailure, signOutRequest, signOutSuccess, signOutFailure, signUpSuccess, signUpFailure, signUpRequest, type AuthCredentials, initialAuthCheckComplete, resetRequest, resetSuccess, resetFailure, guestSignInRequest, guestSignInSuccess, guestSignInFailure } from '@s/authReducer';
+import { signInRequest, signInSuccess, signInFailure, signOutRequest, signOutSuccess, signOutFailure, signUpSuccess, signUpFailure, signUpRequest, type AuthCredentials, initialAuthCheckComplete, resetRequest, resetSuccess, resetFailure, guestSignInRequest, guestSignInSuccess, guestSignInFailure, showImportDialog, hideImportDialog, confirmImportDialog } from '@s/authReducer';
 import { confirmPasswordReset, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User, type UserCredential } from 'firebase/auth';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { auth } from '@/firebase';
@@ -9,19 +9,9 @@ import { resetData, callUpdateAccount, setAccount, setMeasurements, setHabits } 
 import type { RootState } from '@t/redux';
 import { FirebaseError } from 'firebase/app';
 import { storageService } from '@s/storage';
-
-function* loadGuestData(): Generator<any, void, any> {
-  const [measurements, habits, account] = yield all([
-    call([storageService, storageService.getMeasurements]),
-    call([storageService, storageService.getHabits]),
-    call([storageService, storageService.getAccount]),
-  ]);
-  yield all([
-    put(setMeasurements(measurements)),
-    put(setHabits(habits)),
-    put(setAccount(account ? [account] : [])),
-  ]);
-}
+import { getLocalData, getRemoteData, loadLocalData, type LocalData, type RemoteData } from '@s/helpers';
+import { migrateLocalData } from '@s/dataSaga';
+import { router } from 'expo-router';
 
 function* guestSignInRequestSaga() {
   try {
@@ -29,7 +19,7 @@ function* guestSignInRequestSaga() {
     
     // Set active user ID to guest
     yield call([storageService, storageService.setActiveUserId], 'guest');
-    yield call(loadGuestData);
+    yield call(loadLocalData);
     
     yield put(guestSignInSuccess());
   } catch (error) {
@@ -41,6 +31,29 @@ function* guestSignInRequestSaga() {
   }
 }
 
+function* handleLocalDataImport(userId: string): Generator<any, void, any> {
+  // Check if user has any remote data
+  const { measurements, habits, accounts }: RemoteData = yield call(getRemoteData);
+
+  const hasData = !measurements.empty || !habits.empty || !accounts.empty;
+  
+  if (!hasData) {
+    const guestData: LocalData = yield call(getLocalData);
+    const { measurements, habits, account } = guestData;
+    if (measurements.length > 0 || habits.length > 0 || account !== null) {
+      yield put(showImportDialog());
+      const { confirmed } = yield race({
+        confirmed: take(confirmImportDialog.type),
+        cancelled: take(hideImportDialog.type),
+      });
+
+      if (confirmed) {
+        yield call(migrateLocalData, guestData, userId);
+      }
+    }
+  }
+}
+
 function* signUpSaga(action: PayloadAction<AuthCredentials>) {
   const { email, password } = action.payload;
   if (!email || !password) return;
@@ -48,6 +61,7 @@ function* signUpSaga(action: PayloadAction<AuthCredentials>) {
     yield put(resetData());
     const result: UserCredential = yield call(createUserWithEmailAndPassword, auth, email.trim(), password.trim());
     
+    yield call(handleLocalDataImport, result.user.uid);
     yield call([storageService, storageService.setActiveUserId], result.user.uid);
     yield put(signUpSuccess(serializeUser(result.user)));
     
@@ -71,9 +85,8 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
   try {
     yield put(resetData());
     const result: UserCredential = yield call(signInWithEmailAndPassword, auth, email.trim(), password.trim());
-
+    yield call(handleLocalDataImport, result.user.uid);
     yield call([storageService, storageService.setActiveUserId], result.user.uid);
-
     yield put(signInSuccess(serializeUser(result.user)));
   } catch (error) {
     if (error instanceof FirebaseError) {
@@ -86,7 +99,7 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
   }
 }
 
-function* signOutSaga() {
+export function* signOutSaga() {
   try {
     const storedUserId: string | null = yield call([storageService, storageService.getActiveUserId]);
 
@@ -161,8 +174,11 @@ function* initialAuthCheckSaga() {
 
   // Load guest data if stored user ID is guest
   if (storedUserId === 'guest') {
-    yield call(loadGuestData);
+    yield call(loadLocalData);
     yield put(guestSignInSuccess());
+
+    yield delay(750);
+    yield put(initialAuthCheckComplete());
     return;
   }
 

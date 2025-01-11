@@ -151,3 +151,51 @@ export const triggerHaptic = async (type: 'impact' | 'notification' | 'selection
     }
   }
 };
+
+export const parseTimeString = (timeStr: string): { hours: number, offset: number } | null => {
+  // Handle empty input
+  if (!timeStr) return null;
+
+  // Try parsing "HH:MM AM/PM" format
+  const match = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm|a|p)?$/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1]);
+  let minutes = parseInt(match[2] || '0');
+  const meridian = match[3]?.toLowerCase();
+
+  // Validate hours and minutes
+  hours = (24 + (hours % 24)) % 24;
+  minutes = (60 + (minutes % 60)) % 60;
+
+  // Convert to 24 hour format
+  if (meridian === 'pm' || meridian === 'p') {
+    if (hours !== 12) hours += 12;
+  } else if (meridian === 'am' || meridian === 'a') {
+    if (hours === 12) hours = 0;
+  }
+
+  return {
+    hours: hours + minutes / 60,
+    offset: 0
+  };
+};
+
+export const formatTimeValue = (value: number): string => {
+  const totalHours = value % 24;
+  const minutes = Math.round((totalHours % 1) * 60);
+  const hours = Math.floor(totalHours);
+  const period = hours >= 12 ? 'pm' : 'am';
+  const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+};
+
+export const parseTimeValue = (value: number): { hours: number, offset: number } => {
+  const offset = Math.floor(value / 24);
+  const hours = (24 + (value % 24)) % 24;
+  return { hours, offset };
+};
+
+export const computeTimeValue = (hours: number, offset: number): number => {
+  return hours + offset * 24;
+};

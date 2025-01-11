@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { ComputedHabit, Habit, HabitUpdate } from '@t/habits';
+import type { ComputedHabit, Habit } from '@t/habits';
 import type { Measurement } from '@t/measurements';
 import type { Account } from '@t/users';
 import { createDataState, type DataState } from '@type/redux';
@@ -44,6 +44,9 @@ const dataStateSlice = createSlice({
     
     callUpdateAccount: (_: DataState, __: PayloadAction<Account>) => {},
     callUpdateAccountStatus: (state: DataState, action: PayloadAction<string>) => { state.accountStatus.update = action.payload; },
+
+    callDeleteAll: (_: DataState) => {},
+    callDeleteAllStatus: (state: DataState, action: PayloadAction<string>) => { state.deleteAllStatus = action.payload; },
   },
 });
 
@@ -73,6 +76,9 @@ export const {
   callUpdateAccount,
   callUpdateAccountStatus,
 
+  callDeleteAll,
+  callDeleteAllStatus,
+
 } = dataStateSlice.actions;
 
 export const dataActions = new Set([
@@ -85,6 +91,8 @@ export const dataActions = new Set([
   callDeleteHabit.type,
 
   callUpdateAccount.type,
+  
+  callDeleteAll.type,
 ]);
 
 export default dataStateSlice.reducer;

@@ -8,13 +8,14 @@ import { getMeasurementOperatorData, getMeasurementTypeData, getMeasurementTypeI
 import { type BaseColor, type Palette } from '@u/colors';
 import { Error, EmptyError, NoError } from '@u/constants/Errors';
 import { Icons } from '@u/constants/Icons';
-import { formatValue } from '@u/helpers';
+import { formatValue, parseTimeString, formatTimeValue, parseTimeValue, computeTimeValue } from '@u/helpers';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Keyboard, ScrollView, StyleSheet, View, Platform } from 'react-native';
 import { Button, Dialog, Divider, Icon, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 type MeasurementFormProps = {
   measurement: Measurement,
@@ -46,13 +47,14 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
   const [formMeasurement, setFormMeasurement] = useState<FormMeasurement>({
     ...measurement,
-    step: measurement.step.toString(),
+    step: measurement.type === 'time' ? (measurement.step * 60).toString() : measurement.step.toString(),
     initial: measurement.initial.toString(),
   });
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [isComboLeftMenuVisible, setIsComboLeftMenuVisible] = useState(false);
   const [isComboRightMenuVisible, setIsComboRightMenuVisible] = useState(false);
   const [isComboOperatorMenuVisible, setIsComboOperatorMenuVisible] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const isNew = formType === 'create';
 
@@ -91,7 +93,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
       return;
     }
 
-    const step = isBool ? 1 : isCombo ? 0 : parseFloat(formMeasurement.step);
+    const step = isBool ? 1 : isCombo ? 0 : isTime ? parseFloat(formMeasurement.step) / 60 : parseFloat(formMeasurement.step);
     const unit = isBool || isTime || isDuration ? '' : formMeasurement.unit;
     const initial = isBool ? 0 : parseFloat(formMeasurement.initial);
     const comboLeftId = isCombo ? formMeasurement.comboLeftId : undefined;
@@ -184,7 +186,11 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
   const selectedOperatorItem = comboOperatorItems.find(({ value }) => value === formMeasurement.comboOperator) || null;  
   const unitString = isDuration ? 'minutes' : isBool ? '--' : isTime ? 'hours' : formMeasurement.unit;
-  
+
+  const initialValueWithoutOffset = (24 + (parseFloat(formMeasurement.initial) % 24)) % 24;
+  const [timeValueString, setTimeValueString] = useState(formatTimeValue(initialValueWithoutOffset));
+  const [timeOffsetString, setTimeOffsetString] = useState(Math.floor(parseFloat(formMeasurement.initial) / 24).toFixed(0));
+
   const measurementUsage = useMeasurementUsage();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [deletionTarget, setDeletionTarget] = useState<Measurement | null>(null);
@@ -233,11 +239,29 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     dispatch(callUpdateMeasurement({ ...measurement, archived }));
   };
 
+  const handleTimeChange = (_: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) {
+      const hours = selectedDate.getHours() + selectedDate.getMinutes() / 60;
+      const offset = parseInt(timeOffsetString) || 0;
+      const nextMeasurement = { ...formMeasurement, initial: computeTimeValue(hours, offset).toString() };
+      handleFormEdit(nextMeasurement);
+      setTimeValueString(formatTimeValue(hours));
+    }
+  };
 
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
   const palette = getCombinedPalette(formMeasurement.baseColor);
   const s = createFormStyles(theme, palette);
+
+  useEffect(() => {
+    if (isTime && formMeasurement.initial) {
+      const { hours, offset } = parseTimeValue(parseFloat(formMeasurement.initial));
+      setTimeValueString(formatTimeValue(hours));
+      setTimeOffsetString(offset.toString());
+    }
+  }, []);
 
   return (
     <>
@@ -279,56 +303,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         <ScrollView contentContainerStyle={s.scrollContainer}>
           <View style={s.content}>
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
-              <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`How the measurement is displayed.`}
-              </Text>
-            </View>
-            <View style={s.formSection}>
-              <TextInput
-                label='Name'
-                placeholder='Read, Work out, Study'
-                placeholderTextColor={theme.colors.onSurfaceDisabled}
-                style={s.input}
-                mode='outlined'
-                error={saveAttempted && getNameErrors().hasError}
-                value={formMeasurement.name || ''}
-                onChangeText={(text) => {
-                  const nextMeasurement = { ...formMeasurement, name: text };
-                  handleFormEdit(nextMeasurement);
-                }}
-                activeOutlineColor={palette.primary || undefined}
-                />
-              <TextInput
-                label='Variant (optional)'
-                placeholder='Nonfiction, Cardio, Biology'
-                placeholderTextColor={theme.colors.onSurfaceDisabled}
-                style={s.input}
-                mode='outlined'
-                error={saveAttempted && getVariantErrors().hasError}
-                value={formMeasurement.variant || ''}
-                onChangeText={(text) => {
-                  const nextMeasurement = { ...formMeasurement, variant: text };
-                  handleFormEdit(nextMeasurement);
-                }}
-                activeOutlineColor={palette.primary || undefined}
-              />
-              <View style={{ marginTop: 8 }}>
-                <ColorPicker
-                  value={formMeasurement.baseColor}
-                  onSelect={(nextColor) => {
-                    const nextMeasurement = { ...formMeasurement, baseColor: nextColor };
-                    handleFormEdit(nextMeasurement);
-                  }}
-                />
-              </View>
-            </View>
-            <Divider style={s.formSectionDivider} />
-            <View style={s.formSectionHeader}>
               <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
-              <Text variant='bodySmall' style={s.labelSubtitle}>
-                {`${isNew ? 'The' : 'The'} kind of data this measurement represents.`}
-              </Text>
+              {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                {`What kind of data do you want to track?`}
+              </Text>}
             </View>
             <View style={s.formSection}>
               {measurementTypes.map((type) => {
@@ -349,7 +327,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0]?.id;
                         nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[1]?.id || measurements[0]?.id;
                       } else if (type === 'time') {
-                        nextMeasurement.step = '0.5';
+                        nextMeasurement.step = '30';
                         nextMeasurement.initial = '12';
                         nextMeasurement.unit = 'hours';
                       } else if (type === 'duration') {
@@ -364,21 +342,71 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                     disabled={disabled}
                     icon={typeData.icon}
                     title={typeData.label.toUpperCase()}
-                    subtitle={typeData.description}
+                    subtitle={typeData.examples}
                     palette={palette}
                   />
                 );
               })}
             </View>
+            {!!formMeasurement.type && (
+              <>
+                <Divider style={s.formSectionDivider} />
+                <View style={s.formSectionHeader}>
+                  <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
+                  {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                    {`What do you want to call this measurement?`}
+                  </Text>}
+                </View>
+                <View style={s.formSection}>
+                  <TextInput
+                    label='Name'
+                    placeholder='Read, Work out, Study'
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    style={s.input}
+                    mode='outlined'
+                    error={saveAttempted && getNameErrors().hasError}
+                    value={formMeasurement.name || ''}
+                    onChangeText={(text) => {
+                      const nextMeasurement = { ...formMeasurement, name: text };
+                      handleFormEdit(nextMeasurement);
+                    }}
+                    activeOutlineColor={palette.primary || undefined}
+                    />
+                  <TextInput
+                    label='Variant (optional)'
+                    placeholder='Nonfiction, Cardio, Biology'
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    style={s.input}
+                    mode='outlined'
+                    error={saveAttempted && getVariantErrors().hasError}
+                    value={formMeasurement.variant || ''}
+                    onChangeText={(text) => {
+                      const nextMeasurement = { ...formMeasurement, variant: text };
+                      handleFormEdit(nextMeasurement);
+                    }}
+                    activeOutlineColor={palette.primary || undefined}
+                  />
+                  <View style={{ marginTop: 8 }}>
+                    <ColorPicker
+                      value={formMeasurement.baseColor}
+                      onSelect={(nextColor) => {
+                        const nextMeasurement = { ...formMeasurement, baseColor: nextColor };
+                        handleFormEdit(nextMeasurement);
+                      }}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
             {!isUnset && (
               <>
                 {!isBool && <>
                   <Divider style={s.formSectionDivider} />
                   <View style={s.formSectionHeader}>
                     <Text variant='labelMedium' style={s.labelTitle}>DATA VALUES</Text>
-                    <Text variant='bodySmall' style={s.labelSubtitle}>
-                      {`Values the measurement can take and how they are formatted.`}
-                    </Text>
+                    {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                      {`What values can the measurement take and how they are formatted?`}
+                    </Text>}
                   </View>
                   <View style={s.formSection}>
                     {isCombo ? (
@@ -500,7 +528,72 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         activeOutlineColor={palette.primary || undefined}
                       />
                     }
-                    {!isCombo ? (
+                    {isTime ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TextInput
+                          style={[s.input, { flexGrow: 1, flexShrink: 1 }]}
+                          mode='outlined'
+                          label='Daily starting value'
+                          value={timeValueString}
+                          placeholder="12:00pm"
+                          error={saveAttempted && getInitialErrors().hasError}
+                          onFocus={() => {
+                            if (Platform.OS !== 'web') {
+                              Keyboard.dismiss();
+                              setShowTimePicker(true);
+                            }
+                          }}
+                          onChangeText={(text) => {
+                            if (Platform.OS !== 'web') return;
+
+                            setTimeValueString(text);
+                            const parsedTime = parseTimeString(text) || { hours: 12, offset: 0 };
+                            const offset = parseInt(timeOffsetString) || 0;
+                            const nextMeasurement = { ...formMeasurement, initial: computeTimeValue(parsedTime.hours, offset).toString() };
+                            handleFormEdit(nextMeasurement);
+                          }}
+                          onBlur={() => {
+                            if (Platform.OS !== 'web') return;
+
+                            const parsedTime = parseTimeString(timeValueString) || { hours: 12, offset: 0 };
+                            const offset = parseInt(timeOffsetString) || 0;
+                            const nextMeasurement = { ...formMeasurement, initial: computeTimeValue(parsedTime.hours, offset).toString() };
+                            handleFormEdit(nextMeasurement);
+                            setTimeValueString(formatTimeValue(parsedTime.hours));
+                          }}
+                          activeOutlineColor={palette.primary || undefined}
+                          showSoftInputOnFocus={Platform.OS === 'web'}
+                        />
+                        <TextInput
+                          style={[s.input, { width: 100, flexShrink: 0 }]}
+                          mode='outlined'
+                          label='Offset'
+                          value={timeOffsetString}
+                          error={saveAttempted && getInitialErrors().hasError}
+                          activeOutlineColor={palette.primary || undefined}
+                          keyboardType="numeric"
+                          right={
+                            <TextInput.Affix text={`days`} />
+                          }
+                          onChangeText={(text) => {
+                            setTimeOffsetString(text);
+                            
+                            const offset = parseInt(text) || 0;
+                            const { hours } = parseTimeValue(parseFloat(formMeasurement.initial));
+                            const nextMeasurement = { ...formMeasurement, initial: computeTimeValue(hours, offset).toString() };
+                            handleFormEdit(nextMeasurement);
+                          }}
+                          onBlur={() => {
+                            const offset = parseInt(timeOffsetString) || 0;
+                            setTimeOffsetString(offset.toString());
+
+                            const { hours } = parseTimeValue(parseFloat(formMeasurement.initial));
+                            const nextMeasurement = { ...formMeasurement, initial: computeTimeValue(hours, offset).toString() };
+                            handleFormEdit(nextMeasurement);
+                          }}
+                        />
+                      </View>
+                    ) : !isCombo && (
                       <TextInput
                         style={s.input}
                         mode='outlined'
@@ -514,42 +607,39 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         disabled={isBool}
                         right={
                           isBool ? null :
-                          (isTime || isDuration) && formMeasurement.initial ? <TextInput.Affix text={`(${formatValue(parseFloat(formMeasurement.initial), formMeasurement.type)})`} /> :
+                          isDuration && formMeasurement.initial ? <TextInput.Affix text={`(${formatValue(parseFloat(formMeasurement.initial), formMeasurement.type)})`} /> :
                           unitString ? <TextInput.Affix text={unitString} /> :
                           null
                         }
                         activeOutlineColor={palette.primary || undefined}
                         keyboardType="numeric"
                       />
-                    ) : null}
-                    {!isCombo ? (
+                    )}
+                    {!isCombo && (
                       <TextInput
                         style={s.input}
                         mode='outlined'
                         placeholder='15, 1000, 100, 8'
                         placeholderTextColor={theme.colors.onSurfaceDisabled}
                         label='Increment amount'
-                        value={isBool ? '--' : formMeasurement.step.toString() || ''}
+                        value={formMeasurement.step.toString() || ''}
                         error={saveAttempted && getStepErrors().hasError}
                         onChangeText={(text) => {
                           const nextMeasurement = { ...formMeasurement, step: text };
                           handleFormEdit(nextMeasurement);
                         }}
                         keyboardType="numeric"
-                        disabled={isBool}
                         left={
-                          isBool ? null :
                           <TextInput.Affix text={'+/-'} />
                         }
                         right={
-                          isBool ? null :
-                          isTime && formMeasurement.step ? <TextInput.Affix text={`(${(parseFloat(formMeasurement.step) * 60).toFixed(0)} minutes)`} /> :
+                          isTime ? <TextInput.Affix text={`minutes`} /> :
                           unitString ? <TextInput.Affix text={unitString} /> :
                           null
                         }
                         activeOutlineColor={palette.primary || undefined}
                       />
-                    ) : null}
+                    )}
                   </View>
                 </>}
               </>
@@ -619,6 +709,15 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
           </Dialog.Actions>
         </Dialog>
       </Portal>
+      {showTimePicker && (
+        <DateTimePicker
+          value={new Date(2000, 0, 1, parseInt(formMeasurement.initial), (parseFloat(formMeasurement.initial) % 1) * 60)}
+          mode="time"
+          onChange={handleTimeChange}
+          display="spinner"
+          minuteInterval={5}
+        />
+      )}
     </>
   );
 }
@@ -634,7 +733,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     paddingBottom: 72,
   },
   scrollContainer: {
-    paddingVertical: 24,
+    paddingVertical: 16,
     width: '100%',
     backgroundColor: theme.colors.background,
     flexDirection: 'row',
@@ -718,7 +817,9 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   operatorLabel: {
     width: 16,
     textAlign: 'center',
-    fontSize: 32,
+    fontSize: 24,
+    lineHeight: 32,
+    marginVertical: -6,
   },
   buttons: {
     width: '100%',

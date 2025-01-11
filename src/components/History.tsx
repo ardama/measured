@@ -15,6 +15,7 @@ import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
 import type { Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
+import { router } from 'expo-router';
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -403,7 +404,7 @@ const History = () => {
       />
       ) : null;
     }, [habitChartInputs]);
-    return (
+    return habits.length === 0 ? null : (
       <Surface style={s.cardContainer} elevation={0}>
         <Text variant='titleLarge'>Habits</Text>
         <View style={{ ...s.cardRow, gap: 16, alignItems: 'flex-start', marginTop: 8 }}>
@@ -421,7 +422,7 @@ const History = () => {
               <Points points={total} size='medium' inline />
             </View>
             <View style={s.chartStat}>
-              <Text variant='bodyMedium'>Count</Text>
+              <Text variant='bodyMedium'>{habitBucketSize.title}s</Text>
               <Text variant='titleMedium'>{visibleBucketData.length}</Text>
             </View>
           </View>
@@ -701,7 +702,7 @@ const History = () => {
       ) : null
     }, measurementChartInputs);
 
-    return (
+    return measurements.length === 0 ? null : (
       <Surface style={s.cardContainer} elevation={0}>
         <Text variant='titleLarge'>Measurements</Text>
         <View style={{ ...s.cardRow, gap: 16, alignItems: 'flex-start', marginTop: 8 }}>
@@ -719,7 +720,7 @@ const History = () => {
               <Text variant='titleMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{totalString}</Text>
             </View>
             <View style={s.chartStat}>
-              <Text variant='bodyMedium'>Count</Text>
+              <Text variant='bodyMedium'>Recordings</Text>
               <Text variant='titleMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{recordingCount}</Text>
             </View>
           </View>
@@ -843,10 +844,31 @@ const History = () => {
     <ScrollView style={s.container}>
       <View style={s.cards}>
         {useMemo(() => <MonthSummaryCard />, [])}
-        <Divider  horizontalInset />
+        {!!habits.length && <Divider  horizontalInset />}
         {renderHabitChartCard()}
-        <Divider  horizontalInset />
+        {!!measurements.length && <Divider  horizontalInset />}
         {renderMeasurementChartCard()}
+        {!measurements.length && (
+          <>
+            <View style={s.noData}>
+              <View style={s.noDataIcon}>
+                <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+              </View>
+              <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
+            </View>
+            {!measurements.length && (
+              <Button
+                style={s.noDataButton}
+                mode='contained'
+                onPress={() => { router.push('/measurement/create'); }}
+              >
+                <Text variant='labelLarge' style={s.noDataButtonText}>
+                  Create your first measurement
+                </Text>
+              </Button>
+            )}
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -908,7 +930,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     width: '50%',
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level3,
     borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -985,14 +1007,36 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     marginTop: 8
   },
   durationButton: {
-    borderRadius: 13,
+    borderRadius: 4,
   },
   durationButtonContent: {
-    minWidth: 36,
+    minWidth: 48,
     height: 36,
   },
   durationButtonContentSelected: {
     
+  },
+  noData: {
+    flexDirection: 'row',
+    paddingTop: 32,
+    paddingBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: theme.colors.outline,
+  },
+  noDataIcon: {
+    marginRight: 8,
+  },
+  noDataButton: {
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  noDataButtonText: {
+    paddingHorizontal: 4,
+    color: theme.colors.surface,
   },
 });
 
@@ -1074,7 +1118,7 @@ type MonthSummaryCardProps = {
 
 };
 
-const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
+const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
   const theme = useTheme();
   
   const today = SimpleDate.today();
@@ -1139,7 +1183,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element => {
   const { globalPalette } = usePalettes();
   const styles = createMonthSummaryStyles(theme, globalPalette);
 
-  return (
+  return habits.length === 0 ? null : (
     <Surface style={cardStyles.cardContainer} elevation={0}>
       <View style={cardStyles.header}>
         <Text style={[styles.title]} variant='titleLarge'>Habits: </Text>

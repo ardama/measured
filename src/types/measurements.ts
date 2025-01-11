@@ -58,6 +58,7 @@ type MeasurementTypeData = {
   icon: string
   label: string
   description: string
+  examples: string
   namePlaceholder: string
   variantPlaceholder: string
 };
@@ -71,30 +72,35 @@ const measurementTypeData: {
   duration: {
     label: 'Duration', icon: Icons.measurementTypeDuration,
     description: 'How much time you spent doing something.',
+    examples: 'Hours slept, minutes of cardio, time spent meditating, etc.',
     namePlaceholder: '',
     variantPlaceholder: '',
   },
   time: {
     label: 'Time', icon: Icons.measurementTypeTime,
     description: 'What time you did something at.',
+    examples: 'Bed time, wake up time, etc.',
     namePlaceholder: '',
     variantPlaceholder: '',
   },
   count: {
     label: 'Count', icon: Icons.measurementTypeCount,
     description: 'How much of something you did.',
-    namePlaceholder: ', Eating',
+    examples: 'Steps walked, calories eaten, pages read, etc.',
+    namePlaceholder: '',
     variantPlaceholder: '',
   },
   bool: {
     label: 'Yes / No', icon: Icons.measurementTypeBool,
     description: 'Whether or not you did something.',
+    examples: 'Took vitamins, called a friend, etc.',
     namePlaceholder: '',
     variantPlaceholder: '',
   },
   combo: {
     label: 'Combo', icon: Icons.measurementTypeCombo,
     description: 'Combination of multiple measurements into one.',
+    examples: 'Total workout time, total social media time, etc.',
     namePlaceholder: '',
     variantPlaceholder: '',
   },

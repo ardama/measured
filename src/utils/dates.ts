@@ -145,6 +145,11 @@ export class SimpleDate {
       : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
   }
 
+  getDayOfWeekLetter() {
+    const date = this.toDate();
+    return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][date.getDay()];
+  }
+
   getMonthLabel(abbreviated: boolean = true) {
     const months = abbreviated
       ? [

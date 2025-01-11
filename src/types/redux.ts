@@ -18,6 +18,7 @@ interface AuthState {
   action: AuthAction | null
   initialAuthCheckComplete: boolean
   isGuest: boolean
+  showImportDialog: boolean
 }
 
 interface DataState {
@@ -40,6 +41,7 @@ interface DataState {
   accountStatus: {
     update: string
   }
+  deleteAllStatus: string
 };
 
 const createDataState = (): DataState => ({
@@ -60,8 +62,9 @@ const createDataState = (): DataState => ({
     delete: Status.Habit.Delete.SUCCESS,
   },
   accountStatus: {
-    update: Status.Recording.Update.SUCCESS,
+    update: Status.Account.Update.SUCCESS,
   },
+  deleteAllStatus: Status.Account.Delete.SUCCESS,
 });
 
 export {

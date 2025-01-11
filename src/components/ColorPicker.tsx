@@ -55,7 +55,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   colorOuter: {
     padding: 8,
-    borderRadius: 10,
+    borderRadius: 4,
   },
   colorOuterSelected: {
 

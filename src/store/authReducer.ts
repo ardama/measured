@@ -19,6 +19,7 @@ const initialState: AuthState = {
   action: null,
   initialAuthCheckComplete: false,
   isGuest: false,
+  showImportDialog: false,
 };
 
 const authSlice = createSlice({
@@ -129,6 +130,15 @@ const authSlice = createSlice({
     //   state.loading = false;
     //   state.error = action.payload;
     // },
+    showImportDialog: (state) => {
+      state.showImportDialog = true;
+    },
+    hideImportDialog: (state) => {
+      state.showImportDialog = false;
+    },
+    confirmImportDialog: (state) => {
+      state.showImportDialog = false;
+    },
   },
 });
 
@@ -158,6 +168,10 @@ export const {
   // resetConfirmationRequest,
   // resetConfirmationSuccess,
   // resetConfirmationFailure,
+
+  showImportDialog,
+  hideImportDialog,
+  confirmImportDialog,
 } = authSlice.actions;
 
 export default authSlice.reducer;

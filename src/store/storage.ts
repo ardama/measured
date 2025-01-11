@@ -2,66 +2,119 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Habit } from '@t/habits';
 import type { Measurement } from '@t/measurements';
 import type { Account, User } from '@t/users';
+import { Collections } from '@u/constants/Firestore';
+import { Platform } from 'react-native';
 
-type StorageKey = 'user' | 'account' | 'measurements' | 'habits' | 'activeUserId';
+type StorageKey = 'user' | (typeof Collections)[keyof typeof Collections] | 'activeUserId';
 const StorageKeys: {[key: string]: StorageKey} = {
   USER: 'user',
-  ACCOUNT: 'account',
-  MEASUREMENTS: 'measurements',
-  HABITS: 'habits',
+  ACCOUNT: Collections.Accounts,
+  MEASUREMENTS: Collections.Measurements,
+  HABITS: Collections.Habits,
   ACTIVE_USER_ID: 'activeUserId',
 }
+
+// Create a storage interface
+interface IStorage {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+  multiRemove(keys: string[]): Promise<void>;
+}
+
+// Browser storage implementation
+class BrowserStorage implements IStorage {
+  async getItem(key: string): Promise<string | null> {
+    return localStorage.getItem(key);
+  }
+
+  async setItem(key: string, value: string): Promise<void> {
+    localStorage.setItem(key, value);
+  }
+
+  async removeItem(key: string): Promise<void> {
+    localStorage.removeItem(key);
+  }
+
+  async multiRemove(keys: string[]): Promise<void> {
+    keys.forEach(key => localStorage.removeItem(key));
+  }
+}
+
+// Add a new NoopStorage for SSR
+class NoopStorage implements IStorage {
+  async getItem(): Promise<null> {
+    return null;
+  }
+
+  async setItem(): Promise<void> {
+    return;
+  }
+
+  async removeItem(): Promise<void> {
+    return;
+  }
+
+  async multiRemove(): Promise<void> {
+    return;
+  }
+}
+
+// Update storage initialization to handle SSR case
+const storage: IStorage = (() => {
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined') {
+      return new NoopStorage();
+    }
+    return new BrowserStorage();
+  }
+  return AsyncStorage;
+})();
 
 class StorageService {
   // User methods
   async getUser(): Promise<User | null> {
-    const data = await AsyncStorage.getItem(StorageKeys.USER);
+    const data = await storage.getItem(StorageKeys.USER);
     return data ? JSON.parse(data) : null;
   }
 
   async setUser(user: User | null): Promise<void> {
     if (user) {
-      await AsyncStorage.setItem(StorageKeys.USER, JSON.stringify(user));
+      await storage.setItem(StorageKeys.USER, JSON.stringify(user));
     } else {
-      await AsyncStorage.removeItem(StorageKeys.USER);
+      await storage.removeItem(StorageKeys.USER);
     }
   }
 
   // Data methods
   async getMeasurements(): Promise<Measurement[]> {
-    const data = await AsyncStorage.getItem(StorageKeys.MEASUREMENTS);
-    return data ? JSON.parse(data) : [];
+    return this.getDocuments<Measurement>(StorageKeys.MEASUREMENTS);
   }
 
   async setMeasurements(measurements: Measurement[]): Promise<void> {
-    await AsyncStorage.setItem(StorageKeys.MEASUREMENTS, JSON.stringify(measurements));
+    return this.setDocuments(StorageKeys.MEASUREMENTS, measurements);
   }
 
   async getHabits(): Promise<Habit[]> {
-    const data = await AsyncStorage.getItem(StorageKeys.HABITS);
-    return data ? JSON.parse(data) : [];
+    return this.getDocuments<Habit>(StorageKeys.HABITS);
   }
 
   async setHabits(habits: Habit[]): Promise<void> {
-    await AsyncStorage.setItem(StorageKeys.HABITS, JSON.stringify(habits));
+    return this.setDocuments(StorageKeys.HABITS, habits);
   }
 
   async getAccount(): Promise<Account | null> {
-    const data = await AsyncStorage.getItem(StorageKeys.ACCOUNT);
-    return data ? JSON.parse(data) : null;
+    const accounts = await this.getDocuments<Account>(StorageKeys.ACCOUNT);
+    return accounts.length ? accounts[0] : null;
   }
 
   async setAccount(account: Account | null): Promise<void> {
-    if (account) {
-      await AsyncStorage.setItem(StorageKeys.ACCOUNT, JSON.stringify(account));
-    } else {
-      await AsyncStorage.removeItem(StorageKeys.ACCOUNT);
-    }
+    await this.setDocuments(StorageKeys.ACCOUNT, account ? [account] : []);
   }
 
   // Utility methods
   async clearAll(): Promise<void> {
-    await AsyncStorage.multiRemove(Object.values(StorageKeys));
+    await storage.multiRemove(Object.values(StorageKeys));
   }
 
   // Migration methods
@@ -95,15 +148,37 @@ class StorageService {
   }
 
   async getActiveUserId(): Promise<string | null> {
-    const userId = await AsyncStorage.getItem(StorageKeys.ACTIVE_USER_ID);
+    const userId = await storage.getItem(StorageKeys.ACTIVE_USER_ID);
     return userId;
   }
 
   async setActiveUserId(userId: string | null): Promise<void> {
     if (userId) {
-      await AsyncStorage.setItem(StorageKeys.ACTIVE_USER_ID, userId);
+      await storage.setItem(StorageKeys.ACTIVE_USER_ID, userId);
     } else {
-      await AsyncStorage.removeItem(StorageKeys.ACTIVE_USER_ID);
+      await storage.removeItem(StorageKeys.ACTIVE_USER_ID);
+    }
+  }
+
+  async getDocuments<T>(collectionName: StorageKey): Promise<T[]> {
+    const data = await storage.getItem(collectionName);
+    return data ? JSON.parse(data) : [];
+  }
+
+  async setDocuments<T>(collectionName: StorageKey, items: T[]): Promise<void> {
+    await storage.setItem(collectionName, JSON.stringify(items));
+  }
+
+  async getDocument<T>(documentName: StorageKey): Promise<T | null> {
+    const data = await storage.getItem(documentName);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async setDocument<T>(documentName: StorageKey, item: T | null): Promise<void> {
+    if (item) {
+      await storage.setItem(documentName, JSON.stringify(item));
+    } else {
+      await storage.removeItem(documentName);
     }
   }
 }

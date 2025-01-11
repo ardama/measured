@@ -5,7 +5,7 @@ import { forWeb } from '@u/helpers';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInput } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { Pressable, ScrollView } from 'react-native-gesture-handler';
 import { Divider, Icon, IconButton, Modal, Portal, Searchbar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { 
   useSharedValue, 
@@ -117,7 +117,6 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, vi
           contentContainerStyle={styles.container}
           dismissable
           onDismiss={handleDismiss}
-          
         >
           <AnimatedView style={styles.content} isEnd={visible} startY={50} isSpring>
             <View style={styles.header}>
@@ -199,20 +198,12 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
   const theme = useTheme();
   const styles = createStyles(theme, palette);
 
-  const pressed = useRef(0);
-
   return (
-    <TouchableRipple
-      onPressIn={(event) => {
-        pressed.current = event.nativeEvent.pageY;
-      }}
+    <Pressable
       style={[styles.item, selected && styles.itemSelected, item.disabled && styles.itemDisabled]}
       disabled={item.disabled}
-      onPressOut={(event) => {
-        const distance = Math.abs(event.nativeEvent.pageY - pressed.current);
-        if (!isNaN(distance) && distance < 10) {
-          onSelect(item);
-        }
+      onPress={() => {
+        onSelect(item);
       }}
     >
       <View
@@ -238,7 +229,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
           )}
         </View>
       </View>
-    </TouchableRipple>
+    </Pressable>
   )
 }
 
@@ -257,14 +248,10 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     bottom: 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: theme.colors.elevation.level1,  
+    backgroundColor: theme.colors.surface,  
     overflow: 'hidden',
     
-    shadowColor: theme.colors.shadow,
-    shadowRadius: 16,
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 0 },
-    // paddingTop: 20, 
+    boxShadow: `0px 0px 16px ${theme.colors.shadow}40`,
     transform: [{ translateY: 100 }],
   },
   header: {
@@ -275,8 +262,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 12,
     alignItems: 'flex-end',
-    // borderBottomWidth: 1,
-    // borderColor: theme.colors.surfaceDisabled,
   },
   headerText: {
     flexGrow: 1,
@@ -297,14 +282,11 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   searchbar: {
     paddingHorizontal: 4,
-    borderRadius: 14,
+    borderRadius: 4,
     backgroundColor: 'transparent',
   },
   searchbarFocused: {
-    // padding: 0,
-    // borderWidth: 2,
-    // borderColor: palette.primary,
-    backgroundColor: theme.colors.surfaceDisabled,
+    backgroundColor: theme.colors.elevation.level3,
   },
   noResults: {
     flexDirection: 'row',
@@ -328,7 +310,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     marginBottom: 24,
   },
   item: {
-    borderRadius: 14,
+    borderRadius: 4,
     marginBottom: 12,
     paddingVertical: 16, 
     paddingHorizontal: 20, 

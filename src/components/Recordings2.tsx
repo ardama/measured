@@ -1,10 +1,10 @@
-import { FlatList, PixelRatio, Platform, Pressable, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { FlatList, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Icon, IconButton, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
-import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
+import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
 import { formatValue, intersection, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
@@ -18,17 +18,17 @@ import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { useAnimatedRef } from 'react-native-reanimated';
 import useDimensions from '@u/hooks/useDimensions';
-import useGlobalStyles from '@u/hooks/useGlobalStyles';
 import { useIsFocused } from '@react-navigation/native';
 import AnimatedView from '@c/AnimatedView';
 import ArchedProgressBar from '@c/ArchedProgress';
 import DraggableList from '@c/DraggableList';
 import CircularProgress from '@c/CircularProgress';
+import { Pressable } from 'react-native-gesture-handler';
 
 const Recordings = () => {
   const theme = useTheme();
   const { globalPalette, basePalette } = usePalettes();
-  const styles = createStyles(theme, globalPalette);
+  const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
   const isFocused = useIsFocused();
 
   const measurements = useMeasurements();
@@ -404,7 +404,7 @@ const Recordings = () => {
   }
 
   const { window: dimensions } = useDimensions();
-  const timelineHeight = PixelRatio.roundToNearestPixel(72);
+  const timelineHeight = PixelRatio.roundToNearestPixel(84);
   const timelineWidth = PixelRatio.roundToNearestPixel(dimensions.width);
   const renderTimeline = () => (
     <FlatList
@@ -433,60 +433,53 @@ const Recordings = () => {
               const isToday = date.equals(today);
 
               return (
-                <View
+                <Pressable
                   key={date.toString()}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  onPress={() => handleDateSelection(date)}
                   style={[
-                    styles.timelineDate,
-                    isToday && styles.timelineDateToday,
-                    isSelected && styles.timelineDateSelected,
+                    styles.timelineDateContainer,
+                    isToday && styles.timelineDateContainerToday,
+                    isSelected && styles.timelineDateContainerSelected,
                   ]}
                 >
-                  <Pressable
-                    onPress={() => handleDateSelection(date)}
-                    style={[
-                      styles.timelineDateContainer,
-                      isToday && styles.timelineDateContainerToday,
-                      isSelected && styles.timelineDateContainerSelected,
-                    ]}
-                  >
-                    <>
-                      <View
+                  <>
+                    <View
+                      style={[
+                        styles.timelineDateContent,
+                        isToday && styles.timelineDateContentToday,
+                        isSelected && styles.timelineDateContentSelected,
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.timelineDateContent,
-                          isToday && styles.timelineDateContentToday,
-                          isSelected && styles.timelineDateContentSelected,
+                          styles.timelineDateDayOfWeek,
+                          isToday && styles.timelineDateDayOfWeekToday,
+                          isSelected && styles.timelineDateDayOfWeekSelected,
                         ]}
-                      >
-                        <Text
+                        >
+                        {dayOfWeek.toUpperCase()}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                        {isToday && <View
                           style={[
-                            styles.timelineDateDayOfWeek,
-                            isToday && styles.timelineDateDayOfWeekToday,
-                            isSelected && styles.timelineDateDayOfWeekSelected,
+                            styles.todayIndicator,
+                            isSelected && styles.todayIndicatorToday,
                           ]}
-                          >
-                          {dayOfWeek.toUpperCase()}
+                        />}
+                        <Text variant='titleMedium'
+                          style={[
+                            styles.timelineDateDay,
+                            isToday && styles.timelineDateDayToday,
+                            isSelected && styles.timelineDateDaySelected,
+                          ]}
+                        >
+                          {date.day}
                         </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                          {isToday && <View
-                            style={[
-                              styles.todayIndicator,
-                              isSelected && styles.todayIndicatorToday,
-                            ]}
-                          />}
-                          <Text variant='titleMedium'
-                            style={[
-                              styles.timelineDateDay,
-                              isToday && styles.timelineDateDayToday,
-                              isSelected && styles.timelineDateDaySelected,
-                            ]}
-                          >
-                            {date.day}
-                          </Text>
-                        </View>
                       </View>
-                    </>
-                  </Pressable>
-                </View>
+                    </View>
+                  </>
+                </Pressable>
               )
             })}
           </View>
@@ -512,11 +505,8 @@ const Recordings = () => {
             longPressPreviousTimeout.current = null;
           }}
           delayLongPress={600}
-          size={16}
-          />
-        <Text variant='labelMedium' style={styles.timelineHeaderText}>
-          {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
-        </Text>
+          size={20}
+        />
         <IconButton
           style={styles.timelineHeaderButton}
           icon={Icons.right}
@@ -531,8 +521,8 @@ const Recordings = () => {
             longPressNextTimeout.current = null;
           }}
           delayLongPress={600}
-          size={16}
-          />
+          size={20}
+        />
       </View>
     )
   }
@@ -568,7 +558,16 @@ const Recordings = () => {
   const renderContentSwitch = () => {
     const isDisabled = isReordering || isArchiving;
     return (
-      <View style={{ marginHorizontal: 12, marginTop: 12, backgroundColor: theme.colors.elevation.level3, borderRadius: 40, overflow: 'hidden', padding: 4, alignSelf: 'stretch' }}>
+      <View style={{
+        marginHorizontal: -4,
+        borderRadius: 0,
+        backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
+        overflow: 'hidden',
+        paddingHorizontal: 12,
+        paddingTop: 8,
+        paddingBottom: 8,
+        alignSelf: 'stretch'
+      }}>
         <View style={{ flexDirection: 'row', alignItems: 'center'}}>
           <AnimatedView
             style={{
@@ -576,17 +575,17 @@ const Recordings = () => {
               height: '100%',
               width: '50%',
               backgroundColor: isDisabled ? theme.colors.surfaceDisabled : globalPalette.backdrop,
-              borderRadius: 40,
+              borderRadius: 4,
               opacity: isDisabled ? 0.5 : 1,
             }}
             startLeft={0}
             endLeft={50}
-            // isSpring
+            isSpring
             isEnd={showHabits}
           />
           <Pressable
             style={[
-              { width: '50%', height: 32, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+              { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
             ]}
             onPressIn={() => setContentSwitchValue(0)}
             disabled={isDisabled}
@@ -602,7 +601,7 @@ const Recordings = () => {
           </Pressable>
           <Pressable
             style={[
-              { width: '50%', height: 32, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+              { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
             ]}
             onPressIn={() => setContentSwitchValue(1)}
             disabled={isDisabled}
@@ -646,7 +645,7 @@ const Recordings = () => {
                 ]}
                 onPress={() => handleDateSelection(date)}
               >
-                {isFuture && (
+                {(isFuture || measurementCount === 0) && (
                   <Icon
                     source={Icons.indeterminate}
                     size={14}
@@ -655,7 +654,7 @@ const Recordings = () => {
                 )}
                 {!isFuture && (
                   <>
-                    {measurements.length > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                    {measurementCount > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
                       {measurementCompletion !== measurementCount ? <CircularProgress
                         size={20}
                         strokeWidth={2}
@@ -682,7 +681,7 @@ const Recordings = () => {
   }
 
   const renderHabitProgressBar = () => (
-    <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
+    <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 0, marginBottom: 32, gap: 12, alignItems: 'center' }}>
       <ArchedProgressBar
         width={dimensions.width - 32}
         strokeWidth={6}
@@ -697,7 +696,7 @@ const Recordings = () => {
         tickWidth={3}
         tickColor={theme.colors.onSurfaceDisabled}
       />
-      <View style={{ position: 'absolute', width: '100%', top: 16, left: 20, overflow: 'visible' }}>
+      <View style={{ position: 'absolute', width: '100%', top: 16, left: 0, overflow: 'visible' }}>
         <View style={{ alignSelf: 'center' }}>
           <View style={styles.weekPointsContainer}>
             <Points inline size={'x-large'} style={{ width: 48 }} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
@@ -711,12 +710,14 @@ const Recordings = () => {
 
   const renderSectionTitle = () => {
     const buttonStyle: ViewStyle = {
-      width: '100%',
+      flexGrow: 1,
+      flexShrink: 1,
       flexDirection: 'row',
       overflow: 'hidden',
       marginTop: 0,
+      marginBottom: 0,
       gap: 8,
-      height: 36,
+      height: 40,
       borderRadius: 4,
       justifyContent: 'center',
       alignItems: 'center',
@@ -728,7 +729,7 @@ const Recordings = () => {
       (showHabits && (showArchivedHabits || isReorderingHabits))
     ) {
       return (
-        <View style={{ width: '100%', alignItems: 'flex-end' }}>
+        <View style={{ width: '100%', alignItems: 'flex-end', flexDirection: 'row'}}>
           <TouchableRipple
             onPress={() => {
               if (showMeasurements) {
@@ -766,6 +767,113 @@ const Recordings = () => {
     );
   }
 
+  const renderContentHeader = () => {
+    return (
+      <View style={styles.sectionHeader}>
+        {!isReordering && !isArchiving && <BottomDrawer
+          title='Create'
+          visible={isAddMenuVisible}
+          onDismiss={() => setIsAddMenuVisible(false)}
+          anchor={
+            <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.add}
+              size={20}
+              onPress={() => setIsAddMenuVisible(true)}
+            />
+          }
+          items={addMenuItems}
+          onSelect={(item) => {
+            setIsAddMenuVisible(false);
+            setTimeout(() => {
+              router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
+            }, 0);
+          }}
+        />}
+        <View style={{ flexDirection: 'row', flexGrow: 1, justifyContent: 'center', alignItems: 'baseline', gap: 8 }}>
+          {renderSectionTitle()}
+        </View>
+        {!isReordering && !isArchiving && <BottomDrawer
+          title={showMeasurements ? 'Measurements' : 'Habits'}
+          visible={(showMeasurements && isMeasurementMenuVisible) || (showHabits && isHabitMenuVisible)}
+          onDismiss={() => showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false)}
+          anchor={
+            <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.settings}
+              size={20}
+              onPress={() => {
+                showMeasurements ? setIsMeasurementMenuVisible(true) : setIsHabitMenuVisible(true);
+              }}
+            />
+          }
+          items={showMeasurements ? measurementMenuItems : habitMenuItems}
+          onSelect={({ value }) => {
+            setTimeout(() => {
+              if (showMeasurements) {
+                switch (value) {
+                  case 'create':
+                    router.push('/measurement/create');
+                    break;
+                  case 'reorder':
+                    if (isReorderingMeasurements) submitMeasurementOrder()
+                    else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
+                    setIsReorderingMeasurements(!isReorderingMeasurements);
+                    setShowArchivedHabits(false);
+                    break;
+                  case 'expand':
+                    setExpandedMeasurements(new Set(displayedMeasurementIds));
+                    break;
+                  case 'collapse':
+                    setExpandedMeasurements(new Set());
+                    break;
+                  case 'visibility':
+                    setShowArchivedMeasurements(!showArchivedMeasurements);
+                    setIsReorderingMeasurements(false);
+                    break;
+                  case 'reset':
+                    setTempRecordingsMap(new Map());
+                    clearRecordings();
+                    break;
+                  default:
+                    break;
+                }
+              } else {
+                switch (value) {
+                  case 'create':
+                    router.push('/habit/create');
+                    break;
+                  case 'reorder':
+                    if (isReorderingHabits) submitHabitOrder();
+                    else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
+                    setIsReorderingHabits(!isReorderingHabits);
+                    setShowArchivedHabits(false);
+                    break;
+                  case 'expand':
+                    setExpandedHabits(new Set(displayedHabitIds));
+                    break;
+                  case 'collapse':
+                    setExpandedHabits(new Set());
+                    break;
+                  case 'visibility':
+                    setShowArchivedHabits(!showArchivedHabits);
+                    setIsReorderingHabits(false);
+                    break;
+                  case 'reset':
+                    setTempRecordingsMap(new Map());
+                    clearRecordings();
+                    break;
+                  default:
+                    break;
+                }
+              }
+            }, 150);
+            showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false);
+          }}
+        />}
+      </View>
+    )
+  }
   return (
     <>
       {isFocused && (
@@ -776,151 +884,13 @@ const Recordings = () => {
       <View
         style={styles.container}
       >
-        <View style={{ backgroundColor: theme.colors.surface, paddingTop: 16 }}>
-          {renderTimelineHeader()}
+        <View style={{ backgroundColor: theme.colors.surface }}>
           {renderTimeline()}
+          {/* {renderTimelineHeader()} */}
           {habits.length > 0 && renderHabitProgressBar()}
           {measurements.length > 0 && renderTimelineStatuses()}
+          {renderContentHeader()}
           {measurements.length > 0 && renderContentSwitch()}
-          <View style={styles.sectionHeader}>
-            {!isReordering && !isArchiving && <BottomDrawer
-              title='Create'
-              visible={isAddMenuVisible}
-              onDismiss={() => setIsAddMenuVisible(false)}
-              anchor={
-                <IconButton
-                  style={styles.sectionHeaderButton}
-                  icon={Icons.add}
-                  size={20}
-                  onPress={() => setIsAddMenuVisible(true)}
-                />
-              }
-              items={addMenuItems}
-              onSelect={(item) => {
-                setIsAddMenuVisible(false);
-                setTimeout(() => {
-                  router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
-                }, 0);
-              }}
-            />}
-            <View style={{ flexDirection: 'row', flexGrow: 1, justifyContent: 'center', alignItems: 'baseline', gap: 8 }}>
-              {renderSectionTitle()}
-            </View>
-            {!isReordering && !isArchiving && <BottomDrawer
-              title={showMeasurements ? 'Measurements' : 'Habits'}
-              visible={(showMeasurements && isMeasurementMenuVisible) || (showHabits && isHabitMenuVisible)}
-              onDismiss={() => showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false)}
-              anchor={
-                <IconButton
-                  style={styles.sectionHeaderButton}
-                  icon={Icons.settings}
-                  size={20}
-                  onPress={() => {
-                    showMeasurements ? setIsMeasurementMenuVisible(true) : setIsHabitMenuVisible(true);
-                  }}
-                />
-              }
-              items={showMeasurements ? measurementMenuItems : habitMenuItems}
-              onSelect={({ value }) => {
-                setTimeout(() => {
-                  if (showMeasurements) {
-                    switch (value) {
-                      case 'create':
-                        router.push('/measurement/create');
-                        break;
-                      case 'reorder':
-                        if (isReorderingMeasurements) submitMeasurementOrder()
-                        else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
-                        setIsReorderingMeasurements(!isReorderingMeasurements);
-                        setShowArchivedHabits(false);
-                        break;
-                      case 'expand':
-                        setExpandedMeasurements(new Set(displayedMeasurementIds));
-                        break;
-                      case 'collapse':
-                        setExpandedMeasurements(new Set());
-                        break;
-                      case 'visibility':
-                        setShowArchivedMeasurements(!showArchivedMeasurements);
-                        setIsReorderingMeasurements(false);
-                        break;
-                      case 'reset':
-                        setTempRecordingsMap(new Map());
-                        clearRecordings();
-                        break;
-                      default:
-                        break;
-                    }
-                  } else {
-                    switch (value) {
-                      case 'create':
-                        router.push('/habit/create');
-                        break;
-                      case 'reorder':
-                        if (isReorderingHabits) submitHabitOrder();
-                        else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
-                        setIsReorderingHabits(!isReorderingHabits);
-                        setShowArchivedHabits(false);
-                        break;
-                      case 'expand':
-                        setExpandedHabits(new Set(displayedHabitIds));
-                        break;
-                      case 'collapse':
-                        setExpandedHabits(new Set());
-                        break;
-                      case 'visibility':
-                        setShowArchivedHabits(!showArchivedHabits);
-                        setIsReorderingHabits(false);
-                        break;
-                      case 'reset':
-                        setTempRecordingsMap(new Map());
-                        clearRecordings();
-                        break;
-                      default:
-                        break;
-                    }
-                  }
-                }, 150);
-                showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false);
-              }}
-            />}
-            {/* {(showMeasurements && isReorderingMeasurements) || (showHabits && isReorderingHabits) && <IconButton
-              style={styles.sectionHeaderButton}
-              icon={Icons.move}
-              size={20}
-              onPress={() => {
-                if (showMeasurements) {
-                  if (isReorderingMeasurements) submitMeasurementOrder()
-                  else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
-                  setIsReorderingMeasurements(!isReorderingMeasurements);
-                  setShowArchivedHabits(false);
-                } else {
-                  if (isReorderingHabits) submitHabitOrder();
-                  else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
-                  setIsReorderingHabits(!isReorderingHabits);
-                  setShowArchivedHabits(false);
-                }
-              }}
-              disabled={(showMeasurements && !measurements.length) || (showHabits && !habits.length)}
-              containerColor={(showMeasurements && isReorderingMeasurements) || (showHabits && isReorderingHabits) ? globalPalette.backdrop : undefined}
-            />}
-            {(showMeasurements && showArchivedMeasurements) || (showHabits && showArchivedHabits) && <IconButton
-              style={styles.sectionHeaderButton}
-              icon={Icons.show}
-              size={20}
-              onPress={() => {
-                if (showMeasurements) {
-                  setShowArchivedMeasurements(!showArchivedMeasurements);
-                  setIsReorderingMeasurements(false);
-                } else  {
-                  setShowArchivedHabits(!showArchivedHabits);
-                  setIsReorderingHabits(false);
-                }
-              }}
-              disabled={(showMeasurements && !measurements.length) || (showHabits && !habits.length)}
-              containerColor={(showMeasurements && showArchivedMeasurements) || (showHabits && showArchivedHabits) ? globalPalette.backdrop : undefined}
-            />} */}
-          </View>
         </View>
           {showMeasurements && 
             <>
@@ -928,7 +898,6 @@ const Recordings = () => {
                 <View style={styles.recordingView}>
                   {isReorderingMeasurements ? (
                     <DraggableList
-                      scrollViewStyle={{ paddingVertical: 4 }}
                       items={measurementPriorityOverrides || []}
                       onReorder={(nextItems) => {
                         setMeasurementPriorityOverrides(nextItems);
@@ -939,7 +908,7 @@ const Recordings = () => {
 
                         return (
                             <RecordingMeasurementItem
-                              index={0}
+                              index={index}
                               measurement={measurement}
                               currentDate={selectedDate}
                               weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
@@ -950,7 +919,7 @@ const Recordings = () => {
                       }}
                     />
                   ) : (
-                    <ScrollView style={{ paddingVertical: 4 }}>
+                    <ScrollView>
                       {displayedMeasurements.map((measurement, index) => {
                         const { id } = measurement;
                         return (
@@ -1008,7 +977,6 @@ const Recordings = () => {
                 <View style={styles.recordingView}>
                   {isReorderingHabits ? (
                     <DraggableList
-                      scrollViewStyle={{ paddingVertical: 4 }}
                       items={habitPriorityOverrides || []}
                       onReorder={(nextItems) => {
                         setHabitPriorityOverrides(nextItems);
@@ -1032,7 +1000,7 @@ const Recordings = () => {
                       }}
                     />
                   ) : (
-                    <ScrollView style={{ paddingVertical: 4 }}>
+                    <ScrollView>
                       {displayedHabits.map((habit, index) => {
                         const { id } = habit;
                         return (
@@ -1098,6 +1066,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       flexGrow: 1,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 8,
     },
     timelineHeaderText: {
@@ -1105,8 +1074,13 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       textAlign: 'center',
     },
     timelineHeaderButton: {
+      width: 40,
+      height: 40,
       margin: 0,
-      borderRadius: 16,
+      borderRadius: 4,
+      marginHorizontal: 4,
+      marginBottom: -20,
+      marginTop: -8
     },
     timelineContent: {
       flexDirection: 'row',
@@ -1116,16 +1090,17 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       paddingHorizontal: 16,
     },
     timelineDate: {
-      flexBasis: 100,
-      flexShrink: 1,
-      alignItems: 'center',
-      overflow: 'hidden',
+
     },
     timelineDateToday: {},
     timelineDateSelected: {
 
     },
     timelineDateContainer: {
+      flexBasis: 100,
+      flexShrink: 1,
+      // alignItems: 'center',
+      overflow: 'hidden',
       flexGrow: 1,
       borderRadius: 15,
 
@@ -1134,7 +1109,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignItems: 'stretch',
       gap: 4,
 
-      overflow: 'hidden',
     },
     timelineDateContainerToday: {},
     timelineDateContainerSelected: {},
@@ -1177,11 +1151,10 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       width: 5,
       height: 5,
       borderRadius: 4,
-      backgroundColor: theme.colors.onSurfaceDisabled,
+      backgroundColor: palette.primary,
       transform: [{ translateX: -2 }],
     },
     todayIndicatorToday: {
-      backgroundColor: palette.primary,
     },
     weekPointsContainer: {
       flexGrow: 0,
@@ -1196,16 +1169,15 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignItems: 'center',
       paddingHorizontal: 8,
       gap: 4,
-      marginTop: 16,
+      marginTop: 12,
       marginBottom: 4,
       minHeight: 48,
     },
     sectionHeaderButton: {
       width: 48,
       height: 48,
-      borderRadius: 40,
+      borderRadius: 4,
       margin: 0,
-      marginRight: 0,
     },
     recordingView: {
       flexGrow: 1,
@@ -1517,6 +1489,8 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
               const isSelected = index === currentDate.getDayOfWeek();
               const hasNotStarted = !startDate || startDate > date.toString();
 
+              const dayLabel = date.getDayOfWeekLetter();
+
               return (
                 <View
                   key={date.toString()}
@@ -1524,14 +1498,16 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                     styles.completionStatus,
                   ]}
                 >
-                  {isFuture || hasNotStarted ? (
-                    <Icon source={Icons.subtract} size={isSelected ? 17 : 11} color={theme.colors.onSurfaceDisabled} />
-                  ) : (
-                  <Icon
-                    source={value === null ? Icons.subtract : Icons.recorded}
-                    size={isSelected ? 17 : 11}
-                    color={combinedPalette.primary}
-                  />)}
+                  {
+                    isFuture || hasNotStarted ? (
+                      <Icon source={Icons.subtract} size={isSelected ? 17 : 11} color={theme.colors.onSurfaceDisabled} />
+                    ) : (
+                    <Icon
+                      source={value === null ? Icons.subtract : Icons.recorded}
+                      size={isSelected ? 17 : 11}
+                      color={combinedPalette.primary}
+                    />
+                  )}
                 </View>
               );
             })}
@@ -1577,13 +1553,14 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   },
   container: {
     marginHorizontal: 8,
-    marginVertical: 4,
+    marginBottom: 8,
+    marginTop: 0,
     borderRadius: 4,
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 8,
     gap: 4,
-    backgroundColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
     overflow: 'hidden',
   },
   content: {
@@ -1657,17 +1634,11 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     justifyContent: 'space-between',
     backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
 
-
-    // marginLeft: -16,
-    // marginRight: -16,
-    marginBottom: 8,
+    marginTop: -4,
+    marginBottom: 12,
     paddingLeft: 24,
     paddingRight: 8,
     paddingVertical: 0,
-    // borderWidth: 6,
-    // borderRadius: 10,
-    // borderColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
-
   },
   completionStatuses: {
     flexDirection: 'row',
@@ -1679,7 +1650,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 16,
+    height: 30,
     width: 16,
     borderRadius: 100,
   },
@@ -1907,18 +1878,23 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     return (
       <View style={{
         marginLeft: 12,
-        marginVertical: 4,
-        paddingVertical: 4,
+        // marginRight: 8,
+        // marginTop: index ? 0 : 8,
+        // marginBottom: 8,
+        paddingVertical: 8,
         width: 52,
         justifyContent: 'flex-start',
         alignItems: 'flex-end',
-        borderColor: complete ? combinedPalette.primary : theme.colors.surfaceDisabled,
+        // borderRadius: 4,
+        // backgroundColor: theme.colors.surface,
+
+        borderColor: theme.colors.surfaceDisabled,
         borderLeftWidth: 1,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
           <Text
             variant='titleSmall'
-            style={{ marginTop: -6, color: complete ? combinedPalette.primary : theme.colors.surfaceDisabled }}
+            style={{ marginTop: -6, color: complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
           >
             +
           </Text>
@@ -1927,7 +1903,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             size='large'
             points={habit.points}
             inline
-            color={complete ? combinedPalette.primary : theme.colors.surfaceDisabled}
+            color={complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
           />
         </View>
       </View>
@@ -1992,15 +1968,19 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     </TouchableRipple>
   ) : (
     <>
-      <TouchableRipple
-        style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
-        onPress={onPress ? () => onPress(habit.id) : undefined}
-        onPressIn={onPressIn ? () => onPressIn(habit.id) : undefined}
-        onLongPress={onLongPress ? () => onLongPress(habit.id) : undefined}
-        delayLongPress={300}
-      >
-        {content}
-      </TouchableRipple>
+      <View style={{ flexDirection: 'row' }}>
+        <View style={{ flexGrow: 1 }}>
+          <TouchableRipple
+            style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
+            onPress={onPress ? () => onPress(habit.id) : undefined}
+            onPressIn={onPressIn ? () => onPressIn(habit.id) : undefined}
+          onLongPress={onLongPress ? () => onLongPress(habit.id) : undefined}
+          delayLongPress={300}
+          >
+            {content}
+          </TouchableRipple>
+        </View>
+      </View>
       {renderExpandedContent()}
     </>
   );
@@ -2009,13 +1989,14 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number) => StyleSheet.create({
   container: {
     marginHorizontal: 8,
-    marginVertical: 4,
+    marginBottom: 8,
+    marginTop: 0,
     borderRadius: 4,
     paddingLeft: 12,
     paddingRight: 12,
     paddingVertical: 8,
     gap: 8,
-    backgroundColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
     overflow: 'hidden',
   },
   content: {
@@ -2128,7 +2109,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     borderRadius: 100,
   },
   expandedContent: {
-    width: '100%',
+    // width: '100%',
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
@@ -2138,7 +2119,8 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
 
     // marginLeft: -16,
     // marginRight: -16,
-    marginBottom: 8,
+    marginTop: -4,
+    marginBottom: 12,
     paddingLeft: 8,
     paddingRight: 8,
     paddingVertical: 0,

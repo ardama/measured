@@ -57,6 +57,18 @@ const Status = {
       SUCCESS,
       ERROR,
     },
+  },
+  Account: {
+    Update: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
+    Delete: {
+      IN_PROGRESS,
+      SUCCESS,
+      ERROR,
+    },
   }
 };
 

@@ -211,7 +211,6 @@ const DraggableList = ({
           scrollViewRef.current?.scrollTo({ y: scrollOffset.current, animated: false });
         }
 
-        console.log('wrapperTop.current, wrapperBottom.current: ', wrapperTop.current, wrapperBottom.current);
         const nextPanY = Math.max(scrollOffset.current, Math.min(itemTopBaseline + panDistance, scrollOffset.current + (wrapperBottom.current - wrapperTop.current) - dragSnapshot.current.height));        
         dragSnapshot.current.current = nextPanY;
         panY.setValue(nextPanY);
@@ -222,10 +221,6 @@ const DraggableList = ({
         const { moveY } = gestureState;
         const touchScrollOffset = (moveY - wrapperTop.current) + scrollOffset.current;
         const nextIndex = getItemIndex(touchScrollOffset);
-        console.log('nextIndex: ', touchScrollOffset, nextIndex, moveY);
-        itemLayouts.current.forEach((layout) => {
-          console.log('layout.y: ', layout.y, layout.height);
-        })
         if (draggingIndexRef.current >= 0 && nextIndex >= 0) {
           const nextItems = [...itemsRef.current];
           const moved = nextItems.splice(draggingIndexRef.current, 1);
@@ -290,11 +285,11 @@ const DraggableList = ({
     <View
       ref={wrapperRef}
       onLayout={onWrapperLayout}
-      {...panResponder.panHandlers} style={{ flex: 1 }}
+      {...panResponder.panHandlers} style={{ flexGrow: 1, flexShrink: 1 }}
     >
       <ScrollView
         ref={scrollViewRef}
-        style={[{ flex: 1 }, scrollViewStyle]}
+        style={[{ flexGrow: 1, flexShrink: 1 }, scrollViewStyle]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >

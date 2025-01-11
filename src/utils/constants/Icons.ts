@@ -83,4 +83,9 @@ export const Icons = {
   incomplete: 'window-close',
   indeterminate: 'circle-medium',
 
+  darkMode: 'theme-light-dark',
+  palette: 'palette',
+  logout: 'logout',
+  login: 'account-plus',
+
 }

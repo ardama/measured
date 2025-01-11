@@ -5,29 +5,39 @@ import { useTheme, type MD3Theme } from 'react-native-paper'
 import Logo from '@a/images/m_logo_1.svg';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useEffect, useState } from 'react';
+import background from '@a/images/background_1.png';
 
 const LoadingScreen = ({ visible }: { visible: boolean }) => {
   const theme = useTheme();
   const { globalPalette: palette } = usePalettes();
   const styles = createStyles(theme, palette);
 
-  const opacity = useSharedValue(1);
-  const opacityStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    display: opacity.value ? 'flex' : 'none',
-  }))
+  const opacity = useSharedValue(visible ? 1 : 0);
+  const opacityStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+      display: opacity.value === 0 ? 'none' : 'flex',
+    }
+  }, [opacity.value])
 
   const [shouldRender, setShouldRender] = useState(visible);
+
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
-      opacity.value = withTiming(1);
-    } else {
-      opacity.value = withTiming(0, {}, (finished) => {
-        if (finished) {
-          runOnJS(setShouldRender)(false);
-        }
+      opacity.value = withTiming(1, {
+        duration: 0,
       });
+    } else {
+      setTimeout(() => {
+        opacity.value = withTiming(0, {
+          duration: 200,
+        }, (finished) => {
+          if (finished) {
+            runOnJS(setShouldRender)(false);
+          }
+        });
+      }, 500);
     }
   }, [visible]);
 
@@ -39,7 +49,7 @@ const LoadingScreen = ({ visible }: { visible: boolean }) => {
     <Animated.View style={[styles.container, opacityStyle]}>
       <View style={styles.logoContainer}>
         <ImageBackground
-          source={require('@a/images/background_1.png')}
+          source={background}
           resizeMode="repeat"
           style={styles.logoBackground}
           tintColor={theme.colors.elevation.level5}
@@ -58,8 +68,7 @@ const LoadingScreen = ({ visible }: { visible: boolean }) => {
 const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
     position: 'absolute',
-
-    width: '100%',
+    width: '100%', 
     height: '100%',
     flexGrow: 1,
     flexShrink: 1,
@@ -69,7 +78,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   logoContainer: {
     justifyContent: 'flex-start',
-    position: 'relative',
+    position: 'relative', 
     paddingTop: 120,
     flexGrow: 1,
     alignItems: 'center',

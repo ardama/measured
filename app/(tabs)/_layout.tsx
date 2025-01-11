@@ -19,8 +19,9 @@ const TabLayout = () => {
       <BottomNavigation.Bar
         navigationState={state}
         safeAreaInsets={insets}
-        labeled
-        activeIndicatorStyle={{ backgroundColor: globalPalette.backdrop }}
+        labeled={false}
+        style={{ backgroundColor: theme.colors.surface }}
+        activeIndicatorStyle={{ backgroundColor: globalPalette.backdrop, borderRadius: 4, height: 40 }}
         onTabPress={({ route, preventDefault }) => {
           const event = navigation.emit({
             type: 'tabPress',
@@ -62,9 +63,8 @@ const TabLayout = () => {
               <StatusBar
                 backgroundColor={theme.colors.surface}
                 barStyle={theme.dark ? 'light-content' : 'dark-content'}
-                // translucent
               />
-              <Header showMenuButton title={title || ''} />
+              {/* <Header showMenuButton title={title || ''} /> */}
             </>
           )
         },

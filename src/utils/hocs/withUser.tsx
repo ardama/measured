@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { router } from 'expo-router';
 import { useAuth } from '@u/hooks/useAuth';
 
+let isRouting = false;
 export function withUser<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   requireUser: boolean = true
@@ -14,10 +15,18 @@ export function withUser<P extends object>(
       if (loading) return;
 
       setTimeout(() => {
-        if (requireUser && !userExists) {
+        if (requireUser && !userExists && !isRouting) {
+          isRouting = true;
           router.replace('/auth');
-        } else if (!requireUser && userExists) {
+          setTimeout(() => {
+            isRouting = false;
+          }, 50);
+        } else if (!requireUser && userExists && !isRouting) {
+          isRouting = true;
           router.replace('/');
+          setTimeout(() => {
+            isRouting = false;
+          }, 50);
         }
       }, 0)
     }, [userExists]);
