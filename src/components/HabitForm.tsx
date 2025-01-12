@@ -243,7 +243,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     <>
       <Header
         showBackButton
-        title={isNew ? 'Create habit' : habit.name}
+        title={isNew ? 'Create habit' : `Habit: ${habit.name}`}
         actionContent={isNew ? null :
           <BottomDrawer
             anchor={

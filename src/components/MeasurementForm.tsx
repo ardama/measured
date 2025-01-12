@@ -252,7 +252,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
-  const palette = getCombinedPalette(formMeasurement.baseColor);
+  const palette = useMemo(() => getCombinedPalette(formMeasurement.baseColor), [formMeasurement.baseColor]);
   const s = useMemo(() => createFormStyles(theme, palette), [theme, palette]);
 
   useEffect(() => {
@@ -306,13 +306,13 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         })}
       </View>
     )
-  }, [formMeasurement.type]);
+  }, [formMeasurement.type, palette]);
 
   return (
     <>
       <Header
         showBackButton
-        title={isNew ? 'Create measurement' : measurement.name}
+        title={isNew ? 'Create measurement' : `${measurement.name}`}
         subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
         actionContent={isNew ? null :
           <BottomDrawer

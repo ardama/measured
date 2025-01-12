@@ -50,12 +50,14 @@ export default function Header({
         />
       )}
       <Appbar.Header
+        mode='small'
         elevated={elevated}
         style={[
           styles.container,
           bordered ? styles.containerBordered : {},
           !!color && { backgroundColor: color },
         ]}
+
       >
         {showMenuButton ? <Appbar.Action icon={'menu'} style={{ borderRadius: 12 }} onPress={() => {}} /> : null}
         {showBackButton ? <Appbar.Action icon={Icons.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}

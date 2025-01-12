@@ -624,7 +624,7 @@ const Recordings = () => {
 
   const renderTimelineStatuses = () => {
     return (
-      <View style={[{ borderRadius: 4, paddingBottom: 12, flexShrink: 1, marginHorizontal: 16 }]}>
+      <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
         <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
             const isToday = date.toString() === today.toString();
@@ -1194,7 +1194,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       justifyContent: 'center',
       padding: 4,
       gap: 4,
-      height: 40,
+      height: 60,
     },
     dailyPointsContainerToday: {},
     dailyPointsContainerSelected: {
