@@ -28,16 +28,16 @@ const FONT_FAMILIES: FontFamilyConfig = {
   },
   rubik: {
     normal: {
-      300: 'Rubik-Light',
+      300: 'Rubik-Regular',
       400: 'Rubik-Regular',
-      500: 'Rubik-Regular',
+      500: 'Rubik-Medium',
       600: 'Rubik-Medium',
       700: 'Rubik-Bold',
     },
     italic: {
-      300: 'Rubik-LightItalic',
+      300: 'Rubik-Italic',
       400: 'Rubik-Italic',
-      500: 'Rubik-Italic',
+      500: 'Rubik-MediumItalic',
       600: 'Rubik-MediumItalic',
       700: 'Rubik-BoldItalic',
     }

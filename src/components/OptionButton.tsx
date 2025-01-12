@@ -47,7 +47,7 @@ const OptionButton = ({
     <>
       {!!title && (
         <Text
-          variant='labelLarge'
+          variant='titleMedium'
           style={[
             s.title,
             disabled ? s.titleDisabled : {},
@@ -58,7 +58,7 @@ const OptionButton = ({
       )}
       {!!subtitle && (
         <Text
-          variant='bodySmall'
+          variant='bodyMedium'
           style={[
             s.subtitle,
             disabled ? s.subtitleDisabled : {},
@@ -146,7 +146,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     color: theme.colors.onSurfaceDisabled,
   },
   subtitle: {
-    
+    color: theme.colors.onSurfaceVariant,
   },
   subtitleDisabled: {
     color: theme.colors.onSurfaceDisabled,

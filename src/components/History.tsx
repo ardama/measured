@@ -930,7 +930,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     width: '50%',
-    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.elevation.level3,
+    backgroundColor: theme.colors.elevation.level3,
     borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -980,7 +980,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   chartSelection: {
     flexGrow: 0,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 4,
     flexShrink: 0,
     backgroundColor: theme.colors.surface,
   },
@@ -1259,7 +1259,7 @@ const createMonthSummaryStyles = (theme: MD3Theme, globalPalette: Palette) => St
   headerButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 4,
     marginVertical: 0,
     marginRight: 0,
     marginLeft: 12,

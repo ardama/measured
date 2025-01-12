@@ -5,8 +5,13 @@ import { defaultAccount, type Account, type User } from '@t/users';
 import type { AuthAction } from '@s/authReducer';
 
 interface RootState {
+  app: AppState
   auth: AuthState
   data: DataState
+}
+
+interface AppState {
+  authAction: AuthAction | null
 }
 
 interface AuthState {
@@ -71,7 +76,10 @@ export {
   type RootState,
 
   type AuthState,
+  
   type DataState,
-
   createDataState,
+
+  type AppState,
+
 }

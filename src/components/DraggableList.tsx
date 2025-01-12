@@ -21,7 +21,7 @@ type DraggableListProps = {
   renderItem: (item: string, index: number, isDragging: boolean) => JSX.Element | null
   onReorder: (items: string[]) => void
   scrollViewStyle?: StyleProp<ViewStyle>
-  containerStyle?: StyleProp<ViewStyle>
+  innerStyle?: StyleProp<ViewStyle>
   longPressDelay?: number
 }
 
@@ -30,7 +30,7 @@ const DraggableList = ({
   renderItem,
   onReorder = () => {},
   scrollViewStyle = {},
-  containerStyle = {},
+  innerStyle = {},
   longPressDelay = 200
 }: DraggableListProps) => {
   const isDragging = useRef(false);
@@ -293,10 +293,13 @@ const DraggableList = ({
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View ref={innerRef} style={[{
-          position: 'relative', 
-          userSelect: 'none',
-        }]}>
+        <View ref={innerRef} style={[
+          innerStyle,
+          {
+            position: 'relative', 
+            userSelect: 'none',
+          }
+        ]}>
           {renderedItems}
         </View>
       </ScrollView>

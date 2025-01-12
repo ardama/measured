@@ -35,7 +35,7 @@ const ColorPicker: React.FC<ColorPickerProps> = (props) => {
       })}
       <TouchableRipple
         key={'none'}
-        style={[styles.colorOuter, { padding: 8 }]}
+        style={[styles.colorOuter, { padding: 10 }]}
         onPress={() => onSelect(null)}
       >
         <View style={[styles.colorInner, { backgroundColor: undefined }]}>
@@ -51,11 +51,12 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     flexGrow: 1,
     justifyContent: 'space-between',
-    gap: 4,
   },
   colorOuter: {
-    padding: 8,
+    flexGrow: 1,
+    padding: 10,
     borderRadius: 4,
+    alignItems: 'center',
   },
   colorOuterSelected: {
 

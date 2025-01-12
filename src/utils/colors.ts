@@ -272,9 +272,9 @@ export const generateStandardPalette = (baseColor: BaseColor | undefined, darkMo
 }
 
 export const getBasePalette = (theme: MD3Theme) => ({
-  primary: theme.colors.onSurface,
-  secondary: !theme.dark ? '#2f3333' : '#dde2e3',
-  backdrop: theme.dark ? '#2f3333' : '#dde2e3',
+  primary: theme.dark ? '#E9EFF0' : '#1B2122',
+  secondary: theme.colors.elevation.level3,
+  backdrop: theme.colors.elevation.level3,
   surface: theme.colors.surface,
   disabled: 'hsl(180, 2.73%, 64.12%)',
   alt: 'hsl(180, 2.73%, 64.12%)',

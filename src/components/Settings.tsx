@@ -1,5 +1,6 @@
 import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
+import { setAuthAction } from '@s/appReducer';
 import { callUpdateAccount, callDeleteAll } from '@s/dataReducer';
 import { useAccount } from '@s/selectors';
 import type { AccountSettings } from '@t/users';
@@ -70,7 +71,7 @@ const Settings = () => {
       icon: Icons.palette,
       title: 'accent color',
       control: (
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1, paddingLeft: 24 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexGrow: 1 }}>
           <ColorPicker value={account.settings.baseColor} onSelect={(nextColor) => {
             const nextSettings: AccountSettings = { ...account.settings, baseColor: nextColor };
             if (!nextColor) delete nextSettings['baseColor'];
@@ -83,8 +84,11 @@ const Settings = () => {
   const accountItems: SettingsItem[] = [
     {
       icon: user ? Icons.logout : Icons.login,
-      title: user ? 'SIGN OUT' : 'SIGN IN',
-      onPress: () => { user ? router.push('/signout') : router.push('/signout'); },
+      title: user ? 'SIGN OUT' : 'CREATE ACCOUNT',
+      onPress: () => {
+        if (!user) dispatch(setAuthAction('signup'));
+        router.push('/signout');
+      },
       control: (
         <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
       )
@@ -124,7 +128,7 @@ const Settings = () => {
               <React.Fragment key={title}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderTitle}>
-                    <Text style={styles.sectionHeaderText} variant='labelMedium'>{title.toUpperCase()}</Text>
+                    <Text style={styles.sectionHeaderText} variant='labelLarge'>{title.toUpperCase()}</Text>
                   </View>
                 </View>
                 {items.map(({ icon, title, control, onPress }) => {
@@ -243,6 +247,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
 
     flexGrow: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
   },
@@ -253,7 +258,6 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     flexGrow: 1,
-    flexShrink: 1,
   },
   itemIcon: {
     marginRight: -2,

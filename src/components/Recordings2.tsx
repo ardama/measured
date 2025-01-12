@@ -27,7 +27,7 @@ import { Pressable } from 'react-native-gesture-handler';
 
 const Recordings = () => {
   const theme = useTheme();
-  const { globalPalette, basePalette } = usePalettes();
+  const { baseColor, globalPalette, basePalette } = usePalettes();
   const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
   const isFocused = useIsFocused();
 
@@ -404,11 +404,11 @@ const Recordings = () => {
   }
 
   const { window: dimensions } = useDimensions();
-  const timelineHeight = PixelRatio.roundToNearestPixel(84);
+  const timelineHeight = PixelRatio.roundToNearestPixel(108);
   const timelineWidth = PixelRatio.roundToNearestPixel(dimensions.width);
   const renderTimeline = () => (
     <FlatList
-      style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0 }}
+      style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
       ref={flatListRef}
       data={weeks}
       keyExtractor={( item ) => item.dates[0].toString()}
@@ -457,7 +457,8 @@ const Recordings = () => {
                           isToday && styles.timelineDateDayOfWeekToday,
                           isSelected && styles.timelineDateDayOfWeekSelected,
                         ]}
-                        >
+                        variant='labelLarge'
+                      >
                         {dayOfWeek.toUpperCase()}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
@@ -557,6 +558,7 @@ const Recordings = () => {
   const isArchiving = (showMeasurements && showArchivedMeasurements) || (showHabits && showArchivedHabits);
   const renderContentSwitch = () => {
     const isDisabled = isReordering || isArchiving;
+    let switchColor = isDisabled ? theme.colors.surfaceDisabled : baseColor ? globalPalette.backdrop : theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
     return (
       <View style={{
         marginHorizontal: -4,
@@ -574,7 +576,7 @@ const Recordings = () => {
               position: 'absolute',
               height: '100%',
               width: '50%',
-              backgroundColor: isDisabled ? theme.colors.surfaceDisabled : globalPalette.backdrop,
+              backgroundColor: switchColor,
               borderRadius: 4,
               opacity: isDisabled ? 0.5 : 1,
             }}
@@ -622,7 +624,7 @@ const Recordings = () => {
 
   const renderTimelineStatuses = () => {
     return (
-      <View style={[{ borderRadius: 4, paddingVertical: 4, flexShrink: 1, marginHorizontal: 16 }]}>
+      <View style={[{ borderRadius: 4, paddingBottom: 12, flexShrink: 1, marginHorizontal: 16 }]}>
         <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
             const isToday = date.toString() === today.toString();
@@ -654,16 +656,20 @@ const Recordings = () => {
                 )}
                 {!isFuture && (
                   <>
-                    {measurementCount > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
-                      {measurementCompletion !== measurementCount ? <CircularProgress
-                        size={20}
-                        strokeWidth={2}
-                        progress={measurementCompletion / measurementCount}
-                        color={color}
-                        trackColor={theme.colors.surfaceDisabled}
-                      /> : <Icon source={Icons.measurement} size={14} color={color} />}
-                    </View>}
-                    {habits.length > 0 && <Points
+                    {measurementCount > 0 &&
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                        <CircularProgress
+                          size={20}
+                          strokeWidth={2}
+                          progress={measurementCompletion / measurementCount}
+                          color={color}
+                          trackColor={theme.colors.surfaceDisabled}
+                          icon={Icons.measurement}
+                          iconColor={measurementCompletion === measurementCount ? color : theme.colors.surfaceDisabled}
+                        />
+                      </View>
+                    }
+                    {displayedHabits.length > 0 && <Points
                       style={styles.dailyPointTotal}
                       points={total}
                       size='medium'
@@ -681,9 +687,9 @@ const Recordings = () => {
   }
 
   const renderHabitProgressBar = () => (
-    <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 0, marginBottom: 32, gap: 12, alignItems: 'center' }}>
+    <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
       <ArchedProgressBar
-        width={dimensions.width - 32}
+        width={dimensions.width - 40}
         strokeWidth={6}
         backgroundColor={theme.colors.elevation.level3}
         progress={selectedWeekPointTotal / perWeekPointTarget}
@@ -887,8 +893,8 @@ const Recordings = () => {
         <View style={{ backgroundColor: theme.colors.surface }}>
           {renderTimeline()}
           {/* {renderTimelineHeader()} */}
-          {habits.length > 0 && renderHabitProgressBar()}
-          {measurements.length > 0 && renderTimelineStatuses()}
+          {displayedHabits.length > 0 && renderHabitProgressBar()}
+          {displayedMeasurements.length > 0 && renderTimelineStatuses()}
           {renderContentHeader()}
           {measurements.length > 0 && renderContentSwitch()}
         </View>
@@ -1049,7 +1055,7 @@ const Recordings = () => {
               )}
             </>
           )}
-        </View>
+      </View>
     </>
   );
 }
@@ -1120,11 +1126,10 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     timelineDateDayOfWeek: {
       textAlign: 'center',
       color: theme.colors.onSurfaceDisabled,
-      fontSize: 12,
     },
     timelineDateDayOfWeekToday: {},
     timelineDateDayOfWeekSelected: {
-      color: theme.colors.onSurface,
+      color: theme.colors.onSurfaceVariant,
     },
     timelineDateDay: {
       textAlign: 'center',
@@ -1169,7 +1174,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignItems: 'center',
       paddingHorizontal: 8,
       gap: 4,
-      marginTop: 12,
       marginBottom: 4,
       minHeight: 48,
     },
@@ -1422,7 +1426,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon source={Icons.delete} size={14} />
-              <Text variant="labelMedium">CLEAR</Text>
+              <Text variant="labelLarge">CLEAR</Text>
             </View>
           </TouchableRipple>
         )}
@@ -1434,7 +1438,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Icon source={Icons.edit} size={14} />
-            <Text variant="labelMedium">EDIT</Text>
+            <Text variant="labelLarge">EDIT</Text>
           </View>
         </TouchableRipple>
       </View>
@@ -1443,16 +1447,16 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     const aggregateContent = (
       <View style={styles.aggregateContent}>
         {isTime ? null : (<View style={styles.aggregateMetric}>
-          <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
-            Total
+          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
+            Total:
           </Text>
           <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
             {count ? totalString : '--'}
           </Text>
         </View>)}
         <View style={styles.aggregateMetric}>
-          <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
-            Average
+          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
+            Average:
           </Text>
           <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
             {count ? averageString : '--'}
@@ -1496,15 +1500,16 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                   key={date.toString()}
                   style={[
                     styles.completionStatus,
+                    !isSelected && { opacity: 0.8 },
                   ]}
                 >
                   {
                     isFuture || hasNotStarted ? (
-                      <Icon source={Icons.subtract} size={isSelected ? 17 : 11} color={theme.colors.onSurfaceDisabled} />
+                      <Icon source={Icons.subtract} size={isSelected ? 16 : 12} color={theme.colors.onSurfaceDisabled} />
                     ) : (
                     <Icon
                       source={value === null ? Icons.subtract : Icons.recorded}
-                      size={isSelected ? 17 : 11}
+                      size={isSelected ? 16 : 12}
                       color={combinedPalette.primary}
                     />
                   )}
@@ -1643,22 +1648,22 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   completionStatuses: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
     height: 20,
   },
   completionStatus: {
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 30,
-    width: 16,
+    height: 20,
+    width: 20,
     borderRadius: 100,
   },
   aggregateContent: {
     // flexGrow: 1,
     flexDirection: 'row',
     // justifyContent: 'flex-end',
-    gap: 24,
+    gap: 16,
     paddingRight: 8,
   },
   aggregateMetric: {
@@ -1723,7 +1728,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
   const combinedPalette = getCombinedPalette(habit.baseColor);
-  const styles = createHabitStyles(theme, combinedPalette, index);
+  const styles = useMemo(() => createHabitStyles(theme, combinedPalette, index), [theme, combinedPalette, index]);
 
   const isFuture = currentDate.after(SimpleDate.today());
 
@@ -1749,18 +1754,19 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           if (count === 0) return null;
 
           const isSelected = index === currentDate.getDayOfWeek();
-          let source = Icons.complete;
+          const isExtra = count > targetCount;
+          let source = isExtra ? Icons.extra : Icons.habitComplete;
           let color = combinedPalette.primary;
-          if (count > targetCount) source = Icons.add;
         
           return (
             <View
               key={index}
               style={[
                 styles.completionIcon,
+                !isSelected && { opacity: 0.8 },
               ]}
             >
-              <Icon source={source} size={isSelected ? 17 : 11} color={color} />
+              <Icon source={source} size={isSelected ? 16 : 12} color={color} />
             </View>
           );
         })}
@@ -1769,9 +1775,10 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             key={index}
             style={[
               styles.completionIcon,
+              { opacity: 0.8 },
             ]}
           >
-            <Icon source={Icons.subtract} size={11} color={combinedPalette.primary} />
+            <Icon source={Icons.subtract} size={12} color={combinedPalette.primary} />
           </View>
         ))}
       </View>
@@ -1798,8 +1805,6 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           const valueString = conditionValue === null ? '-' : formatValue(conditionValue, measurement.type, measurement.unit, false);
           const targetString = formatValue(target, measurement.type, measurement.unit, true);
 
-          const progressLabelColor = theme.colors.onSurface;
-          const progressColor = conditionCompletion ? palette.backdrop : palette.disabled;
           return (
             <View key={`${measurementId}${operator}${target}`} style={styles.condition}>
               <View style={styles.conditionMeasurement}>
@@ -1861,33 +1866,28 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Icon source={Icons.edit} size={14} />
-            <Text variant="labelMedium">EDIT</Text>
+            <Text variant="labelLarge">EDIT</Text>
           </View>
         </TouchableRipple>
       </View>
     );
 
-    return expanded && (
+    return (
       <View style={styles.expandedContent}>
         {actionContent}
       </View>
     );
   }
+  const expandedContent = useMemo(() => expanded && renderExpandedContent(), [styles, expanded]);
 
   const renderPointsContent = () => {
     return (
       <View style={{
         marginLeft: 12,
-        // marginRight: 8,
-        // marginTop: index ? 0 : 8,
-        // marginBottom: 8,
         paddingVertical: 8,
         width: 52,
         justifyContent: 'flex-start',
         alignItems: 'flex-end',
-        // borderRadius: 4,
-        // backgroundColor: theme.colors.surface,
-
         borderColor: theme.colors.surfaceDisabled,
         borderLeftWidth: 1,
       }}>
@@ -1909,6 +1909,10 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       </View>
     );
   }
+  const pointsContent = useMemo(
+    () => !reordering && !archiving && renderPointsContent(),
+    [habit.points, complete, combinedPalette, theme, reordering, archiving, styles],
+  );
 
   const content = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 0 }}>
@@ -1951,7 +1955,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         </View>
         {expanded && renderConditionContent()}
       </View>
-      {!reordering && !archiving && renderPointsContent()}
+      {pointsContent}
     </View>
   );
 
@@ -1981,7 +1985,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
           </TouchableRipple>
         </View>
       </View>
-      {renderExpandedContent()}
+      {expandedContent}
     </>
   );
 }
@@ -2097,15 +2101,15 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   completionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
     height: 20,
   },
   completionIcon: {
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 16,
-    width: 16,
+    height: 20,
+    width: 20,
     borderRadius: 100,
   },
   expandedContent: {

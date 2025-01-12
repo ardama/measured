@@ -2,11 +2,14 @@ import { createSelector } from '@reduxjs/toolkit';
 import { computedHabitsEqual, habitsEqual, measurementsEqual } from '@s/helpers';
 import { computeHabit, type ComputedHabit, type Habit } from '@t/habits';
 import { type Measurement } from '@t/measurements';
-import type { AuthState, DataState, RootState } from '@t/redux';
+import type { AppState, AuthState, DataState, RootState } from '@t/redux';
 import type { Account, AccountSettings, User } from '@t/users';
 import { SimpleDate } from '@u/dates';
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
+
+const selectAppState = (state: RootState): AppState => state.app;
+export const useAppState = () => useSelector(selectAppState);
 
 const selectAuthState = (state: RootState): AuthState => state.auth;
 export const useAuthState = () => useSelector(selectAuthState);
@@ -14,6 +17,10 @@ export const useAuthState = () => useSelector(selectAuthState);
 const selectDataState = (state: RootState): DataState => state.data;
 export const useDataState = () => useSelector(selectDataState);
 export const useDataLoaded = () => useSelector((state: RootState) => state.data.dataLoaded === 7);
+
+// -----------------------------------------
+// App selectors -------------------
+export const useAuthAction = () => useSelector((state: RootState) => state.app.authAction);
 
 // -----------------------------------------
 // Auth selectors -------------------

@@ -1,16 +1,20 @@
 import type { Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
-import { ImageBackground, StyleSheet, View } from 'react-native'
+import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native'
 import { useTheme, type MD3Theme } from 'react-native-paper'
-import Logo from '@a/images/m_logo_1.svg';
+import Logo from '@a/images/m_logo_2.svg';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useEffect, useState } from 'react';
 import background from '@a/images/background_1.png';
+import { useDataLoaded } from '@s/selectors';
 
 const LoadingScreen = ({ visible }: { visible: boolean }) => {
+  const dataLoaded = useDataLoaded();
   const theme = useTheme();
-  const { globalPalette: palette } = usePalettes();
+  const { globalPalette, getPalette } = usePalettes();
+  const palette = dataLoaded ? globalPalette : getPalette('yellow');
   const styles = createStyles(theme, palette);
+  console.log('palette.primary', palette.primary);
 
   const opacity = useSharedValue(visible ? 1 : 0);
   const opacityStyle = useAnimatedStyle(() => {
@@ -46,9 +50,11 @@ const LoadingScreen = ({ visible }: { visible: boolean }) => {
   }
 
   return (
-    <Animated.View style={[styles.container, opacityStyle]}>
-      <View style={styles.logoContainer}>
-        <ImageBackground
+    <>
+      <StatusBar barStyle={theme.dark ? 'light-content' : 'dark-content'} />
+      <Animated.View style={[styles.container, opacityStyle]}>
+        <View style={styles.logoContainer}>
+          <ImageBackground
           source={background}
           resizeMode="repeat"
           style={styles.logoBackground}
@@ -59,9 +65,10 @@ const LoadingScreen = ({ visible }: { visible: boolean }) => {
           style={styles.logo}
           height={120}
           color={palette.primary}
-        />
-      </View>
-    </Animated.View>
+          />
+        </View>
+      </Animated.View>
+    </>
   );
 }
 
@@ -74,12 +81,13 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     flexShrink: 1,
     overflow: 'visible',
     alignItems: 'center',
+    alignSelf: 'stretch',
     backgroundColor: theme.colors.elevation.level3,
   },
   logoContainer: {
     justifyContent: 'flex-start',
     position: 'relative', 
-    paddingTop: 120,
+    paddingTop: 100,
     flexGrow: 1,
     alignItems: 'center',
     overflow: 'hidden',

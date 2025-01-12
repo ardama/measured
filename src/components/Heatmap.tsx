@@ -33,15 +33,16 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
               const bucketIndex = bucketMinimums.findIndex((minimum) => cell !== null && minimum <= (cell || 0));
             
               let cellColor = globalPalette.primary;
-              let overlayOpacity = 0;
-              if (bucketIndex === 5) overlayOpacity = 0.9;
-              else if (bucketIndex === 4) overlayOpacity = 0.77;
-              else if (bucketIndex === 3) overlayOpacity = 0.64;
-              else if (bucketIndex === 2) overlayOpacity = 0.51;
-              else if (bucketIndex === 1) overlayOpacity = 0.38;
-              else if (bucketIndex === 0) overlayOpacity = 0.25;
+              let overlayOpacity = 1.0;
+              if (cell === null) overlayOpacity = 1.0;
+              else if (bucketIndex === 5) overlayOpacity = 1.0;
+              else if (bucketIndex === 4) overlayOpacity = 0.70;
+              else if (bucketIndex === 3) overlayOpacity = 0.55;
+              else if (bucketIndex === 2) overlayOpacity = 0.40;
+              else if (bucketIndex === 1) overlayOpacity = 0.25;
+              else if (bucketIndex === 0) overlayOpacity = 0.1;
               
-              const overlayColor = settings.darkMode ? `rgba(25, 25, 25, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
+              const overlayColor = settings.darkMode ? `rgba(27, 33, 34, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
                           
               return (
                 <View key={r * 7 + c} style={[styles.cell, cell === null ? styles.empty : {}, { backgroundColor: cellColor }]}>

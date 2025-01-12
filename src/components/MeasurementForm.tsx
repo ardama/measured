@@ -11,7 +11,7 @@ import { Icons } from '@u/constants/Icons';
 import { formatValue, parseTimeString, formatTimeValue, parseTimeValue, computeTimeValue } from '@u/helpers';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Keyboard, ScrollView, StyleSheet, View, Platform } from 'react-native';
 import { Button, Dialog, Divider, Icon, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
@@ -253,7 +253,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
   const palette = getCombinedPalette(formMeasurement.baseColor);
-  const s = createFormStyles(theme, palette);
+  const s = useMemo(() => createFormStyles(theme, palette), [theme, palette]);
 
   useEffect(() => {
     if (isTime && formMeasurement.initial) {
@@ -262,6 +262,51 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
       setTimeOffsetString(offset.toString());
     }
   }, []);
+
+  const dataTypeOptions = useMemo(() => {
+    return (
+      <View style={s.formSection}>
+        {measurementTypes.map((type) => {
+          const typeData = getMeasurementTypeData(type);
+          const selected = type === formMeasurement.type;
+          if (!isNew && !selected) return null;
+          const disabled = type === 'combo' && !measurements.length;
+
+          return (
+            <OptionButton
+              key={type}
+              onPress={() => {
+                if (type === formMeasurement.type) return;
+
+                const nextMeasurement = { ...formMeasurement, type, step: '', unit: '', initial: '' };
+                if (type === 'combo') {
+                  nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
+                  nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0]?.id;
+                  nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[1]?.id || measurements[0]?.id;
+                } else if (type === 'time') {
+                  nextMeasurement.step = '30';
+                  nextMeasurement.initial = '12';
+                  nextMeasurement.unit = 'hours';
+                } else if (type === 'duration') {
+                  nextMeasurement.step = '15';
+                  nextMeasurement.initial = '0';
+                  nextMeasurement.unit = 'minutes';
+                }
+                handleFormEdit(nextMeasurement);
+              }}
+              selected={selected}
+              unselected={isUnset}
+              disabled={disabled}
+              icon={typeData.icon}
+              title={typeData.label.toUpperCase()}
+              subtitle={typeData.examples}
+              palette={palette}
+            />
+          );
+        })}
+      </View>
+    )
+  }, [formMeasurement.type]);
 
   return (
     <>
@@ -303,57 +348,18 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         <ScrollView contentContainerStyle={s.scrollContainer}>
           <View style={s.content}>
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>DATA TYPE</Text>
-              {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+              <Text variant='labelLarge' style={s.labelTitle}>DATA TYPE</Text>
+              {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                 {`What kind of data do you want to track?`}
               </Text>}
             </View>
-            <View style={s.formSection}>
-              {measurementTypes.map((type) => {
-                const typeData = getMeasurementTypeData(type);
-                const selected = type === formMeasurement.type;
-                if (!isNew && !selected) return null;
-                const disabled = type === 'combo' && !measurements.length;
-
-                return (
-                  <OptionButton
-                    key={type}
-                    onPress={() => {
-                      if (type === formMeasurement.type) return;
-    
-                      const nextMeasurement = { ...formMeasurement, type, step: '', unit: '', initial: '' };
-                      if (type === 'combo') {
-                        nextMeasurement.comboOperator = nextMeasurement.comboOperator || '+',
-                        nextMeasurement.comboLeftId = nextMeasurement.comboLeftId || measurements[0]?.id;
-                        nextMeasurement.comboRightId = nextMeasurement.comboRightId || measurements[1]?.id || measurements[0]?.id;
-                      } else if (type === 'time') {
-                        nextMeasurement.step = '30';
-                        nextMeasurement.initial = '12';
-                        nextMeasurement.unit = 'hours';
-                      } else if (type === 'duration') {
-                        nextMeasurement.step = '15';
-                        nextMeasurement.initial = '0';
-                        nextMeasurement.unit = 'minutes';
-                      }
-                      handleFormEdit(nextMeasurement);
-                    }}
-                    selected={selected}
-                    unselected={isUnset}
-                    disabled={disabled}
-                    icon={typeData.icon}
-                    title={typeData.label.toUpperCase()}
-                    subtitle={typeData.examples}
-                    palette={palette}
-                  />
-                );
-              })}
-            </View>
+            {dataTypeOptions}
             {!!formMeasurement.type && (
               <>
                 <Divider style={s.formSectionDivider} />
                 <View style={s.formSectionHeader}>
-                  <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
-                  {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                  <Text variant='labelLarge' style={s.labelTitle}>BASIC INFO</Text>
+                  {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                     {`What do you want to call this measurement?`}
                   </Text>}
                 </View>
@@ -403,8 +409,8 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                 {!isBool && <>
                   <Divider style={s.formSectionDivider} />
                   <View style={s.formSectionHeader}>
-                    <Text variant='labelMedium' style={s.labelTitle}>DATA VALUES</Text>
-                    {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                    <Text variant='labelLarge' style={s.labelTitle}>DATA VALUES</Text>
+                    {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                       {`What values can the measurement take and how they are formatted?`}
                     </Text>}
                   </View>
@@ -622,9 +628,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         placeholder='15, 1000, 100, 8'
                         placeholderTextColor={theme.colors.onSurfaceDisabled}
                         label='Increment amount'
-                        value={formMeasurement.step.toString() || ''}
+                        value={formMeasurement.step}
                         error={saveAttempted && getStepErrors().hasError}
                         onChangeText={(text) => {
+                          console.log('text', text);
                           const nextMeasurement = { ...formMeasurement, step: text };
                           handleFormEdit(nextMeasurement);
                         }}

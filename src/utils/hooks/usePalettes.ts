@@ -26,6 +26,7 @@ export const usePalettes = () => {
   const globalPalette = getPalette(settings.baseColor)
 
   return {
+    baseColor: settings.baseColor,
     getPalette,
     getCombinedPalette,
     globalPalette,

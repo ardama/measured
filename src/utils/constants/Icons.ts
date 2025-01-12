@@ -14,12 +14,16 @@ export const Icons = {
   
   // habit: 'check',
   // habitFilled: 'minus',
-  habit: 'bullseye-arrow',
-  habitFilled: 'bullseye-arrow',
+  habit: 'checkbox-marked-circle-outline',
+  // habitFilled: 'trophy-award',
+  // habit: 'bullseye-arrow',
+  // habitFilled: 'bullseye-arrow',
   pastHabit: 'history',
   
-  measurement: 'ruler',
-  measurementFilled: 'ruler',
+  // measurement: 'ruler',
+  // measurementFilled: 'ruler',
+  measurement: 'pencil',
+  measurementFilled: 'pencil',
   // measurement: 'beaker-outline',
   // measurementFilled: 'beaker',
 
@@ -36,7 +40,7 @@ export const Icons = {
 
   recording: 'clipboard-edit-outline',
   recordingFilled: 'clipboard-edit',
-  recorded: 'check',
+  recorded: 'pencil',
 
   warning: 'alert-circle-outline',
 
@@ -80,8 +84,10 @@ export const Icons = {
   subtract: 'minus',
 
   complete: 'check',
+  habitComplete: 'checkbox-marked-circle-outline',
   incomplete: 'window-close',
   indeterminate: 'circle-medium',
+  extra: 'checkbox-marked-circle-plus-outline',
 
   darkMode: 'theme-light-dark',
   palette: 'palette',

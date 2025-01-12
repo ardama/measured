@@ -17,13 +17,13 @@ export function withUser<P extends object>(
       setTimeout(() => {
         if (requireUser && !userExists && !isRouting) {
           isRouting = true;
-          router.replace('/auth');
+          router.navigate('/auth');
           setTimeout(() => {
             isRouting = false;
           }, 50);
         } else if (!requireUser && userExists && !isRouting) {
           isRouting = true;
-          router.replace('/');
+          router.navigate('/');
           setTimeout(() => {
             isRouting = false;
           }, 50);

@@ -279,8 +279,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
         <ScrollView contentContainerStyle={s.scrollContainer}>
           <View style={s.content}>
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>FREQUENCY</Text>
-              {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+              <Text variant='labelLarge' style={s.labelTitle}>FREQUENCY</Text>
+              {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                 {`Evaluate this habit every day or once per week using weekly measurement totals?`}
               </Text>}
             </View>
@@ -340,8 +340,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             </View>
             <Divider style={s.formSectionDivider} />
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>BASIC INFO</Text>
-              {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+              <Text variant='labelLarge' style={s.labelTitle}>BASIC INFO</Text>
+              {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                 {`What do you want to call this habit?`}
               </Text>}
             </View>
@@ -402,8 +402,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             </View>
             <Divider style={s.formSectionDivider} />
             <View style={s.formSectionHeader}>
-              <Text variant='labelMedium' style={s.labelTitle}>TARGETS</Text>
-              {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+              <Text variant='labelLarge' style={s.labelTitle}>TARGETS</Text>
+              {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                 {`What measurement targets need to be hit to complete the habit?`}
               </Text>}
             </View>
@@ -469,7 +469,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                                   </>
                                 ) : (
                                   <>
-                                    <Text variant='labelMedium'>
+                                    <Text variant='labelLarge'>
                                       SELECT MEASUREMENT
                                     </Text>
                                     <Icon source={Icons.down} size={16} />
@@ -525,7 +525,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                                     <Icon source={getHabitOperatorData(condition.operator).icon} size={16} />
                                   ) : (
                                     <>
-                                      <Text variant='labelMedium'>
+                                      <Text variant='labelLarge'>
                                         SELECT OPERATOR
                                       </Text>
                                       <Icon source={Icons.down} size={16} />
@@ -708,7 +708,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               >
                 <View style={s.addConditionButtonContent}>
                   <Icon source={Icons.add} size={14} color={theme.colors.onSurface} />
-                  <Text variant='labelMedium'>
+                  <Text variant='labelLarge'>
                     ADD TARGET
                   </Text>
                 </View>
@@ -718,8 +718,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               <>
                 <Divider style={s.formSectionDivider} />
                 <View style={s.formSectionHeader}>
-                  <Text variant='labelMedium' style={s.labelTitle}>MULTI TARGET</Text>
-                  {isNew && <Text variant='bodySmall' style={s.labelSubtitle}>
+                  <Text variant='labelLarge' style={s.labelTitle}>MULTI TARGET</Text>
+                  {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
                     {`Do all targets need to be hit or just one?`}
                   </Text>}
                 </View>

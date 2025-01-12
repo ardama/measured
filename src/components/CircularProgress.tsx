@@ -11,14 +11,23 @@ type CircularProgressProps = {
   strokeWidth?: number;
   showCheckmark?: boolean;
   icon?: string;
+  iconColor?: string;
 };
 
-const CircularProgress = ({ size = 16, color, trackColor, progress, strokeWidth = 4, showCheckmark = false, icon }: CircularProgressProps) => {
+const CircularProgress = ({
+  size = 16,
+  color,
+  trackColor,
+  progress,
+  strokeWidth = 4,
+  showCheckmark = false,
+  icon,
+  iconColor
+}: CircularProgressProps) => {
   const center = size / 2;
   const radius = (size - strokeWidth - 1) / 2;
 
   const innerRadius = radius;
-  // const innerRadius = (radius - strokeWidth) / 2;
   const circumference = 2 * Math.PI * innerRadius;
   const strokeDashoffset = circumference * (1 - Math.min(1, Math.max(0, progress)));
 
@@ -26,7 +35,7 @@ const CircularProgress = ({ size = 16, color, trackColor, progress, strokeWidth 
     <View style={{ height: size, width: size, position: 'relative' }}>
       {icon && (
         <View style={{ position: 'absolute', height: size, width: size, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon source={icon} size={size - (strokeWidth * 4) - 1} color={color} />
+          <Icon source={icon} size={size - (strokeWidth * 4) - 1} color={iconColor || color} />
         </View>
       )}
       <Svg width={size} height={size}>

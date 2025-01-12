@@ -1,40 +1,37 @@
 import { guestSignInRequest, resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
-import { useAuthState, useSettings } from '@s/selectors';
+import { useAuthAction, useAuthState, useSettings } from '@s/selectors';
 import { Error, NoError } from '@u/constants/Errors';
 import { withUser } from '@u/hocs/withUser';
 import React, { useEffect, useState } from 'react';
 import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
-import { useDispatch } from 'react-redux';
-import Logo from '@a/images/m_logo_1.svg';
+import { useDispatch, useSelector } from 'react-redux';
+import Logo from '@a/images/m_logo_2.svg';
 import Background from '@a/images/background_1.svg';
 import { createFontStyle } from '@u/styles';
 import { generateStandardPalette, getBasePalette, type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
+import { setAuthAction } from '@s/appReducer';
 
-const LoginScreen = ({ initialAction = 'login' }: { initialAction?: AuthAction }) => {
+const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [userAction, setUserAction] = useState<AuthAction>(initialAction);
+  
+  const [submitAttempted, setSubmitAttempted] = useState<AuthAction | null>(null);
+  
+  const dispatch = useDispatch();
+  const userAction = useAuthAction();
   const isLogin = userAction === 'login';
   const isSignUp = userAction === 'signup';
   const isReset = userAction === 'reset'; 
 
-  const [submitAttempted, setSubmitAttempted] = useState<AuthAction | null>(null);
-  
-  const dispatch = useDispatch();
   const { loading, error, info, action } = useAuthState();
-  const { darkMode } = useSettings();
   const lastestAction = submitAttempted || action;
 
   useEffect(() => {
-    if (info) setUserAction('login');
+    if (info) dispatch(setAuthAction('login'));
   }, [info]);
-
-  // useEffect(() => {
-  //   StatusBar.setBarStyle(darkMode ? 'dark-content' : 'light-content');
-  // }, [darkMode]);
 
   const getErrors = () => {
     let e = getEmailErrors();
@@ -91,6 +88,7 @@ const LoginScreen = ({ initialAction = 'login' }: { initialAction?: AuthAction }
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle='light-content' />
       <View style={styles.logoContainer}>
         {/* <Background
           style={styles.logoBackground}
@@ -109,7 +107,7 @@ const LoginScreen = ({ initialAction = 'login' }: { initialAction?: AuthAction }
           height={120}
           color={palette.primary}
         />
-        <Text style={styles.logoTitle}>measured</Text>
+        <Text variant='headlineSmall' style={styles.logoTitle}>measured</Text>
       </View>
       <View style={styles.content}>
         <View style={styles.formContainer}>
@@ -191,13 +189,13 @@ const LoginScreen = ({ initialAction = 'login' }: { initialAction?: AuthAction }
         </View>
         <View style={{ flexGrow: 1 }} />
         <View style={styles.linkContainer}>
-          {!isLogin && <Button onPress={() => setUserAction('login')} style={styles.toggle} textColor={basePalette.secondary}>
+          {!isLogin && <Button onPress={() => dispatch(setAuthAction('login'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
             {'Already have an account? Log in'}
           </Button>}
-          {!isSignUp && <Button onPress={() => setUserAction('signup')} style={styles.toggle} textColor={basePalette.secondary}>
+          {!isSignUp && <Button onPress={() => dispatch(setAuthAction('signup'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
             {'Don\'t have an account? Sign Up'}
           </Button>}
-          {!isReset && <Button onPress={() => setUserAction('reset')} style={styles.toggle} textColor={basePalette.secondary}>
+          {!isReset && <Button onPress={() => dispatch(setAuthAction('reset'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
             {'Having trouble? Reset password'}
           </Button>}
         </View>
@@ -219,7 +217,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     justifyContent: 'flex-start',
     position: 'relative',
     // top: '10%',
-    paddingTop: 120,
+    paddingTop: 100,
     flexGrow: 1,
     // borderRadius: 80,
     alignItems: 'center',
@@ -242,9 +240,9 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
   },
   logoTitle: {
     color: theme.colors.onSurface,
-    marginTop: 4,
-    fontSize: 30,
-    // opacity: 0.8,
+    marginTop: 16,
+    fontSize: 32,
+    opacity: 0.8,
     ...createFontStyle(500, false, 'fira'),
   },
   content: {
