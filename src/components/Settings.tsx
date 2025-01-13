@@ -253,6 +253,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
   },
   itemTitle: {
     flexShrink: 0,
+    marginRight: 8,
   },
   itemContent: {
     flexDirection: 'row',

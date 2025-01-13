@@ -846,6 +846,25 @@ const History = () => {
         {useMemo(() => <MonthSummaryCard />, [])}
         {!!habits.length && <Divider  horizontalInset />}
         {renderHabitChartCard()}
+        {measurements.length && !habits.length && (
+          <>
+            <View style={s.noData}>
+              <View style={s.noDataIcon}>
+                <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+              </View>
+              <Text style={s.noDataText} variant='bodyLarge'>No habits</Text>
+            </View>
+            <Button
+              style={s.noDataButton}
+              mode='contained'
+              onPress={() => { router.push('/habit/create'); }}
+            >
+              <Text variant='labelLarge' style={s.noDataButtonText}>
+                Create your first habit
+              </Text>
+            </Button>
+          </>
+        )}
         {!!measurements.length && <Divider  horizontalInset />}
         {renderMeasurementChartCard()}
         {!measurements.length && (
@@ -856,17 +875,15 @@ const History = () => {
               </View>
               <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
             </View>
-            {!measurements.length && (
-              <Button
-                style={s.noDataButton}
-                mode='contained'
-                onPress={() => { router.push('/measurement/create'); }}
-              >
-                <Text variant='labelLarge' style={s.noDataButtonText}>
-                  Create your first measurement
-                </Text>
-              </Button>
-            )}
+            <Button
+              style={s.noDataButton}
+              mode='contained'
+              onPress={() => { router.push('/measurement/create'); }}
+            >
+              <Text variant='labelLarge' style={s.noDataButtonText}>
+                Create your first measurement
+              </Text>
+            </Button>
           </>
         )}
       </View>
