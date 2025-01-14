@@ -440,7 +440,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       anchor={(
                         <View style={{
                           ...s.dropdownButton,
-                          width: '100%',
+                          width: condition.measurementId ? 'auto' : '100%',
+                          minWidth: 150,
                         }}>
                           <TouchableRipple
                             onPress={() => {

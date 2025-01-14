@@ -1,5 +1,5 @@
 import { triggerHaptic } from '@u/helpers';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   ScrollView,

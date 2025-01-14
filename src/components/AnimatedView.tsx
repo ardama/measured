@@ -14,7 +14,8 @@ type AnimatedViewProps = {
   endY?: number,
   startLeft?: number,
   endLeft?: number,
-
+  startOpacity?: number,
+  endOpacity?: number,
   isSpring?: boolean,
   springConfig?: WithSpringConfig,
   timingConfig?: WithTimingConfig,
@@ -35,6 +36,8 @@ const AnimatedView = (props: AnimatedViewProps) => {
     endY = 0,
     startLeft = 0,
     endLeft = 0,
+    startOpacity = 1,
+    endOpacity = 1,
 
     isSpring,
     springConfig = {
@@ -54,6 +57,7 @@ const AnimatedView = (props: AnimatedViewProps) => {
   const x = useSharedValue(startX);
   const y = useSharedValue(startY);
   const left = useSharedValue(startLeft);
+  const opacity = useSharedValue(startOpacity);
 
   const startStyle: StyleProp<ViewStyle> = {
     left: `${startLeft}%`,
@@ -62,6 +66,7 @@ const AnimatedView = (props: AnimatedViewProps) => {
   const animatedStyle = useAnimatedStyle(() => ({
     left: `${left.value}%`,
     transform: [{ scale: scale.value }, { translateX: x.value }, { translateY: y.value }],
+    opacity: opacity.value,
   }));
 
   const getAnimation = useCallback((value: number) => (isSpring
@@ -70,10 +75,11 @@ const AnimatedView = (props: AnimatedViewProps) => {
   ), [isSpring, springConfig, timingConfig]);
 
   useEffect(() => {
-    scale.value = getAnimation(isEnd ? endScale : startScale);
-    x.value = getAnimation(isEnd ? endX : startX)
-    y.value = getAnimation(isEnd ? endY : startY)
-    left.value = getAnimation(isEnd ? endLeft : startLeft)
+    if (startScale !== endScale) scale.value = getAnimation(isEnd ? endScale : startScale);
+    if (startX !== endX) x.value = getAnimation(isEnd ? endX : startX);
+    if (startY !== endY) y.value = getAnimation(isEnd ? endY : startY);
+    if (startLeft !== endLeft) left.value = getAnimation(isEnd ? endLeft : startLeft);
+    if (startOpacity !== endOpacity) opacity.value = getAnimation(isEnd ? endOpacity : startOpacity);
   }, [isEnd]);
 
 

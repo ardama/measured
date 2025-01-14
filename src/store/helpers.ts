@@ -1,47 +1,5 @@
 import type { ComputedHabit, Habit, HabitCondition, HabitUpdate } from '@t/habits';
 import type { Measurement, MeasurementRecording } from '@t/measurements';
-import type { Account } from '@t/users';
-import { all, call, put } from 'redux-saga/effects';
-import { storageService } from '@s/storage';
-import { setAccount, setHabits, setMeasurements } from '@s/dataReducer';
-import { QuerySnapshot, where, type DocumentData } from 'firebase/firestore';
-import { collection } from 'firebase/firestore';
-import { query } from 'firebase/firestore';
-import { getDocs } from 'firebase/firestore';
-import { auth, firestore } from '@/firebase';
-import { Collections } from '@u/constants/Firestore';
-
-export type LocalData = { measurements: Measurement[], habits: Habit[], account: Account | null };
-export function* getLocalData(): Generator<any, LocalData, any> {
-  const [measurements, habits, account] = yield all([
-    call([storageService, storageService.getMeasurements]),
-    call([storageService, storageService.getHabits]), 
-    call([storageService, storageService.getAccount]),
-  ]);
-  return { measurements, habits, account };
-}
-
-export function* loadLocalData(): Generator<any, void, any> {
-  const { measurements, habits, account } = yield call(getLocalData);
-  yield all([
-    put(setMeasurements(measurements)),
-    put(setHabits(habits)),
-    put(setAccount(account ? [account] : [])),
-  ]);
-}
-
-export type RemoteData = { measurements: QuerySnapshot, habits: QuerySnapshot, accounts: QuerySnapshot };
-export function* getRemoteData(): Generator<any, RemoteData, any> {
-  const userId = auth.currentUser?.uid;
-  if (!userId || !auth.currentUser) throw new Error('No authenticated user');
-
-  const [measurements, habits, accounts] = yield all([
-    call(getDocs, query(collection(firestore, Collections.Measurements), where('userId', '==', userId))),
-    call(getDocs, query(collection(firestore, Collections.Habits), where('userId', '==', userId))),
-    call(getDocs, query(collection(firestore, Collections.Accounts), where('userId', '==', userId))),
-  ]);
-  return { measurements, habits, accounts };
-}
 
 // Helper function to check recording equality
 const areRecordingsEqual = (a: MeasurementRecording[], b: MeasurementRecording[]): boolean => {

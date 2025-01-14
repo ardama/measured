@@ -14,7 +14,6 @@ const LoadingScreen = ({ visible }: { visible: boolean }) => {
   const { globalPalette, getPalette } = usePalettes();
   const palette = dataLoaded ? globalPalette : getPalette('yellow');
   const styles = createStyles(theme, palette);
-  console.log('palette.primary', palette.primary);
 
   const opacity = useSharedValue(visible ? 1 : 0);
   const opacityStyle = useAnimatedStyle(() => {

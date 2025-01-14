@@ -18,34 +18,32 @@ import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { useAnimatedRef } from 'react-native-reanimated';
 import useDimensions from '@u/hooks/useDimensions';
-import { useIsFocused } from '@react-navigation/native';
 import AnimatedView from '@c/AnimatedView';
 import ArchedProgressBar from '@c/ArchedProgress';
 import DraggableList from '@c/DraggableList';
 import CircularProgress from '@c/CircularProgress';
 import { Pressable } from 'react-native-gesture-handler';
+import { useToday } from '@u/hooks/useToday';
 
 const Recordings = () => {
   const theme = useTheme();
   const { baseColor, globalPalette, basePalette } = usePalettes();
   const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
-  const isFocused = useIsFocused();
 
   const measurements = useMeasurements();
 
   const habits = useComputedHabits();
-  const activeHabits = habits.filter((h) => !h.archived);
-  const dailyHabits = activeHabits.filter((h) => !h.isWeekly)
-  const weeklyHabits = activeHabits.filter((h) => h.isWeekly);
+  const activeHabits = useMemo(() => habits.filter((h) => !h.archived), [habits]);
+  const dailyHabits = useMemo(() => activeHabits.filter((h) => !h.isWeekly), [activeHabits]);
+  const weeklyHabits = useMemo(() => activeHabits.filter((h) => h.isWeekly), [activeHabits]);
 
-  const today = SimpleDate.today();
-  
+  const today = useToday();
+
   const [selectedDate, setSelectedDate] = useState(today);
   const selectedDayOfWeek = selectedDate.getDayOfWeek();
-  const selectedWeekDates = SimpleDate.generateWeek(selectedDate);
+  const selectedWeekDates = useMemo(() => SimpleDate.generateWeek(selectedDate), [selectedDate]);
   const isToday = selectedDate.equals(today);
 
-  const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
   const [showArchivedMeasurements, setShowArchivedMeasurements] = useState(false);
   const [isReorderingMeasurements, setIsReorderingMeasurements] = useState(false);
   const [measurementPriorityOverrides, setMeasurementPriorityOverrides] = useState<string[] | null>(null);
@@ -56,8 +54,10 @@ const Recordings = () => {
     .filter((m) => !!m)
   : measurements;
 
-  const displayedMeasurements = orderedMeasurements
-    .filter(m => !m.archived || showArchivedMeasurements);
+  const displayedMeasurements = useMemo(
+    () => orderedMeasurements.filter(m => !m.archived || showArchivedMeasurements),
+    [orderedMeasurements, showArchivedMeasurements]
+  );
   const [expandedMeasurements, setExpandedMeasurements] = useState(new Set());
   const displayedMeasurementIds = displayedMeasurements.map(({ id }) => id);
   const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
@@ -199,8 +199,7 @@ const Recordings = () => {
       value: 'reset',
     },
   ];
-  const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
-  const addMenuItems: BottomDrawerItem<string>[] = [
+  const addMenuItems: BottomDrawerItem<string>[] = useMemo(() => [
     {
       icon: Icons.measurement,
       title: 'Measurement',
@@ -214,23 +213,29 @@ const Recordings = () => {
       subtitle: 'Recurring targets to define goals and score progress.',
       disabled: measurements.length === 0,
     }
-  ];
+  ], [measurements.length]);
 
   const [tempRecordingsMap, setTempRecordingsMap] = useState<Map<string, Map<string, number | null>>>(new Map());
-  const mergedRecordingsMap = new Map(measurements.map(({ id, recordings}) => [
-    id,
-    new Map<string, number | null>(recordings.map(({ date, value }) => [
-      date,
-      value,
-    ])),
-  ]));
-  [...tempRecordingsMap.entries()].forEach(([id, recordingsMap]) => {
-    const mergedRecordings = mergedRecordingsMap.get(id) || new Map<string, number | null>();
-    [...recordingsMap.entries()].forEach(([date, value]) => {
-      mergedRecordings.set(date, value);
+  const mergedRecordingsMap = useMemo(() => {
+    const result = new Map(measurements.map(({ id, recordings}) => [
+      id,
+      new Map<string, number | null>(recordings.map(({ date, value }) => [
+        date,
+        value,
+      ])),
+    ]));
+
+    [...tempRecordingsMap.entries()].forEach(([id, recordingsMap]) => {
+      const mergedRecordings = result.get(id) || new Map<string, number | null>();
+      [...recordingsMap.entries()].forEach(([date, value]) => {
+        mergedRecordings.set(date, value);
+      });
+      result.set(id, mergedRecordings);
     });
-    mergedRecordingsMap.set(id, mergedRecordings);
-  });
+
+    return result;
+  }, [measurements, tempRecordingsMap]);
+  
 
   const selectedWeekHabitCompletionMaps = [
     new Map<string, boolean>(),
@@ -241,26 +246,34 @@ const Recordings = () => {
     new Map<string, boolean>(),
     new Map<string, boolean>(),
   ];
-  const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date, index) => {
+  const selectedWeekDailyHabitPointTotals = useMemo(() => selectedWeekDates.map((date, index) => {
     return date.after(today) ? 0 : dailyHabits.reduce((previous: number, habit: ComputedHabit) => {
       const [complete, _, __] = getHabitCompletion(habit, measurements, [date], mergedRecordingsMap);  
       selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
       return previous + (complete ? habit.points : 0);
     }, 0);
-  });
+  }), [selectedWeekDates, today, dailyHabits, measurements, mergedRecordingsMap]);
   
-  const selectedWeekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
-  weeklyHabits.forEach((habit) => {
-    selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
-      const dates = selectedWeekDates.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
-      selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
+  const selectedWeekWeeklyHabitPointTotals = useMemo(() => {
+    const totals = [0, 0, 0, 0, 0, 0, 0];
+    weeklyHabits.forEach((habit) => {
+      selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
+        const dates = selectedWeekDates.slice(0, index + 1);
+        const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
+        selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
 
-      if (complete) selectedWeekWeeklyHabitPointTotals[index] += habit.points;
-      return complete;
+        if (complete) totals[index] += habit.points;
+        return complete;
+      });
     });
-  });
-  const selectedWeekHabitPointTotals = selectedWeekWeeklyHabitPointTotals.map((curr, index) => curr + (selectedWeekDailyHabitPointTotals[index] || 0));
+    return totals;
+  }, [selectedWeekDates, today, weeklyHabits, measurements, mergedRecordingsMap]);
+
+  const selectedWeekHabitPointTotals = useMemo(
+    () => selectedWeekWeeklyHabitPointTotals.map((curr, index) => curr + (selectedWeekDailyHabitPointTotals[index] || 0)),
+    [selectedWeekWeeklyHabitPointTotals, selectedWeekDailyHabitPointTotals]
+  );
+
   const selectedWeekPointTotal = selectedWeekHabitPointTotals.reduce((acc, curr) => acc + curr, 0);
   const perWeekPointTarget = activeHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
@@ -268,13 +281,16 @@ const Recordings = () => {
 
   const daysThisWeek = Math.min(SimpleDate.daysBetween(today, selectedWeekDates[0]) + 1, 7);
 
-  const selectedWeekMeasurementValues = new Map<string, (number | null)[]>();
-  measurements.forEach(({ id }) => {
-    const values = selectedWeekDates.map((date) => {
-      return getMeasurementRecordingValue(id, date, measurements, mergedRecordingsMap);
+  const selectedWeekMeasurementValues = useMemo(() => {
+    const valueMap = new Map<string, (number | null)[]>();
+    measurements.forEach(({ id }) => {
+      const values = selectedWeekDates.map((date) => {
+        return getMeasurementRecordingValue(id, date, measurements, mergedRecordingsMap);
+      });
+      valueMap.set(id, values);
     });
-    selectedWeekMeasurementValues.set(id, values);
-  });
+    return valueMap;
+  }, [measurements, selectedWeekDates, mergedRecordingsMap]);
 
   const dispatch = useDispatch();
   const updateRecordings = useRef<null | NodeJS.Timeout>(null);
@@ -384,16 +400,8 @@ const Recordings = () => {
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
   
-  const flatListRef = useAnimatedRef<FlatList<{ dates: SimpleDate[]}>>();
+  const flatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
   const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
-
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / timelineWidth);
-    const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
-    setSelectedDate(nextSelectedDate);
-  }, [weeks])
-
 
   const handleDateSelection = (date: SimpleDate, updateState: boolean = true) => {
     const firstDate = weeks[0].dates[0];
@@ -404,90 +412,111 @@ const Recordings = () => {
   }
 
   const { window: dimensions } = useDimensions();
-  const timelineHeight = PixelRatio.roundToNearestPixel(108);
-  const timelineWidth = PixelRatio.roundToNearestPixel(dimensions.width);
-  const renderTimeline = () => (
-    <FlatList
-      style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
-      ref={flatListRef}
-      data={weeks}
-      keyExtractor={( item ) => item.dates[0].toString()}
-      pagingEnabled
-      initialScrollIndex={52}
-      horizontal
-      showsVerticalScrollIndicator={false}
-      showsHorizontalScrollIndicator={false}
-      scrollEventThrottle={32}
-      onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
-      getItemLayout={(_, index) => ({
-        length: timelineWidth,
-        offset: timelineWidth * index,
-        index,
-      })}
-      renderItem={({ item }) => {  
-        return (
-          <View style={[styles.timelineContent, { height: timelineHeight, width: timelineWidth }]}>
-            {item.dates.map((date) => {
-              const dayOfWeek = date.getDayOfWeekLabel();
-              const isSelected = date.getDayOfWeek() === selectedDayOfWeek;
-              const isToday = date.equals(today);
+  const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(108), []);
+  const timelineWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
 
-              return (
-                <Pressable
-                  key={date.toString()}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  onPress={() => handleDateSelection(date)}
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / timelineWidth);
+    const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
+    setSelectedDate(nextSelectedDate);
+  }, [weeks, selectedDayOfWeek, timelineWidth])
+
+  const timelineWeeks = weeks.map((week) => {
+    return {
+      week,
+      elements: week.dates.map((date) => {
+        const daysBetween = SimpleDate.daysBetween(date, selectedDate);
+        const isNearSelection = Math.abs(daysBetween) <= 14;
+        const isSelected = isNearSelection && date.getDayOfWeek() === selectedDayOfWeek;
+        const isToday = date.equals(today);
+        
+        return useMemo(() => { 
+          return (
+            <Pressable
+              key={date.toString()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => handleDateSelection(date)}
+              style={[
+                styles.timelineDateContainer,
+                isToday && styles.timelineDateContainerToday,
+                isSelected && styles.timelineDateContainerSelected,
+              ]}
+            >
+              <>
+                <View
                   style={[
-                    styles.timelineDateContainer,
-                    isToday && styles.timelineDateContainerToday,
-                    isSelected && styles.timelineDateContainerSelected,
+                    styles.timelineDateContent,
+                    isToday && styles.timelineDateContentToday,
+                    isSelected && styles.timelineDateContentSelected,
                   ]}
                 >
-                  <>
-                    <View
+                  <Text
+                    style={[
+                      styles.timelineDateDayOfWeek,
+                      isToday && styles.timelineDateDayOfWeekToday,
+                      isSelected && styles.timelineDateDayOfWeekSelected,
+                    ]}
+                    variant='labelLarge'
+                  >
+                    {date.getDayOfWeekLabel()}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                    {isToday && <View
                       style={[
-                        styles.timelineDateContent,
-                        isToday && styles.timelineDateContentToday,
-                        isSelected && styles.timelineDateContentSelected,
+                        styles.todayIndicator,
+                        isSelected && styles.todayIndicatorToday,
+                      ]}
+                    />}
+                    <Text variant='titleMedium'
+                      style={[
+                        styles.timelineDateDay,
+                        isToday && styles.timelineDateDayToday,
+                        isSelected && styles.timelineDateDaySelected,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.timelineDateDayOfWeek,
-                          isToday && styles.timelineDateDayOfWeekToday,
-                          isSelected && styles.timelineDateDayOfWeekSelected,
-                        ]}
-                        variant='labelLarge'
-                      >
-                        {dayOfWeek.toUpperCase()}
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                        {isToday && <View
-                          style={[
-                            styles.todayIndicator,
-                            isSelected && styles.todayIndicatorToday,
-                          ]}
-                        />}
-                        <Text variant='titleMedium'
-                          style={[
-                            styles.timelineDateDay,
-                            isToday && styles.timelineDateDayToday,
-                            isSelected && styles.timelineDateDaySelected,
-                          ]}
-                        >
-                          {date.day}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                </Pressable>
-              )
-            })}
-          </View>
-        )
-      }}
-    />
-  );
+                      {date.day}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            </Pressable>
+          );
+        }, [date, isToday, isSelected, styles]);
+      })
+    }
+  });
+
+  const timeline = useMemo(() => {
+    console.log('rendering timeline');
+    return (
+      <FlatList
+        style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
+        ref={flatListRef}
+        data={timelineWeeks}
+        keyExtractor={({ week }) => week.dates[0].toString()}
+        pagingEnabled
+        initialScrollIndex={52}
+        horizontal
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
+        getItemLayout={(_, index) => ({
+          length: timelineWidth,
+          offset: timelineWidth * index,
+          index,
+        })}
+        renderItem={({ item }) => {
+          return (
+            <View style={[styles.timelineContent, { height: timelineHeight, width: timelineWidth }]}>
+              {item.elements}
+            </View>
+          )
+        }}
+      />
+    );
+  }, [weeks, timelineWidth, timelineHeight, styles, selectedDate]);
 
   const renderTimelineHeader = () => {
     return (
@@ -528,27 +557,29 @@ const Recordings = () => {
     )
   }
 
-  const measurementCounts: number[] = [];
-  const measurementCompletions: number[] = [];
-  selectedWeekDates.forEach((date, index) => {
-    const isFuture = date.after(today);
-    const filteredMeasurements = displayedMeasurements.filter((measurement) => {
-      const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
-      return startDate && date.toString() >= startDate;
+  const [measurementCounts, measurementCompletions] = useMemo(() => {
+    const counts: number[] = [];
+    const completions: number[] = [];
+    selectedWeekDates.forEach((date, index) => {
+      const isFuture = date.after(today);
+      const filteredMeasurements = displayedMeasurements.filter((measurement) => {
+        const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
+        return startDate && date.toString() >= startDate;
+      });
+      
+      const isNullRecordings = filteredMeasurements.map((measurement) => {
+        const recordings = selectedWeekMeasurementValues.get(measurement.id);
+        return !recordings || !recordings.length || recordings[index] === null;
+      });
+      const nullRecordingCount = isNullRecordings.filter((value) => value).length;
+      const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
+      const noMeasurements = filteredMeasurements.length === 0;
+      
+      completions[index] = noMeasurements || isFuture ? 0 : nonNullRecordingCount;
+      counts[index] = filteredMeasurements.length;
     });
-    
-    const isNullRecordings = filteredMeasurements.map((measurement) => {
-      const recordings = selectedWeekMeasurementValues.get(measurement.id);
-      return !recordings || !recordings.length || recordings[index] === null;
-    });
-    const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-    const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
-    const noMeasurements = filteredMeasurements.length === 0;
-    
-    
-    measurementCompletions[index] = noMeasurements || isFuture ? 0 : nonNullRecordingCount;
-    measurementCounts[index] = filteredMeasurements.length;
-  });
+    return [counts, completions];
+  }, [measurements, selectedWeekDates, displayedMeasurements, selectedWeekMeasurementValues, mergedRecordingsMap, today]);
 
   const [contentSwitchValue, setContentSwitchValue] = useState(0);
   const showMeasurements = contentSwitchValue === 0;
@@ -556,9 +587,13 @@ const Recordings = () => {
 
   const isReordering = (showMeasurements && isReorderingMeasurements) || (showHabits && isReorderingHabits);
   const isArchiving = (showMeasurements && showArchivedMeasurements) || (showHabits && showArchivedHabits);
-  const renderContentSwitch = () => {
+  const contentSwitch = useMemo(() => {
     const isDisabled = isReordering || isArchiving;
-    let switchColor = isDisabled ? theme.colors.surfaceDisabled : baseColor ? globalPalette.backdrop : theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
+
+    let switchColor = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
+    if (isDisabled) switchColor = theme.colors.surfaceDisabled;
+    else if (baseColor) switchColor = globalPalette.backdrop;
+  
     return (
       <View style={{
         marginHorizontal: -4,
@@ -620,10 +655,11 @@ const Recordings = () => {
         </View>
       </View>
     )
-  }
+  }, [isReordering, isArchiving, baseColor, showMeasurements, showHabits, styles]);
 
-  const renderTimelineStatuses = () => {
-    return (
+  const timelineStatuses = useMemo(() => {
+    console.log('rendering timeline statuses');
+    return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
         <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
@@ -684,37 +720,53 @@ const Recordings = () => {
         </View>
       </View>
     )
-  }
+  }, [
+    displayedMeasurements.length,
+    displayedHabits.length,
+    selectedWeekDates,
+    selectedWeekDailyHabitPointTotals,
+    selectedWeekWeeklyHabitPointTotals,
+    measurementCounts,
+    measurementCompletions,
+    selectedWeekPointTotal,
+    perWeekPointTarget,
+    daysThisWeek,
+    styles,
+    theme,
+    basePalette,
+  ]);
 
-  const renderHabitProgressBar = () => (
-    <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
-      <ArchedProgressBar
-        width={dimensions.width - 40}
-        strokeWidth={6}
-        backgroundColor={theme.colors.elevation.level3}
-        progress={selectedWeekPointTotal / perWeekPointTarget}
-        progressColor={globalPalette.primary}
-        progressTarget={daysThisWeek < 7 ? daysThisWeek / 7 : 0}
-        progressTargetColor={theme.colors.surfaceDisabled}
-
-        tickCount={0}
-        tickLength={2}
-        tickWidth={3}
-        tickColor={theme.colors.onSurfaceDisabled}
-      />
-      <View style={{ position: 'absolute', width: '100%', top: 16, left: 0, overflow: 'visible' }}>
-        <View style={{ alignSelf: 'center' }}>
-          <View style={styles.weekPointsContainer}>
-            <Points inline size={'x-large'} style={{ width: 48 }} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-            <Text variant='bodyMedium' style={styles.weekPointsDivider}>/</Text>
-            <Text variant='bodyLarge' style={{ textAlign: 'right' }}>{perWeekPointTarget}</Text>
+  const habitProgressBar = useMemo(() => {
+    console.log('rendering habit progress bar');
+    return displayedHabits.length > 0 && (
+      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
+        <ArchedProgressBar
+          width={dimensions.width - 40}
+          strokeWidth={6}
+          backgroundColor={theme.colors.elevation.level3}
+          progress={selectedWeekPointTotal / perWeekPointTarget}
+          progressColor={globalPalette.primary}
+          progressTarget={daysThisWeek < 7 ? daysThisWeek / 7 : 0}
+          progressTargetColor={theme.colors.surfaceDisabled}
+          tickCount={0}
+          tickLength={2}
+          tickWidth={3}
+          tickColor={theme.colors.onSurfaceDisabled}
+        />
+        <View style={{ position: 'absolute', width: '100%', top: 16, left: 0, overflow: 'visible' }}>
+          <View style={{ alignSelf: 'center' }}>
+            <View style={styles.weekPointsContainer}>
+              <Points inline size={'x-large'} style={{ width: 48 }} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+              <Text variant='bodyMedium' style={styles.weekPointsDivider}>/</Text>
+              <Text variant='bodyLarge' style={{ textAlign: 'right' }}>{perWeekPointTarget}</Text>
+            </View>
           </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  }, [displayedHabits.length, dimensions.width, selectedWeekPointTotal, perWeekPointTarget, daysThisWeek, styles]);
 
-  const renderSectionTitle = () => {
+  const renderSectionTitle = useCallback(() => {
     const buttonStyle: ViewStyle = {
       flexGrow: 1,
       flexShrink: 1,
@@ -730,25 +782,22 @@ const Recordings = () => {
       backgroundColor: globalPalette.backdrop,
     };
 
-    if (
-      (showMeasurements && (showArchivedMeasurements || isReorderingMeasurements)) ||
-      (showHabits && (showArchivedHabits || isReorderingHabits))
-    ) {
+    if (isReordering || isArchiving) {
       return (
         <View style={{ width: '100%', alignItems: 'flex-end', flexDirection: 'row'}}>
           <TouchableRipple
             onPress={() => {
               if (showMeasurements) {
-                if (showArchivedMeasurements) {
+                if (isArchiving) {
                   setShowArchivedMeasurements(false);
-                } else if (isReorderingMeasurements) {
+                } else if (isReordering) {
                   submitMeasurementOrder();
                   setIsReorderingMeasurements(false);
                 }
               } else if (showHabits) {
-                if (showArchivedHabits) {
+                if (isArchiving) {
                   setShowArchivedHabits(false);
-                } else if (isReorderingHabits) {
+                } else if (isReordering) {
                   submitHabitOrder();
                   setIsReorderingHabits(false);
                 }
@@ -771,26 +820,23 @@ const Recordings = () => {
         <Text variant='titleLarge' style={{ }}>{selectedDate.toFormattedString(true, false, true)}</Text>
       </>
     );
-  }
+  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles]);
 
-  const renderContentHeader = () => {
+  const contentHeader = useMemo(() => {
+    console.log('rendering content header');
     return (
       <View style={styles.sectionHeader}>
         {!isReordering && !isArchiving && <BottomDrawer
           title='Create'
-          visible={isAddMenuVisible}
-          onDismiss={() => setIsAddMenuVisible(false)}
           anchor={
             <IconButton
               style={styles.sectionHeaderButton}
               icon={Icons.add}
               size={20}
-              onPress={() => setIsAddMenuVisible(true)}
             />
           }
           items={addMenuItems}
           onSelect={(item) => {
-            setIsAddMenuVisible(false);
             setTimeout(() => {
               router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
             }, 0);
@@ -801,16 +847,11 @@ const Recordings = () => {
         </View>
         {!isReordering && !isArchiving && <BottomDrawer
           title={showMeasurements ? 'Measurements' : 'Habits'}
-          visible={(showMeasurements && isMeasurementMenuVisible) || (showHabits && isHabitMenuVisible)}
-          onDismiss={() => showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false)}
           anchor={
             <IconButton
               style={styles.sectionHeaderButton}
               icon={Icons.settings}
               size={20}
-              onPress={() => {
-                showMeasurements ? setIsMeasurementMenuVisible(true) : setIsHabitMenuVisible(true);
-              }}
             />
           }
           items={showMeasurements ? measurementMenuItems : habitMenuItems}
@@ -874,29 +915,27 @@ const Recordings = () => {
                 }
               }
             }, 150);
-            showMeasurements ? setIsMeasurementMenuVisible(false) : setIsHabitMenuVisible(false);
           }}
         />}
       </View>
     )
-  }
+  }, [isReordering, isArchiving, showMeasurements, showHabits, addMenuItems, styles, renderSectionTitle]);
+
   return (
     <>
-      {isFocused && (
-        <StatusBar
-          backgroundColor={theme.colors.surface} barStyle={theme.dark ? 'light-content' : 'dark-content'}
-        />
-      )}
+      <StatusBar
+        backgroundColor={theme.colors.surface} barStyle={theme.dark ? 'light-content' : 'dark-content'}
+      />
       <View
         style={styles.container}
       >
         <View style={{ backgroundColor: theme.colors.surface }}>
-          {renderTimeline()}
+          {timeline}
           {/* {renderTimelineHeader()} */}
-          {displayedHabits.length > 0 && renderHabitProgressBar()}
-          {displayedMeasurements.length > 0 && renderTimelineStatuses()}
-          {renderContentHeader()}
-          {measurements.length > 0 && renderContentSwitch()}
+          {habitProgressBar}
+          {timelineStatuses}
+          {contentHeader}
+          {measurements.length > 0 && contentSwitch}
         </View>
           {showMeasurements && 
             <>
@@ -1126,6 +1165,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     timelineDateDayOfWeek: {
       textAlign: 'center',
       color: theme.colors.onSurfaceDisabled,
+      textTransform: 'uppercase',
     },
     timelineDateDayOfWeekToday: {},
     timelineDateDayOfWeekSelected: {
@@ -1274,7 +1314,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const isCombo = measurement.type === 'combo';
 
   const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingValues);
-  const today = SimpleDate.today();
+  const today = useToday();
   
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
   const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
@@ -1730,7 +1770,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   const combinedPalette = getCombinedPalette(habit.baseColor);
   const styles = useMemo(() => createHabitStyles(theme, combinedPalette, index), [theme, combinedPalette, index]);
 
-  const isFuture = currentDate.after(SimpleDate.today());
+  const today = useToday();
+  const isFuture = currentDate.after(today);
 
   const firstWeeklyCompletionIndex = habit.isWeekly ? range(0, 7).map((_, index) => {
     const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1), recordingData);

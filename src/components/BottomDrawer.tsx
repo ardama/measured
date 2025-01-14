@@ -1,31 +1,23 @@
+import React from 'react';
 import AnimatedView from '@c/AnimatedView';
 import type { Palette } from '@u/colors';
 import { Icons } from '@u/constants/Icons';
-import { forWeb } from '@u/helpers';
 import { usePalettes } from '@u/hooks/usePalettes';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInput } from 'react-native';
 import { Pressable, ScrollView } from 'react-native-gesture-handler';
-import { Divider, Icon, IconButton, Modal, Portal, Searchbar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming,
-} from 'react-native-reanimated';
+import { Divider, Icon, IconButton, Modal, Portal, Searchbar, Text, useTheme, type MD3Theme } from 'react-native-paper';
 
 type BottomDrawerProps<T> = {
   title: string
   anchor: JSX.Element
   selectedItem?: BottomDrawerItem<T> | null
   items: BottomDrawerItem<T>[]
-  visible: boolean
   showSearchbar?: boolean
   placeholder?: string
   onSelect: (item: BottomDrawerItem<T>) => void
-  onDismiss: () => void
   palette?: Palette
-  showClose?: boolean
+  hideClose?: boolean
 }
 
 export type BottomDrawerItem<T> = {
@@ -35,48 +27,20 @@ export type BottomDrawerItem<T> = {
   icon?: string
   disabled?: boolean
 }
-export default function BottomDrawer<T>({ title, anchor, selectedItem, items, visible, showSearchbar, placeholder, onSelect, onDismiss, palette, showClose }: BottomDrawerProps<T>) {
+export default function BottomDrawer<T>({ title, anchor, selectedItem, items, showSearchbar, placeholder, onSelect, palette, hideClose }: BottomDrawerProps<T>) {
   const theme = useTheme();
   const { globalPalette } = usePalettes();
   const colorPalette = palette || globalPalette;
   const styles = createStyles(theme, colorPalette);
+  const [visible, setVisible] = useState(false);
 
   const [searchText, setSearchText] = useState('');
   const [searchbarFocused, setSearchbarFocused] = useState(false);
   const searchbarRef = useRef<TextInput>(null);
 
   const handleDismiss = () => {
-    onDismiss();
-  };
-
-  const translateY = useSharedValue(0);
-  const animatedStyles = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  useEffect(() => {
-    if (visible) {
-      // Animate drawer sliding up
-      translateY.value = withSpring(0, {
-        damping: 40,
-        mass: 0.5,
-        stiffness: 100,
-      });
-      
-      forWeb(
-        () => setTimeout(() => {
-          if (searchbarRef.current !== null) searchbarRef.current.focus();
-        }, 0),
-        () => {}
-      )();
-    } else {
-      // Animate drawer sliding down
-      translateY.value = withTiming(100, {
-        duration: 200,
-      });
-    }
-  }, [visible]);
-
+    setVisible(false);
+  };  
   const filteredItems = items.filter(({ title, value }) => {
     if (typeof value === 'string') {
       return (
@@ -109,7 +73,15 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, vi
   const isSearchbarVisible = showSearchbar || (items.length > 7 && showSearchbar !== false);
   return (
     <>
-      {anchor}
+      {React.cloneElement(anchor, {
+        onPress: () => {
+          setVisible(true);
+
+          if (anchor.props.onPress) {
+            anchor.props.onPress();
+          }
+        }
+      })}
       <Portal>
         <Modal
           visible={visible}
@@ -118,13 +90,14 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, vi
           dismissable
           onDismiss={handleDismiss}
         >
-          <AnimatedView style={styles.content} isEnd={visible} startY={50} isSpring>
+          <AnimatedView style={styles.content} isEnd={visible} startY={80} endY={0} startOpacity={0} endOpacity={1} isSpring>
             <View style={styles.header}>
               <Text variant='titleMedium' style={styles.headerText}>{title}</Text>
-              {showClose && <IconButton
+              {!hideClose && <IconButton
                 icon={Icons.close}
                 size={22}
                 style={styles.headerButton}
+                iconColor={theme.colors.onSurfaceDisabled}
                 onPress={() => handleDismiss()}
               />}
             </View>
@@ -246,22 +219,21 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     width: '100%',
     position: 'absolute',
     bottom: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     backgroundColor: theme.colors.surface,  
     overflow: 'hidden',
     
     boxShadow: `0px 0px 16px ${theme.colors.shadow}40`,
-    transform: [{ translateY: 100 }],
   },
   header: {
     minHeight: 64,
     flexDirection: 'row',
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    alignItems: 'flex-end',
+    paddingTop: 20,
+    paddingBottom: 8,
+    alignItems: 'center',
   },
   headerText: {
     flexGrow: 1,

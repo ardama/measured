@@ -631,7 +631,6 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         value={formMeasurement.step}
                         error={saveAttempted && getStepErrors().hasError}
                         onChangeText={(text) => {
-                          console.log('text', text);
                           const nextMeasurement = { ...formMeasurement, step: text };
                           handleFormEdit(nextMeasurement);
                         }}

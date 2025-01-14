@@ -50,7 +50,6 @@ const Slider: React.FC<SliderProps> = (props) => {
     // Clamp position within bounds
     const newPosition = Math.max(0, Math.min(x - knobWidth / 2, containerWidth.value - knobWidth));
 
-    console.log('newPosition: ', newPosition);
     translateX.value = newPosition;
     runOnJS(updateValue)(newPosition);
   };
@@ -79,7 +78,6 @@ const Slider: React.FC<SliderProps> = (props) => {
   const theme = useTheme();
   const styles = createStyles(theme, knobWidth);
 
-  console.log('translateX.value: ', translateX.value);
   return (
     <GestureDetector gesture={panGesture}>
       <View ref={containerRef} style={[styles.container, style]}>

@@ -1,17 +1,8 @@
-import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, initializeAuth, getReactNativePersistence, type User } from '@firebase/auth';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, initializeAuth, getReactNativePersistence, type User } from '@firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBCQaOpC-0qpNpmzKAPRCuywrXUJJJFLrA",
-  authDomain: "habits-f8cb0.firebaseapp.com",
-  projectId: "habits-f8cb0",
-  storageBucket: "habits-f8cb0.appspot.com",
-  messagingSenderId: "314125171305",
-  appId: "1:314125171305:web:7f9117842d6b41429880f8",
-  measurementId: "G-JH6LCTVLJC"
-};
+import { firebaseConfig } from './config/firebase.config';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 

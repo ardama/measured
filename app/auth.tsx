@@ -1,15 +1,14 @@
 import { guestSignInRequest, resetRequest, signInRequest, signUpRequest, type AuthAction } from '@s/authReducer';
-import { useAuthAction, useAuthState, useSettings } from '@s/selectors';
+import { useAuthAction, useAuthState } from '@s/selectors';
 import { Error, NoError } from '@u/constants/Errors';
 import { withUser } from '@u/hocs/withUser';
 import React, { useEffect, useState } from 'react';
 import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import Logo from '@a/images/m_logo_2.svg';
-import Background from '@a/images/background_1.svg';
 import { createFontStyle } from '@u/styles';
-import { generateStandardPalette, getBasePalette, type Palette } from '@u/colors';
+import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { setAuthAction } from '@s/appReducer';
 

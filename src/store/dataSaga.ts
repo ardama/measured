@@ -40,7 +40,9 @@ import { serializeUser, type Account } from '@t/users';
 import { createAuthChannel, signOutSaga } from '@s/authSaga';
 import type { RootState } from '@t/redux';
 import { storageService } from '@s/storage';
-import { getRemoteData, loadLocalData, type LocalData, type RemoteData } from '@s/helpers';
+import { createLocalDocumentSaga, replaceManyFirestoreDocumentSaga, deleteFirestoreDocumentSaga, deleteLocalDocumentSaga, replaceFirestoreDocumentSaga, updateLocalDocumentSaga, updateLocalDocumentsSaga, handleBatchStorageOperationSaga, loadLocalData, type RemoteData, getRemoteData } from '@s/storageSaga';
+import { handleStorageOperationSaga } from '@s/storageSaga';
+import { createFirestoreDocumentSaga } from '@s/storageSaga';
 
 function createFirestoreChannel<T>(collectionName: string, setAction: ActionCreatorWithPayload<T[], string>, uid: string): EventChannel<PayloadAction<T[]>> {
   const q: Query<DocumentData> = query(collection(firestore, collectionName), where('userId', '==', uid));
@@ -72,16 +74,6 @@ function* watchFirestoreChannel<T>(collectionName: string, setAction: ActionCrea
     channel.close();
   }
 }
-
-function removeId<T extends { id: string }>(obj: T): Omit<T, 'id'> {
-  const { id, ...rest } = obj;
-  return rest;
-}
-
-type Document = {
-  id: string;
-  [key: string]: any;
-};
 
 function* watchLocalStorage<T>(collectionName: string, setAction: ActionCreatorWithPayload<T[], string>) {
   try {
@@ -142,202 +134,6 @@ function* watchAuth() {
     for (const task of watchChannelTasks.filter((task) => task.isRunning())) {
       yield cancel(task);
     }
-  }
-}
-
-const setCollectionAction = (collection: string, items: Document[]) => {
-  switch (collection) {
-    case Collections.Accounts:
-      return setAccount(items as Account[]);
-    case Collections.Measurements:
-      return setMeasurements(items as Measurement[]);
-    case Collections.Habits:
-      return setHabits(items as Habit[]);
-    default:
-      throw new Error(`Unknown collection: ${collection}`);
-  }
-};
-
-function* createLocalDocumentSaga<T extends Document>(
-  document: T,
-  collectionName: string,
-) {
-  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
-  items.push(document);
-  yield call([storageService, storageService.setDocuments], collectionName, items);
-  yield put(setCollectionAction(collectionName, items));
-}
-
-function* updateLocalDocumentSaga<T extends Document>(
-  document: T,
-  collectionName: string,
-) {
-  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
-  const index = items.findIndex(item => item.id === document.id);
-  if (index !== -1) {
-    items[index] = document;
-  } else {
-    items.push(document);
-  }
-
-  yield call([storageService, storageService.setDocuments], collectionName, items);
-  yield put(setCollectionAction(collectionName, items));
-}
-
-function* deleteLocalDocumentSaga(
-  id: string,
-  collectionName: string,
-) {
-  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
-  const filteredItems = items.filter(item => item.id !== id);
-  yield call([storageService, storageService.setDocuments], collectionName, filteredItems);
-  yield put(setCollectionAction(collectionName, filteredItems));
-}
-
-function* updateLocalDocumentsSaga<T extends Document>(
-  documents: T[],
-  collectionName: string,
-) {
-  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
-  documents.forEach(document => {
-    const index = items.findIndex(item => item.id === document.id);
-    if (index !== -1) {
-      items[index] = document;
-    } else {
-      items.push(document);
-    }
-  });
-  yield call([storageService, storageService.setDocuments], collectionName, items);
-  yield put(setCollectionAction(collectionName, items));
-}
-
-const performFirebaseOperation = async (operation: (reference: DocumentReference, data?: DocumentData) => Promise<void>, reference: DocumentReference, data?: DocumentData) => {
-  data ? await operation(reference, removeUndefined(data)) : await operation(reference);
-}
-const batchFirebaseOperation = (batch: WriteBatch, operation: (reference: DocumentReference, data?: DocumentData) => WriteBatch, reference: DocumentReference, data?: DocumentData) => {
-  data ? operation.call(batch, reference, removeUndefined(data)) : operation.call(batch, reference);
-}
-
-function* createFirestoreDocumentSaga<T extends Document>(
-  document: T,
-  collectionName: string,
-) {
-  const documentReference = doc(firestore, collectionName, document.id);
-  yield call(performFirebaseOperation, setDoc, documentReference, removeId(document));
-}
-
-function* createManyFirestoreDocumentSaga<T extends Document>(
-  documents: T[],
-  collectionName: string,
-) {
-  const batch = writeBatch(firestore);
-  const createOperations = documents.map(document => {
-    const documentReference = doc(firestore, collectionName, document.id);
-    return call(batchFirebaseOperation, batch, batch.set, documentReference, removeId(document));
-  });
-
-  yield all(createOperations);
-  yield call([batch, batch.commit]);
-}
-
-function* replaceFirestoreDocumentSaga<T extends Document>(
-  document: T,
-  collectionName: string,
-) {
-  const documentReference = doc(firestore, collectionName, document.id);
-  yield call(performFirebaseOperation, setDoc, documentReference, removeId(document));
-}
-
-function* replaceManyFirestoreDocumentSaga<T extends Document>(
-  documents: T[],
-  collectionName: string,
-) {
-  const batch = writeBatch(firestore);
-  const replaceOperations = documents.map(document => {
-    const documentReference = doc(firestore, collectionName, document.id);
-    return call(batchFirebaseOperation, batch, batch.set, documentReference, removeId(document));
-  })
-
-  yield all(replaceOperations);
-  yield call([batch, batch.commit]);
-}
-
-function* updateFirestoreDocumentSaga<T extends Document>(
-  document: T,
-  collectionName: string,
-) {
-  const documentReference = doc(firestore, collectionName, document.id);
-  yield call(performFirebaseOperation, updateDoc, documentReference, removeId(document));
-}
-
-function* deleteFirestoreDocumentSaga(
-  id: string,
-  collectionName: string,
-) {
-  const documentReference = doc(firestore, collectionName, id);
-  yield call(performFirebaseOperation, deleteDoc, documentReference);
-}
-
-function* deleteManyFirestoreDocumentSaga(
-  ids: string[],
-  collectionName: string,
-) {
-  const batch = writeBatch(firestore);
-
-  const deleteOperations = ids.map(id => {
-    const documentReference = doc(firestore, collectionName, id);
-    return call(batchFirebaseOperation, batch, batch.delete, documentReference);
-  });
-
-  yield all(deleteOperations);
-  yield call([batch, batch.commit]);
-}
-
-function* handleStorageOperationSaga<T, U>(
-  action: PayloadAction<T>,
-  statusAction: ActionCreatorWithPayload<string, string>,
-  localStorageSaga: (data: U, collectionName: string) => Generator<any, void, any>,
-  firebaseStorageSaga: (data: U, collectionName: string) => Generator<any, void, any>,
-  dataTransformFunction: (payload: T) => U,
-  collection: string,
-) {
-  yield put(statusAction(Status.IN_PROGRESS));
-  
-  const isGuest: boolean = yield select((state: RootState) => state.auth.isGuest);
-  
-  try {
-    const saga = isGuest ? localStorageSaga : firebaseStorageSaga;
-    const data = dataTransformFunction(action.payload);
-
-    yield* saga(data, collection);
-    yield put(statusAction(Status.SUCCESS));
-  } catch (error) {
-    console.error(error);
-    yield put(statusAction(Status.ERROR));
-  }
-}
-
-function* handleBatchStorageOperationSaga<T, U extends Document>(
-  action: PayloadAction<T[]>,
-  statusAction: ActionCreatorWithPayload<string, string>,
-  localStorageSaga: (documents: U[], collectionName: string) => Generator<any, void, any>,
-  firebaseStorageSaga: (documents: U[], collectionName: string) => Generator<any, void, any>,
-  dataTransformFunction: (payload: T[]) => U[],
-  collection: string,
-) {
-  yield put(statusAction(Status.IN_PROGRESS));
-  
-  const isGuest: boolean = yield select((state: RootState) => state.auth.isGuest);
-  
-  try {
-    const saga = isGuest ? localStorageSaga : firebaseStorageSaga;
-    const data = dataTransformFunction(action.payload);
-
-    yield* saga(data, collection);
-    yield put(statusAction(Status.SUCCESS));
-  } catch (error) {
-    console.error(error);
-    yield put(statusAction(Status.ERROR));
   }
 }
 
@@ -533,24 +329,6 @@ function* deleteAllSaga(): Generator<any, void, any> {
     console.error(error);
     yield put(callDeleteAllStatus(Status.ERROR));
   }
-}
-
-export function* migrateLocalData(localData: LocalData, userId: string) {
-  const migratedData = {
-    measurements: localData.measurements.map(m => ({ ...m, userId })),
-    habits: localData.habits.map(h => ({ ...h, userId })),
-    account: localData.account ? { ...localData.account, userId } : null,
-  };
-
-  // Upload to Firebase
-  yield all([
-    call(createManyFirestoreDocumentSaga, migratedData.measurements, Collections.Measurements),
-    call(createManyFirestoreDocumentSaga, migratedData.habits, Collections.Habits),
-    migratedData.account && call(createFirestoreDocumentSaga, migratedData.account, Collections.Accounts),
-  ]);
-
-  // Clear local storage
-  yield call([storageService, storageService.clearAll]);
 }
 
 export function* dataSaga() {
