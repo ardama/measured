@@ -488,7 +488,6 @@ const Recordings = () => {
   });
 
   const timeline = useMemo(() => {
-    console.log('rendering timeline');
     return (
       <FlatList
         style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
@@ -658,7 +657,6 @@ const Recordings = () => {
   }, [isReordering, isArchiving, baseColor, showMeasurements, showHabits, styles]);
 
   const timelineStatuses = useMemo(() => {
-    console.log('rendering timeline statuses');
     return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
         <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
@@ -737,7 +735,6 @@ const Recordings = () => {
   ]);
 
   const habitProgressBar = useMemo(() => {
-    console.log('rendering habit progress bar');
     return displayedHabits.length > 0 && (
       <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
         <ArchedProgressBar
@@ -823,7 +820,6 @@ const Recordings = () => {
   }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles]);
 
   const contentHeader = useMemo(() => {
-    console.log('rendering content header');
     return (
       <View style={styles.sectionHeader}>
         {!isReordering && !isArchiving && <BottomDrawer
