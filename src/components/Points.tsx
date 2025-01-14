@@ -36,7 +36,7 @@ const Points = ({ points, size = 'medium', disabled = false, color, textColor, i
   const textColorValue = disabled ? theme.colors.onSurfaceDisabled : textColor ? textColor : color ? color : theme.colors.onSurface;
   const iconColorValue = disabled ? theme.colors.onSurfaceDisabled : iconColor ? iconColor : color ? color : theme.colors.onSurface;
 
-  const pointsString = isNaN(points) ? '--' : points.toFixed(decimals);
+  const pointsString = (points === undefined || points === null || isNaN(points)) ? '--' : points.toFixed(decimals);
   return (
     <View style={[styles.container, style]}>
       <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>{pointsString}</Text>

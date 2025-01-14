@@ -60,10 +60,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   });
 
   const [saveAttempted, setSaveAttempted] = useState(false);
-  const [measurementMenuVisibilities, setMeasurementMenuVisibilities] = useState<boolean[]>([]);
-  const [operatorMenuVisibilities, setOperatorMenuVisibilities] = useState<boolean[]>([]);
-  const [isDaysPerWeekMenuVisible, setIsDaysPerWeekMenuVisible] = useState(false);
-  const [isPointsMenuVisible, setIsPointsMenuVisible] = useState(false);
 
   const isNew = formType === 'create';
 
@@ -224,7 +220,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     return initialConditionTargetStrings;
   });
 
-  // Update the handleTimeChange function:
   const handleTimeChange = (_: any, selectedDate?: Date) => {
     setShowTimePicker(false);
     if (selectedDate && activeTimeConditionIndex >= 0) {
@@ -256,13 +251,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               </Button>
             }
             title='Manage'
-            visible={isMenuVisible}
-            onDismiss={() => {
-              setIsMenuVisible(false);
-            }}
             items={menuItems}
             onSelect={(item) => {
-              setIsMenuVisible(false);
               if (item.value === 'archive') {
                 setTimeout(() => {
                   handleArchiveHabit(habit, !habit.archived);
@@ -310,10 +300,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               {!formHabit.isWeekly && (
                 <BottomDrawer
                   title='Frequency target'
-                  visible={isDaysPerWeekMenuVisible}
-                  onDismiss={() => setIsDaysPerWeekMenuVisible(false)}
                   anchor={
-                    <Pressable onPress={() => { setIsDaysPerWeekMenuVisible(true); }} disabled={formHabit.isWeekly}>
+                    <Pressable disabled={formHabit.isWeekly}>
                       <TextInput
                         label='Frequency target'
                         mode='outlined'
@@ -331,8 +319,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   onSelect={(item) => {
                     const nextHabit = { ...formHabit, daysPerWeek: item.value };
                     handleFormEdit(nextHabit);
-                    
-                    setIsDaysPerWeekMenuVisible(false);
                   }}
                   palette={palette}
                 />
@@ -363,10 +349,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               <View style={s.formRow}>
                 <BottomDrawer
                   title='Reward'
-                  visible={isPointsMenuVisible}
-                  onDismiss={() => setIsPointsMenuVisible(false)}
                   anchor={
-                    <Pressable style={s.input} onPress={() => { setIsPointsMenuVisible(true); }}>
+                    <Pressable style={s.input}>
                       <TextInput
                         label={'Reward'}
                         mode='outlined'
@@ -382,8 +366,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   onSelect={(item) => {
                     const nextHabit = { ...formHabit, points: item.value };
                     handleFormEdit(nextHabit);
-                    
-                    setIsPointsMenuVisible(false);
                   }}
                   showSearchbar={false}
                   palette={palette}
@@ -416,8 +398,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 const isDuration = conditionMeasurement.type === 'duration';
                 const isBool = conditionMeasurement.type === 'bool';
                 const isTime = conditionMeasurement.type === 'time';
-                const isMeasurementMenuVisible = measurementMenuVisibilities[index];
-                const isOperatorMenuVisible = operatorMenuVisibilities[index];
 
                 const selectedMeasurementItem = measurementItems.find((item) => item.value === conditionMeasurement.id);
                 
@@ -438,54 +418,41 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     <BottomDrawer<string>
                       title='Measurement'
                       anchor={(
-                        <View style={{
+                        <TouchableRipple style={{
                           ...s.dropdownButton,
                           width: condition.measurementId ? 'auto' : '100%',
                           minWidth: 150,
                         }}>
-                          <TouchableRipple
-                            onPress={() => {
-                              const nextVisibilities = [...measurementMenuVisibilities];
-                              nextVisibilities[index] = true;
-                              setMeasurementMenuVisibilities(nextVisibilities);
-                            }}
-                          >
-                            <View style={s.dropdownButtonContent}>
-                              {condition.measurementId ? (
-                                <>
-                                  <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                                    <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementActivity}>
-                                      {conditionMeasurement.name}
-                                    </Text>
-                                    {conditionMeasurement.variant ? (
-                                      <>
-                                        <Text numberOfLines={1} variant='bodyMedium'>:</Text>
-                                        <Text ellipsizeMode='tail' numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}>
-                                          {conditionMeasurement.variant}
-                                        </Text>
-                                      </>
-                                    ) : null}
-                                  </View>
-                                </>
-                              ) : (
-                                <>
-                                  <Text variant='labelLarge'>
-                                    SELECT MEASUREMENT
+                          <View style={s.dropdownButtonContent}>
+                            {condition.measurementId ? (
+                              <>
+                                <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                                  <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementActivity}>
+                                    {conditionMeasurement.name}
                                   </Text>
-                                  <Icon source={Icons.down} size={16} />
-                                </>
-                              )}
-                            </View>
-                          </TouchableRipple>
-                        </View>
+                                  {conditionMeasurement.variant ? (
+                                    <>
+                                      <Text numberOfLines={1} variant='bodyMedium'>:</Text>
+                                      <Text ellipsizeMode='tail' numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}>
+                                        {conditionMeasurement.variant}
+                                      </Text>
+                                    </>
+                                  ) : null}
+                                </View>
+                              </>
+                            ) : (
+                              <>
+                                <Text variant='labelLarge'>
+                                  SELECT MEASUREMENT
+                                </Text>
+                                <Icon source={Icons.down} size={16} />
+                              </>
+                            )}
+                          </View>
+                        </TouchableRipple>
                       )}
                       items={measurementItems}
                       selectedItem={selectedMeasurementItem || null}
-                      onDismiss={() => {
-                        const nextVisibilities = [...measurementMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setMeasurementMenuVisibilities(nextVisibilities);
-                      }}
                       onSelect={(item) => {
                         const nextHabit = { ...formHabit };
                         const selectedMeasurement = measurements.find(({ id }) => id === item.value);
@@ -498,59 +465,37 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         }
       
                         handleFormEdit(nextHabit);
-                        const nextVisibilities = [...measurementMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setMeasurementMenuVisibilities(nextVisibilities);
                       }}
-                      visible={isMeasurementMenuVisible}
                       palette={palette}
                     />
                     {!!condition.measurementId && <BottomDrawer<string>
                       title='Operator'
                       anchor={
-                        <View style={{
+                        <TouchableRipple style={{
                           ...s.dropdownButton,
                           flexGrow: condition.operator ? 0 : 1,
                           flexShrink: condition.operator ? 0 : 0,
                         }}>
-                          <TouchableRipple
-                            onPress={() => {
-                              const nextVisibilities = [...operatorMenuVisibilities];
-                              nextVisibilities[index] = true;
-                              setOperatorMenuVisibilities(nextVisibilities);
-                            }}
-                          >
-                            <View style={s.dropdownButtonContent}>
-                              {condition.operator ? (
-                                <Icon source={getHabitOperatorData(condition.operator).icon} size={16} />
-                              ) : (
-                                <>
-                                  <Text variant='labelLarge'>
-                                    SELECT OPERATOR
-                                  </Text>
-                                  <Icon source={Icons.down} size={16} />
-                                </>
-                              )}
-                            </View>
-                          </TouchableRipple>
-                        </View>
+                          <View style={s.dropdownButtonContent}>
+                            {condition.operator ? (
+                              <Icon source={getHabitOperatorData(condition.operator).icon} size={16} />
+                            ) : (
+                              <>
+                                <Text variant='labelLarge'>
+                                  SELECT OPERATOR
+                                </Text>
+                                <Icon source={Icons.down} size={16} />
+                              </>
+                            )}
+                          </View>
+                        </TouchableRipple>
                       }
-                      visible={isOperatorMenuVisible}
-                      onDismiss={() => {
-                        const nextVisibilities = [...operatorMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setOperatorMenuVisibilities(nextVisibilities);
-                      }}
                       items={operatorItems}
                       selectedItem={selectedOperatorItem || null}
                       onSelect={(item) => {
                         const nextHabit = { ...formHabit };
                         nextHabit.conditions[index].operator = item.value as HabitOperator;
                         handleFormEdit(nextHabit);
-                        
-                        const nextVisibilities = [...operatorMenuVisibilities];
-                        nextVisibilities[index] = false;
-                        setOperatorMenuVisibilities(nextVisibilities);
                       }}
                       palette={palette}
                     />}

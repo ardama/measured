@@ -321,18 +321,12 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
               <Button
                 mode='text'
                 textColor={theme.colors.onSurface}
-                onPress={() => setIsMenuVisible(true) }
               >
                 MANAGE
               </Button>
             }
-            visible={isMenuVisible}
-            onDismiss={() => {
-              setIsMenuVisible(false);
-            }}
             items={menuItems}
             onSelect={(item) => {
-              setIsMenuVisible(false);
               if (item.value === 'archive') {
                 setTimeout(() => {
                   handleArchiveMeasurement(measurement, !measurement.archived);
@@ -422,10 +416,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                             title='Left measurement'
                             anchor={
                               <TouchableRipple
-                              style={s.dropdownButton}
-                              onPress={() => {
-                                setIsComboLeftMenuVisible(true);
-                              }}
+                                style={s.dropdownButton}
                               >
                                 <>
                                   <Icon source={getMeasurementTypeIcon(comboLeftMeasurement?.type)} size={16} />
@@ -438,15 +429,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                                 </>
                               </TouchableRipple>
                             }
-                            visible={isComboLeftMenuVisible}
-                            onDismiss={() => {
-                              setIsComboLeftMenuVisible(false);
-                            }}
                             items={comboMeasurementItems}
                             onSelect={(item) => {
                               const nextMeasurement = { ...formMeasurement, comboLeftId: item.value };
                               handleFormEdit(nextMeasurement);
-                              setIsComboLeftMenuVisible(false);
                             }}
                             selectedItem={selectedLeftMeasurementItem}
                             palette={palette}
@@ -454,17 +440,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         </View>
                         <BottomDrawer
                           title='Operator'
-                          visible={isComboOperatorMenuVisible}
-                          onDismiss={() => {
-                            setIsComboOperatorMenuVisible(false);
-                          }}
                           anchor={
                             <TouchableRipple
-                            style={s.dropdownButton}
-                            onPress={() => {
-                              setIsComboOperatorMenuVisible(true);
-                            }}
-                            disabled={isBool}
+                              style={s.dropdownButton}
+                              disabled={isBool}
                             >
                               <Text variant='bodyMedium' style={s.operatorLabel}>
                                 {getMeasurementOperatorData(formMeasurement.comboOperator).operator.toLowerCase()}
@@ -476,7 +455,6 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                           onSelect={(item) => {
                             const nextMeasurement = { ...formMeasurement, comboOperator: item.value as MeasurementOperator };
                             handleFormEdit(nextMeasurement);
-                            setIsComboOperatorMenuVisible(false);
                           }}
                           palette={palette}
                         />
@@ -485,10 +463,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                             title='Right measurement'
                             anchor={
                               <TouchableRipple
-                              style={s.dropdownButton}
-                              onPress={() => {
-                                setIsComboRightMenuVisible(true);
-                              }}
+                                style={s.dropdownButton}
                               >
                                 <>
                                   <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
@@ -501,15 +476,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                                 </>
                               </TouchableRipple>
                             }
-                            visible={isComboRightMenuVisible}
-                            onDismiss={() => {
-                              setIsComboRightMenuVisible(false);
-                            }}
                             items={comboMeasurementItems}
                             onSelect={(item) => {
                               const nextMeasurement = { ...formMeasurement, comboRightId: item.value };
                               handleFormEdit(nextMeasurement);
-                              setIsComboRightMenuVisible(false);
                             }}
                             selectedItem={selectedRightMeasurementItem}
                             palette={palette}

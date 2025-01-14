@@ -354,7 +354,6 @@ function ChartDropdown<T>({ label, selectedItem, items, onChange, palette,
                 <Text variant='labelMedium'>
                   Select {label.toLocaleLowerCase()}
                 </Text>
-                {/* <View style={{ width: 4000, flexShrink: 1 }} /> */}
               </>
             )}
             <Icon source={Icons.down} size={16} />
@@ -622,7 +621,6 @@ const HabitChartCard = ({
     useRelative: boolean = false,
     includeWeekly: boolean = true,
   ): Map<string, number> => {
-    console.log('computing habit point data');
     const completions = new Map<string, Map<string, boolean>>();
     const points = new Map<string, number>();
 
@@ -901,8 +899,6 @@ const HabitChartCard = ({
   }, habitChartInputs);
 
   const chartSelection = useMemo(() => {
-    console.log('rendering chart selection');
-
     const selectedBucket = visibleBucketData[selectedHabitDataIndex] || null;
     const selectedBucketString = selectedBucket && `${selectedBucket.title}: `;
     
@@ -948,6 +944,7 @@ const HabitChartCard = ({
   }, [...habitChartInputs, selectedHabitDataIndex]);
 
   const chartDurationButtons = useMemo(() => {
+
     return (
       <View style={{ ...s.cardRow, ...s.chartDurationButtons }}>
         {HABIT_CHART_DURATION_ITEMS.map((item) => {
@@ -958,6 +955,7 @@ const HabitChartCard = ({
             <Button
               key={item.title}
               onPress={() => {
+                setSelectedHabitDataIndex(-1);
                 setHabitChartDuration(item);
               }}
               mode={'text'}
@@ -1012,7 +1010,7 @@ const MeasurementChartCard = ({
   const { globalPalette, getCombinedPalette } = usePalettes();
 
   const [selectedMeasurementDataIndex, setSelectedMeasurementDataIndex] = useState(-1);
-  const [measurementChartDuration, setmeasurementChartDuration] = useState(MEASUREMENT_CHART_DURATION_ITEMS[1]);
+  const [measurementChartDuration, setMeasurementChartDuration] = useState(MEASUREMENT_CHART_DURATION_ITEMS[1]);
 
   const [measurementId, setMeasurementId] = useState(measurements[0]?.id);
   const selectedMeasurement = measurements.find(({ id }) => id === measurementId) || null;
@@ -1071,7 +1069,7 @@ const MeasurementChartCard = ({
       x: chartDuration - daysAgo,
       y: value,
     };
-  }).filter((data) => data !== null), [measurementRecordingDates, today, selectedMeasurement]);
+  }).filter((data) => data !== null), [id, measurementRecordingDates, chartDuration, today]);
   const selectedVisibleData = useMemo(() => selectedMeasurementData.filter(({ x }) => x >= 0), [selectedMeasurementData]);
 
   const averageData = useMemo(() => {
@@ -1113,7 +1111,7 @@ const MeasurementChartCard = ({
   const horizontalMax = chartDuration;
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
-  const measurementChartInputs = [id, measurements, measurementChartDuration.value, measurementTrendline.value, globalPalette.primary, s];
+  const measurementChartInputs = [id, measurements, chartDuration, measurementTrendline.value, globalPalette.primary, s];
 
   const chartStats = useMemo(() => {
     const recordingCount = selectedVisibleData.length;
@@ -1335,7 +1333,8 @@ const MeasurementChartCard = ({
             <Button
               key={item.value}
               onPress={() => {
-                setmeasurementChartDuration(item);
+                setSelectedMeasurementDataIndex(-1);
+                setMeasurementChartDuration(item);
               }}
               mode={'text'}
               textColor={measurementPalette.primary}
