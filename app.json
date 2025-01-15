@@ -20,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/images/icon_yellow_solid_192x192.png",
+        "foregroundImage": "./src/assets/images/icon_yellow_solid_small_192x192.png",
         "backgroundColor": "#1a2122"
       },
       "package": "com.aricdama.habits",
