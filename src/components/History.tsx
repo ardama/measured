@@ -582,7 +582,7 @@ const HabitChartCard = ({
   const [habitChartDuration, setHabitChartDuration] = useState(HABIT_CHART_DURATION_ITEMS[1]);
   
   const [habitBucketSize, setHabitBucketSize] = useState(HABIT_BUCKET_SIZE_ITEMS[1]);
-  const habitBucketSizeDropdown = (
+  const habitBucketSizeDropdown = useMemo(() => (
     <ChartDropdown
       label='Duration'
       palette={globalPalette}
@@ -593,12 +593,12 @@ const HabitChartCard = ({
         setSelectedHabitDataIndex(-1);
       }}
     />
-  );
+  ), [habitBucketSize, globalPalette]);
 
-  const habitTrendlineItems = getTrendlineItems(habitBucketSize.value);
+  const habitTrendlineItems = useMemo(() => getTrendlineItems(habitBucketSize.value), [habitBucketSize.value]);
   const [habitTrendlineValue, setHabitTrendlineValue] = useState(habitTrendlineItems[1].value);
   const habitTrendline = habitTrendlineItems.find(({ value }) => value === habitTrendlineValue) || habitTrendlineItems[1];
-  const habitTrendlineDropdown = (
+  const habitTrendlineDropdown = useMemo(() => (
     <ChartDropdown
       label='Trendline'
       palette={globalPalette}
@@ -608,7 +608,7 @@ const HabitChartCard = ({
         setHabitTrendlineValue(item.value);
       }}
     />
-  );
+  ), [habitTrendlineValue, habitTrendlineItems, globalPalette]);
     
   const firstMeasurementDate = useMemo(() => [...measurementRecordingDates.values()].reduce((min, dates) => {
     return !dates[0] || min.toString() < dates[0].toString() ? min : dates[0];
@@ -657,10 +657,10 @@ const HabitChartCard = ({
     return points;
   }, [habits, measurements]);
   
-  const habitPoints = useMemo(() =>
-    computeHabitPointData(firstMeasurementDate),
-    [computeHabitPointData, firstMeasurementDate.toString()]
-  );
+  const habitPoints = useMemo(() => {
+    const points = computeHabitPointData(firstMeasurementDate);
+    return points;
+  }, [computeHabitPointData, firstMeasurementDate.toString()]);
 
   const adjustedBuckets = useMemo(() => {
     const referenceDate = today.getMonthsAgo(habitBucketSize.value === 'month' ? 10000 : habitChartDuration.value).getDaysAgo(-1);
@@ -808,30 +808,30 @@ const HabitChartCard = ({
   const habitLine = useMemo(() => {
     return visibleBucketData.length && dotSize ? (
       <Line
-      data={visibleBucketData}
-      theme={{
-        stroke: {
-          width: 0,
-        },
-        scatter: {
-          default: {
-            width: dotSize,
-            height: dotSize,
-            color: globalPalette.primary,
-            rx: dotSize,
+        data={visibleBucketData}
+        theme={{
+          stroke: {
+            width: 0,
           },
-        }
-      }}
-      hideTooltipOnDragEnd
-      onTooltipSelect={(_, index) => {
-        triggerHaptic('selection');
-        setSelectedHabitDataIndex(index);
-      }}
-      onTooltipSelectEnd={() => {
-        setSelectedHabitDataIndex(-1);
-      }}
-      initialTooltipIndex={horizontalMax}
-    />
+          scatter: {
+            default: {
+              width: dotSize,
+              height: dotSize,
+              color: globalPalette.primary,
+              rx: dotSize,
+            },
+          }
+        }}
+        hideTooltipOnDragEnd
+        onTooltipSelect={(_, index) => {
+          triggerHaptic('selection');
+          setSelectedHabitDataIndex(index);
+        }}
+        onTooltipSelectEnd={() => {
+          setSelectedHabitDataIndex(-1);
+        }}
+        initialTooltipIndex={horizontalMax}
+      />
     ) : null;
   }, habitChartInputs);
 

@@ -53,6 +53,16 @@ export function* createLocalDocumentSaga<T extends Document>(
   yield put(setCollectionAction(collectionName, items));
 }
 
+export function* createLocalDocumentsSaga<T extends Document>(
+  documents: T[],
+  collectionName: string,
+) {
+  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
+  items.push(...documents);
+  yield call([storageService, storageService.setDocuments], collectionName, items);
+  yield put(setCollectionAction(collectionName, items));
+}
+
 export function* updateLocalDocumentSaga<T extends Document>(
   document: T,
   collectionName: string,
@@ -67,16 +77,6 @@ export function* updateLocalDocumentSaga<T extends Document>(
 
   yield call([storageService, storageService.setDocuments], collectionName, items);
   yield put(setCollectionAction(collectionName, items));
-}
-
-export function* deleteLocalDocumentSaga(
-  id: string,
-  collectionName: string,
-) {
-  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
-  const filteredItems = items.filter(item => item.id !== id);
-  yield call([storageService, storageService.setDocuments], collectionName, filteredItems);
-  yield put(setCollectionAction(collectionName, filteredItems));
 }
 
 export function* updateLocalDocumentsSaga<T extends Document>(
@@ -96,6 +96,16 @@ export function* updateLocalDocumentsSaga<T extends Document>(
   yield put(setCollectionAction(collectionName, items));
 }
 
+export function* deleteLocalDocumentSaga(
+  id: string,
+  collectionName: string,
+) {
+  const items: Document[] = yield call([storageService, storageService.getDocuments], collectionName);
+  const filteredItems = items.filter(item => item.id !== id);
+  yield call([storageService, storageService.setDocuments], collectionName, filteredItems);
+  yield put(setCollectionAction(collectionName, filteredItems));
+}
+
 const performFirebaseOperation = async (operation: (reference: DocumentReference, data?: DocumentData) => Promise<void>, reference: DocumentReference, data?: DocumentData) => {
   data ? await operation(reference, removeUndefined(data)) : await operation(reference);
 }
@@ -111,7 +121,7 @@ export function* createFirestoreDocumentSaga<T extends Document>(
   yield call(performFirebaseOperation, setDoc, documentReference, removeId(document));
 }
 
-export function* createManyFirestoreDocumentSaga<T extends Document>(
+export function* createManyFirestoreDocumentsSaga<T extends Document>(
   documents: T[],
   collectionName: string,
 ) {
@@ -133,7 +143,7 @@ export function* replaceFirestoreDocumentSaga<T extends Document>(
   yield call(performFirebaseOperation, setDoc, documentReference, removeId(document));
 }
 
-export function* replaceManyFirestoreDocumentSaga<T extends Document>(
+export function* replaceManyFirestoreDocumentsSaga<T extends Document>(
   documents: T[],
   collectionName: string,
 ) {
@@ -235,8 +245,8 @@ export function* migrateLocalData(localData: LocalData, userId: string) {
 
   // Upload to Firebase
   yield all([
-    call(createManyFirestoreDocumentSaga, migratedData.measurements, Collections.Measurements),
-    call(createManyFirestoreDocumentSaga, migratedData.habits, Collections.Habits),
+    call(createManyFirestoreDocumentsSaga, migratedData.measurements, Collections.Measurements),
+    call(createManyFirestoreDocumentsSaga, migratedData.habits, Collections.Habits),
     migratedData.account && call(createFirestoreDocumentSaga, migratedData.account, Collections.Accounts),
   ]);
 

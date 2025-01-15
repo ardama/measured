@@ -613,23 +613,25 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         )}
                       </>
                     }
-                    <IconButton
-                      icon={Icons.delete}
-                      style={s.deleteButton}
-                      size={20}
-                      onPress={() => {
-                        const nextHabit = { ...formHabit };
-                        nextHabit.conditions.splice(index, 1);
-                        handleFormEdit(nextHabit);
+                    {formHabit.conditions.length > 1 && (
+                      <IconButton
+                        icon={Icons.delete}
+                        style={s.deleteButton}
+                        size={20}
+                        onPress={() => {
+                          const nextHabit = { ...formHabit };
+                          nextHabit.conditions.splice(index, 1);
+                          handleFormEdit(nextHabit);
 
-                        const nextTimeTargetStrings = [...timeTargetStrings];
-                        nextTimeTargetStrings.splice(index, 1);
-                        setTimeTargetStrings(nextTimeTargetStrings);
-                        const nextTimeOffsets = [...timeOffsetStrings];
-                        nextTimeOffsets.splice(index, 1);
-                        setTimeOffsetStrings(nextTimeOffsets);
-                      }}
-                    />
+                          const nextTimeTargetStrings = [...timeTargetStrings];
+                          nextTimeTargetStrings.splice(index, 1);
+                          setTimeTargetStrings(nextTimeTargetStrings);
+                          const nextTimeOffsets = [...timeOffsetStrings];
+                          nextTimeOffsets.splice(index, 1);
+                          setTimeOffsetStrings(nextTimeOffsets);
+                        }}
+                      />
+                    )}
                   </View>
                 )
               })}
@@ -836,7 +838,8 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     maxWidth: '100%',
     alignItems: 'center',
     gap: 6,
-    marginTop: -6,
+    marginTop: 4,
+    marginBottom: -4,
   },
   dropdownButton: {
     backgroundColor: theme.colors.elevation.level3,

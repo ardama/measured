@@ -8,7 +8,7 @@ import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '
 import { formatValue, intersection, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
+import { callGenerateSampleHabits, callGenerateSampleMeasurements, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
@@ -333,9 +333,12 @@ const Recordings = () => {
   }
   
   const clearRecordings = (date = selectedDate) => {
+    setTempRecordingsMap(new Map());
+    if (updateRecordings.current) clearTimeout(updateRecordings.current);
+
     const updatedMeasurements: Measurement[] = [];
     measurements.forEach((measurement) => {
-      const nextRecordings = [...measurement.recordings].filter((recording) => recording.date !== date.toString());
+      const nextRecordings = measurement.recordings.filter((recording) => recording.date !== date.toString());
       if (nextRecordings.length !== measurement.recordings.length) updatedMeasurements.push({ ...measurement, recordings: nextRecordings });
     });
     
@@ -875,7 +878,6 @@ const Recordings = () => {
                     setIsReorderingMeasurements(false);
                     break;
                   case 'reset':
-                    setTempRecordingsMap(new Map());
                     clearRecordings();
                     break;
                   default:
@@ -903,7 +905,6 @@ const Recordings = () => {
                     setIsReorderingHabits(false);
                     break;
                   case 'reset':
-                    setTempRecordingsMap(new Map());
                     clearRecordings();
                     break;
                   default:
@@ -998,15 +999,30 @@ const Recordings = () => {
                     <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
                   </View>
                   {!measurements.length && (
-                    <Button
-                      style={styles.noDataButton}
-                      mode='contained'
-                      onPress={() => { router.push('/measurement/create'); }}
-                    >
-                      <Text variant='labelLarge' style={styles.noDataButtonText}>
-                        Create your first measurement
-                      </Text>
-                    </Button>
+                    <>
+                      <Button
+                        style={styles.sampleDataButton}
+                        contentStyle={styles.sampleDataButtonContent}
+                        mode='contained'
+                        onPress={() => {
+                          dispatch(callGenerateSampleMeasurements());
+                        }}
+                        >
+                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
+                          Generate sample measurements
+                        </Text>
+                      </Button>
+                      <Button
+                        style={styles.noDataButton}
+                        contentStyle={styles.noDataButtonContent}
+                        mode='outlined'
+                        onPress={() => { router.push('/measurement/create'); }}
+                      >
+                        <Text variant='labelLarge' style={styles.noDataButtonText}>
+                          Create a custom measurement
+                        </Text>
+                      </Button>
+                    </>
                   )}
                 </>
               )}
@@ -1076,15 +1092,30 @@ const Recordings = () => {
                     <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
                   </View>
                   {!habits.length && (
-                    <Button
-                    style={styles.noDataButton}
-                    mode='contained'
-                    onPress={() => { router.push('/habit/create'); }}
-                    >
-                      <Text variant='labelLarge' style={styles.noDataButtonText}>
-                        Create your first habit
-                      </Text>
-                    </Button>
+                    <>
+                      <Button
+                        style={styles.sampleDataButton}
+                        contentStyle={styles.sampleDataButtonContent}
+                        mode='contained'
+                        onPress={() => {
+                          dispatch(callGenerateSampleHabits());
+                        }}
+                        >
+                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
+                          Generate sample habits
+                        </Text>
+                      </Button>
+                      <Button
+                        style={styles.noDataButton}
+                        contentStyle={styles.noDataButtonContent}
+                        mode='outlined'
+                        onPress={() => { router.push('/habit/create'); }}
+                      >
+                        <Text variant='labelLarge' style={styles.noDataButtonText}>
+                          Create a custom habit
+                        </Text>
+                      </Button>
+                    </>
                   )}
                 </>
               )}
@@ -1253,10 +1284,24 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     },
     noDataButton: {
       alignSelf: 'center',
-      marginBottom: 24,
+      marginBottom: 20,
+      borderRadius: 4,
+    },
+    noDataButtonContent: {
+      // paddingHorizontal: 12,
+      paddingVertical: 4,
     },
     noDataButtonText: {
-      paddingHorizontal: 4,
+    },
+    sampleDataButton: {
+      borderRadius: 4,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    sampleDataButtonContent: {
+      paddingVertical: 4,
+    },
+    sampleDataButtonText: {
       color: theme.colors.surface,
     },
   });

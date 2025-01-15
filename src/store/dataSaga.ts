@@ -23,6 +23,12 @@ import {
   callUpdateAccount,
   callDeleteAll,
   callDeleteAllStatus,
+  callGenerateSampleMeasurements,
+  callGenerateSampleHabits,
+  callCreateMeasurementsStatus,
+  callCreateHabitsStatus,
+  callCreateMeasurements,
+  callCreateHabits,
 } from './dataReducer';
 import type { ActionCreatorWithPayload, PayloadAction } from '@reduxjs/toolkit';
 import { computeHabit, constructHabitUpdate, isEmptyHabitUpdate, type ComputedHabit, type Habit } from '@t/habits';
@@ -40,9 +46,10 @@ import { serializeUser, type Account } from '@t/users';
 import { createAuthChannel, signOutSaga } from '@s/authSaga';
 import type { RootState } from '@t/redux';
 import { storageService } from '@s/storage';
-import { createLocalDocumentSaga, replaceManyFirestoreDocumentSaga, deleteFirestoreDocumentSaga, deleteLocalDocumentSaga, replaceFirestoreDocumentSaga, updateLocalDocumentSaga, updateLocalDocumentsSaga, handleBatchStorageOperationSaga, loadLocalData, type RemoteData, getRemoteData } from '@s/storageSaga';
+import { createLocalDocumentSaga, replaceManyFirestoreDocumentsSaga, deleteFirestoreDocumentSaga, deleteLocalDocumentSaga, replaceFirestoreDocumentSaga, updateLocalDocumentSaga, updateLocalDocumentsSaga, handleBatchStorageOperationSaga, loadLocalData, type RemoteData, getRemoteData, createLocalDocumentsSaga, createManyFirestoreDocumentsSaga } from '@s/storageSaga';
 import { handleStorageOperationSaga } from '@s/storageSaga';
 import { createFirestoreDocumentSaga } from '@s/storageSaga';
+import { sampleMeasurements, sampleHabits } from '@u/sampleData';
 
 function createFirestoreChannel<T>(collectionName: string, setAction: ActionCreatorWithPayload<T[], string>, uid: string): EventChannel<PayloadAction<T[]>> {
   const q: Query<DocumentData> = query(collection(firestore, collectionName), where('userId', '==', uid));
@@ -148,6 +155,17 @@ function* createMeasurementSaga(action: PayloadAction<Measurement>) {
   );
 }
 
+function* createMeasurementsSaga(action: PayloadAction<Measurement[]>) {
+  yield* handleBatchStorageOperationSaga(
+    action,
+    callCreateMeasurementsStatus,
+    createLocalDocumentsSaga,
+    createManyFirestoreDocumentsSaga,
+    (payload: Measurement[]) => payload,
+    Collections.Measurements
+  );
+}
+
 function* updateMeasurementSaga(action: PayloadAction<Measurement>) {
   yield* handleStorageOperationSaga(
     action,
@@ -164,7 +182,7 @@ function* updateMeasurementsSaga(action: PayloadAction<Measurement[]>) {
     action,
     callUpdateMeasurementStatus,
     updateLocalDocumentsSaga,
-    replaceManyFirestoreDocumentSaga,
+    replaceManyFirestoreDocumentsSaga,
     (payload: Measurement[]) => payload,
     Collections.Measurements
   );
@@ -197,6 +215,29 @@ function* createHabitSaga(action: PayloadAction<ComputedHabit>) {
         userId: payload.userId,
         updates: [newHabitUpdate],
       };
+    },
+    Collections.Habits
+  );
+}
+
+function* createHabitsSaga(action: PayloadAction<ComputedHabit[]>) {
+  yield* handleBatchStorageOperationSaga(
+    action,
+    callCreateHabitsStatus,
+    createLocalDocumentsSaga,
+    createManyFirestoreDocumentsSaga,
+    (payload: ComputedHabit[]) => {
+      const today = SimpleDate.today();
+      const yesterday = today.getDaysAgo();
+      return payload.map(habit => {
+        const previousHabit = computeHabit(habit, yesterday);
+        const newHabitUpdate = constructHabitUpdate(habit, previousHabit, today);
+        return {
+          id: habit.id,
+          userId: habit.userId,
+          updates: [newHabitUpdate],
+        };
+      });
     },
     Collections.Habits
   );
@@ -241,7 +282,7 @@ function* updateHabitsSaga(action: PayloadAction<ComputedHabit[]>) {
     action,
     callUpdateHabitStatus,
     updateLocalDocumentsSaga,
-    replaceManyFirestoreDocumentSaga,
+    replaceManyFirestoreDocumentsSaga,
     (payload: ComputedHabit[]) => {
       const today = SimpleDate.today();
       const yesterday = today.getDaysAgo();
@@ -306,22 +347,27 @@ function* updateAccountSaga(action: PayloadAction<Account>) {
 function* deleteAllSaga(): Generator<any, void, any> {
   yield put(callDeleteAllStatus(Status.IN_PROGRESS));
   try {
-    const userId = auth.currentUser?.uid;
-    if (!userId || !auth.currentUser) throw new Error('No authenticated user');
+    const isGuest: boolean = yield select((state: RootState) => state.auth.isGuest);
+    if (isGuest) {
+      yield call([storageService, storageService.clearAll]);
+    } else {
+      const userId = auth.currentUser?.uid;
+      if (!userId || !auth.currentUser) throw new Error('No authenticated user');
 
-    // Delete all user data from Firestore
-    const batch = writeBatch(firestore);
-    
-    // Get all user data
-    const { measurements, habits, accounts }: RemoteData = yield call(getRemoteData);
+      // Delete all user data from Firestore
+      const batch = writeBatch(firestore);
+      
+      // Get all user data
+      const { measurements, habits, accounts }: RemoteData = yield call(getRemoteData);
 
-    // Add delete operations to batch
-    measurements.forEach((doc: DocumentData) => batch.delete(doc.ref));
-    habits.forEach((doc: DocumentData) => batch.delete(doc.ref));
-    accounts.forEach((doc: DocumentData) => batch.delete(doc.ref));
+      // Add delete operations to batch
+      measurements.forEach((doc: DocumentData) => batch.delete(doc.ref));
+      habits.forEach((doc: DocumentData) => batch.delete(doc.ref));
+      accounts.forEach((doc: DocumentData) => batch.delete(doc.ref));
 
-    // Execute batch delete
-    yield call([batch, batch.commit]);
+      // Execute batch delete
+      yield call([batch, batch.commit]);
+    }
 
     yield call(signOutSaga);
     yield put(callDeleteAllStatus(Status.SUCCESS));
@@ -331,14 +377,24 @@ function* deleteAllSaga(): Generator<any, void, any> {
   }
 }
 
+function* generateSampleMeasurementsSaga() {
+  yield put(callCreateMeasurements(sampleMeasurements));
+}
+
+function* generateSampleHabitsSaga() {
+  yield put(callCreateHabits(sampleHabits));
+}
+
 export function* dataSaga() {
   yield all([
     takeEvery(callCreateMeasurement.type, createMeasurementSaga),
+    takeEvery(callCreateMeasurements.type, createMeasurementsSaga),
     takeEvery(callUpdateMeasurement.type, updateMeasurementSaga),
     takeEvery(callUpdateMeasurements.type, updateMeasurementsSaga),
     takeEvery(callDeleteMeasurement.type, deleteMeasurementSaga),
 
     takeEvery(callCreateHabit.type, createHabitSaga),
+    takeEvery(callCreateHabits.type, createHabitsSaga),
     takeEvery(callUpdateHabit.type, updateHabitSaga),
     takeEvery(callUpdateHabits.type, updateHabitsSaga),
     takeEvery(callDeleteHabit.type, deleteHabitSaga),
@@ -346,6 +402,9 @@ export function* dataSaga() {
     takeEvery(callUpdateAccount.type, updateAccountSaga),
 
     takeEvery(callDeleteAll.type, deleteAllSaga),
+
+    takeEvery(callGenerateSampleMeasurements.type, generateSampleMeasurementsSaga),
+    takeEvery(callGenerateSampleHabits.type, generateSampleHabitsSaga),
 
     fork(watchAuth),
   ])

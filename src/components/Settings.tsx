@@ -93,15 +93,12 @@ const Settings = () => {
         <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
       )
     },
-  ];
-
-  if (user) {
-    accountItems.push({
+    {
       icon: Icons.delete,
       title: 'DELETE DATA',
       onPress: () => setShowDeleteAllDialog(true),
-    });
-  }
+    }
+  ];
 
   const sections: SettingsSection[] = [
     {

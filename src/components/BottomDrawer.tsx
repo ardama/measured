@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import AnimatedView from '@c/AnimatedView';
 import type { Palette } from '@u/colors';
 import { Icons } from '@u/constants/Icons';
@@ -40,7 +40,13 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, sh
 
   const handleDismiss = () => {
     setVisible(false);
-  };  
+  }; 
+  
+  const handleSelect = useCallback((item: BottomDrawerItem<T>) => {
+    onSelect(item);
+    handleDismiss();
+  }, [onSelect, handleDismiss]);
+
   const filteredItems = items.filter(({ title, value }) => {
     if (typeof value === 'string') {
       return (
@@ -131,10 +137,7 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, sh
                     key={`${item.title}::${item.value}`}
                     item={item}
                     selected={item.value === selectedItem?.value}
-                    onSelect={() => {
-                      onSelect(item);
-                      handleDismiss();
-                    }}
+                    onSelect={handleSelect}
                     palette={colorPalette}
                   />
                 );
@@ -148,7 +151,7 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, sh
                     key={`${item.title}::${item.value}`}
                     item={item}
                     selected={item.value === selectedItem?.value}
-                    onSelect={() => { onSelect(item); handleDismiss(); }}
+                    onSelect={handleSelect}
                     palette={colorPalette}
                   />
                 );
@@ -169,9 +172,9 @@ type BottomDrawerItemProps<T> = {
 }
 function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawerItemProps<T>) {
   const theme = useTheme();
-  const styles = createStyles(theme, palette);
+  const styles = useMemo(() => createStyles(theme, palette), [theme, palette]);
 
-  return (
+  return useMemo(() => (
     <Pressable
       style={[styles.item, selected && styles.itemSelected, item.disabled && styles.itemDisabled]}
       disabled={item.disabled}
@@ -203,7 +206,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
         </View>
       </View>
     </Pressable>
-  )
+  ), [item, selected, onSelect, palette]);
 }
 
 const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({

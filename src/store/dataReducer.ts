@@ -28,6 +28,8 @@ const dataStateSlice = createSlice({
 
     callCreateMeasurement: (_: DataState, __: PayloadAction<Measurement>) => {},
     callCreateMeasurementStatus: (state: DataState, action: PayloadAction<string>) => { state.measurementStatus.create = action.payload; },
+    callCreateMeasurements: (_: DataState, __: PayloadAction<Measurement[]>) => {},
+    callCreateMeasurementsStatus: (state: DataState, action: PayloadAction<string>) => { state.measurementStatus.create = action.payload; },
     callUpdateMeasurement: (_: DataState, __: PayloadAction<Measurement>) => {},
     callUpdateMeasurements: (_: DataState, __: PayloadAction<Measurement[]>) => {},
     callUpdateMeasurementStatus: (state: DataState, action: PayloadAction<string>) => { state.measurementStatus.update = action.payload; },
@@ -36,6 +38,8 @@ const dataStateSlice = createSlice({
 
     callCreateHabit: (_: DataState, __: PayloadAction<ComputedHabit>) => {},
     callCreateHabitStatus: (state: DataState, action: PayloadAction<string>) => { state.habitStatus.create = action.payload; },
+    callCreateHabits: (_: DataState, __: PayloadAction<ComputedHabit[]>) => {},
+    callCreateHabitsStatus: (state: DataState, action: PayloadAction<string>) => { state.habitStatus.create = action.payload; },
     callUpdateHabit: (_: DataState, __: PayloadAction<ComputedHabit>) => {},
     callUpdateHabits: (_: DataState, __: PayloadAction<ComputedHabit[]>) => {},
     callUpdateHabitStatus: (state: DataState, action: PayloadAction<string>) => { state.habitStatus.update = action.payload; },
@@ -47,6 +51,9 @@ const dataStateSlice = createSlice({
 
     callDeleteAll: (_: DataState) => {},
     callDeleteAllStatus: (state: DataState, action: PayloadAction<string>) => { state.deleteAllStatus = action.payload; },
+
+    callGenerateSampleMeasurements: (_: DataState) => {},
+    callGenerateSampleHabits: (_: DataState) => {},
   },
 });
 
@@ -59,6 +66,8 @@ export const {
 
   callCreateMeasurement,
   callCreateMeasurementStatus,
+  callCreateMeasurements,
+  callCreateMeasurementsStatus,
   callUpdateMeasurement,
   callUpdateMeasurements,
   callUpdateMeasurementStatus,
@@ -67,6 +76,8 @@ export const {
  
   callCreateHabit,
   callCreateHabitStatus,
+  callCreateHabits,
+  callCreateHabitsStatus,
   callUpdateHabit,
   callUpdateHabits,
   callUpdateHabitStatus,
@@ -79,20 +90,28 @@ export const {
   callDeleteAll,
   callDeleteAllStatus,
 
+  callGenerateSampleMeasurements,
+  callGenerateSampleHabits,
 } = dataStateSlice.actions;
 
 export const dataActions = new Set([
   callCreateMeasurement.type,
+  callCreateMeasurements.type,
   callUpdateMeasurement.type,
   callDeleteMeasurement.type,
 
   callCreateHabit.type,
+  callCreateHabits.type,
   callUpdateHabit.type,
+  callUpdateHabits.type,
   callDeleteHabit.type,
 
   callUpdateAccount.type,
   
   callDeleteAll.type,
+
+  callGenerateSampleMeasurements.type,
+  callGenerateSampleHabits.type,
 ]);
 
 export default dataStateSlice.reducer;

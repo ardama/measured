@@ -42,6 +42,6 @@ export const defaultAccount = (): Account => ({
   userId: '',
   settings: {
     darkMode: true,
-    baseColor: undefined,
+    baseColor: 'yellow',
   }
 });
