@@ -244,6 +244,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             anchor={
               <Button
                 mode='text'
+                style={{ borderRadius: 4 }}
                 textColor={theme.colors.onSurface}
                 onPress={() => setIsMenuVisible(true) }
               >

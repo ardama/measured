@@ -16,6 +16,8 @@ import type { Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router';
 import { useToday } from '@u/hooks/useToday';
+import { useDispatch } from 'react-redux';
+import { callGenerateSampleData } from '@s/dataReducer';
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -75,6 +77,7 @@ const MEASUREMENT_TRENDLINE_ITEMS: BottomDrawerItem<number>[] = [
 const History = () => {  
   const measurements = useMeasurements();
   const habits = useComputedHabits();
+  const dispatch = useDispatch();
 
   const theme = useTheme();
 
@@ -120,12 +123,25 @@ const History = () => {
               <Text style={s.noDataText} variant='bodyLarge'>No habits</Text>
             </View>
             <Button
-              style={s.noDataButton}
+              style={s.sampleDataButton}
+              contentStyle={s.sampleDataButtonContent}
               mode='contained'
+              onPress={() => {
+                dispatch(callGenerateSampleData());
+              }}
+              >
+              <Text variant='labelLarge' style={s.sampleDataButtonText}>
+                Get started with sample data
+              </Text>
+            </Button>
+            <Button
+              style={s.noDataButton}
+              contentStyle={s.noDataButtonContent}
+              mode='outlined'
               onPress={() => { router.push('/habit/create'); }}
             >
               <Text variant='labelLarge' style={s.noDataButtonText}>
-                Create your first habit
+                Create a custom habit
               </Text>
             </Button>
           </>
@@ -141,12 +157,25 @@ const History = () => {
               <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
             </View>
             <Button
-              style={s.noDataButton}
+              style={s.sampleDataButton}
+              contentStyle={s.sampleDataButtonContent}
               mode='contained'
+              onPress={() => {
+                dispatch(callGenerateSampleData());
+              }}
+              >
+              <Text variant='labelLarge' style={s.sampleDataButtonText}>
+                Get started with sample data
+              </Text>
+            </Button>
+            <Button
+              style={s.noDataButton}
+              contentStyle={s.noDataButtonContent}
+              mode='outlined'
               onPress={() => { router.push('/measurement/create'); }}
             >
               <Text variant='labelLarge' style={s.noDataButtonText}>
-                Create your first measurement
+                Create a custom measurement
               </Text>
             </Button>
           </>
@@ -314,10 +343,25 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   },
   noDataButton: {
     alignSelf: 'center',
-    marginBottom: 24,
+    marginBottom: 4,
+    borderRadius: 4,
+    width: 280,
+  },
+  noDataButtonContent: {
+    paddingVertical: 4,
   },
   noDataButtonText: {
-    paddingHorizontal: 4,
+  },
+  sampleDataButton: {
+    width: 280,
+    borderRadius: 4,
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
+  sampleDataButtonContent: {
+    paddingVertical: 4,
+  },
+  sampleDataButtonText: {
     color: theme.colors.surface,
   },
 });
@@ -737,7 +781,7 @@ const HabitChartCard = ({
   const verticalOffset = (verticalMaxUnits - verticalMinUnits) * (chartPadding / chartHeight);
 
   let horizontalMin = 0;
-  const horizontalMax = visibleBucketData.length - 1;
+  const horizontalMax = Math.max(visibleBucketData.length - 1, 1);
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
   
   const habitChartInputs = [habits, measurements, habitBucketSize.value, habitTrendline.value, habitChartDuration.value, globalPalette.primary, s];
@@ -1060,7 +1104,6 @@ const MeasurementChartCard = ({
   const firstDateWithData = selectedMeasurementRecordingDates[0];
   let chartDuration = measurementChartDuration.value;
   if (firstDateWithData) chartDuration = Math.min(SimpleDate.daysBetween(today, firstDateWithData), chartDuration - 1);
-  chartDuration = Math.max(chartDuration, 1);
 
   const selectedMeasurementData = useMemo(() => selectedMeasurementRecordingDates.map((date) => {
     const daysAgo = SimpleDate.daysBetween(today, date);
@@ -1108,7 +1151,7 @@ const MeasurementChartCard = ({
   const verticalSteps = verticalMaxSteps - verticalMinSteps;
 
   const horizontalMin = 0;
-  const horizontalMax = chartDuration;
+  const horizontalMax = Math.max(chartDuration, 1);
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
   const measurementChartInputs = [id, measurements, chartDuration, measurementTrendline.value, globalPalette.primary, s];
@@ -1285,7 +1328,7 @@ const MeasurementChartCard = ({
     const selectedDateAverageString = formatValue(selectedDateAverage, type, unit, true);
     const selectedDateAverageLabel = `${measurementTrendline.title || ''}: `;
 
-    const ratio = selectedDateDayOffset / chartDuration;
+    const ratio = selectedDateDayOffset / horizontalMax;
     const justifyContent = ratio > 0.8 ? 'flex-end' : 'flex-start';
     return selectedMeasurementDataIndex < 0 ? null : (
       <View style={s.chartSelectionContainer}>
@@ -1293,12 +1336,12 @@ const MeasurementChartCard = ({
           style={[s.chartSelectionLine,
             {
               top: 27 - chartPadding,
-              left: (selectedDateDayOffset / chartDuration) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
+              left: (selectedDateDayOffset / horizontalMax) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
               borderColor: measurementPalette.primary || theme.colors.onSurface,
             }
           ]}
         />
-        <View style={{ flexGrow: (selectedDateDayOffset / chartDuration) }} />
+        <View style={{ flexGrow: (selectedDateDayOffset / horizontalMax) }} />
         <View style={s.chartSelection}>
           <View style={{ ...s.chartSelectionRow, justifyContent }}>
             <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
@@ -1319,7 +1362,7 @@ const MeasurementChartCard = ({
             </View>
           ) : null}
         </View>
-        <View style={{ flexGrow: 1 - (selectedDateDayOffset / chartDuration) }} />
+        <View style={{ flexGrow: 1 - (selectedDateDayOffset / horizontalMax) }} />
       </View>
     )
   }, [...measurementChartInputs, selectedMeasurementDataIndex]);

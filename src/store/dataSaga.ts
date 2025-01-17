@@ -23,8 +23,7 @@ import {
   callUpdateAccount,
   callDeleteAll,
   callDeleteAllStatus,
-  callGenerateSampleMeasurements,
-  callGenerateSampleHabits,
+  callGenerateSampleData,
   callCreateMeasurementsStatus,
   callCreateHabitsStatus,
   callCreateMeasurements,
@@ -377,11 +376,8 @@ function* deleteAllSaga(): Generator<any, void, any> {
   }
 }
 
-function* generateSampleMeasurementsSaga() {
+function* generateSampleDataSaga() {
   yield put(callCreateMeasurements(sampleMeasurements));
-}
-
-function* generateSampleHabitsSaga() {
   yield put(callCreateHabits(sampleHabits));
 }
 
@@ -403,8 +399,7 @@ export function* dataSaga() {
 
     takeEvery(callDeleteAll.type, deleteAllSaga),
 
-    takeEvery(callGenerateSampleMeasurements.type, generateSampleMeasurementsSaga),
-    takeEvery(callGenerateSampleHabits.type, generateSampleHabitsSaga),
+    takeEvery(callGenerateSampleData.type, generateSampleDataSaga),
 
     fork(watchAuth),
   ])

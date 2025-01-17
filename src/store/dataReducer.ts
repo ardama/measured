@@ -52,8 +52,7 @@ const dataStateSlice = createSlice({
     callDeleteAll: (_: DataState) => {},
     callDeleteAllStatus: (state: DataState, action: PayloadAction<string>) => { state.deleteAllStatus = action.payload; },
 
-    callGenerateSampleMeasurements: (_: DataState) => {},
-    callGenerateSampleHabits: (_: DataState) => {},
+    callGenerateSampleData: (_: DataState) => {},
   },
 });
 
@@ -90,8 +89,7 @@ export const {
   callDeleteAll,
   callDeleteAllStatus,
 
-  callGenerateSampleMeasurements,
-  callGenerateSampleHabits,
+  callGenerateSampleData,
 } = dataStateSlice.actions;
 
 export const dataActions = new Set([
@@ -110,8 +108,7 @@ export const dataActions = new Set([
   
   callDeleteAll.type,
 
-  callGenerateSampleMeasurements.type,
-  callGenerateSampleHabits.type,
+  callGenerateSampleData.type,
 ]);
 
 export default dataStateSlice.reducer;

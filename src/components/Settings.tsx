@@ -95,7 +95,7 @@ const Settings = () => {
     },
     {
       icon: Icons.delete,
-      title: 'DELETE DATA',
+      title: 'RESET ACCOUNT',
       onPress: () => setShowDeleteAllDialog(true),
     }
   ];
@@ -161,17 +161,19 @@ const Settings = () => {
       </View>
       <Portal>
         <Dialog
+          style={{ borderRadius: 12 }}
           visible={showDeleteAllDialog}
           onDismiss={() => setShowDeleteAllDialog(false)}
         >
-          <Dialog.Title>Delete Data</Dialog.Title>
+          <Dialog.Title>Reset Account</Dialog.Title>
           <Dialog.Content>
             <Text variant='bodyMedium'>
-              Are you sure you want to delete your account data? This action cannot be undone.
+              Are you sure you want to reset your account and delete all data? This action cannot be undone.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
             <Button
+              style={{ borderRadius: 4 }}
               onPress={() => setShowDeleteAllDialog(false)}
               mode='text'
               textColor={theme.colors.onSurface}
@@ -180,6 +182,7 @@ const Settings = () => {
               CANCEL
             </Button>
             <Button
+              style={{ borderRadius: 4 }}
               onPress={() => {
                 dispatch(callDeleteAll());
                 setShowDeleteAllDialog(false);
@@ -188,7 +191,7 @@ const Settings = () => {
               textColor={theme.colors.error}
               contentStyle={styles.dialogButton}
             >
-              DELETE
+              RESET
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -240,7 +243,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     borderBottomWidth: 1,
     borderTopWidth: 1,
     borderColor: theme.colors.elevation.level3,
-    minHeight: 48,
+    minHeight: 64,
 
     flexGrow: 1,
     flexDirection: 'row',

@@ -2,6 +2,7 @@ import { type Measurement } from '@t/measurements';
 import { type ComputedHabit } from '@t/habits';
 import { Collections } from '@u/constants/Firestore';
 import { generateId } from '@u/helpers';
+import { SimpleDate } from '@u/dates';
 
 export const sampleMeasurements: Measurement[] = [
   {
@@ -29,7 +30,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 2,
     archived: false,
     recordings: [],
-    baseColor: 'green'
+    baseColor: 'red'
   },
   {
     id: generateId(Collections.Measurements),
@@ -57,7 +58,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 4,
     archived: false,
     recordings: [],
-    baseColor: 'blue'
+    baseColor: 'green'
   }
 ];
 
@@ -68,7 +69,7 @@ export const sampleHabits: ComputedHabit[] = [
     userId: '',
     updates: [
         {
-            date: '2025-01-14',
+            date: SimpleDate.today().toString(),
             name: '',
             isWeekly: false,
             daysPerWeek: 7,
@@ -99,7 +100,7 @@ export const sampleHabits: ComputedHabit[] = [
     userId: '',
     updates: [
         {
-            date: '2025-01-14',
+            date: SimpleDate.today().toString(),
             name: '',
             isWeekly: false,
             daysPerWeek: 7,
@@ -123,14 +124,15 @@ export const sampleHabits: ComputedHabit[] = [
         }
     ],
     predicate: 'AND',
-    priority: 1
+    priority: 1,
+    baseColor: 'red'
   },
   {
     id: generateId(Collections.Habits),
     userId: '',
     updates: [
         {
-            date: '2025-01-14',
+            date: SimpleDate.today().toString(),
             name: '',
             isWeekly: false,
             daysPerWeek: 7,
@@ -159,6 +161,7 @@ export const sampleHabits: ComputedHabit[] = [
         }
     ],
     predicate: 'AND',
-    priority: 1
+    priority: 1,
+    baseColor: 'green'
   },
 ];

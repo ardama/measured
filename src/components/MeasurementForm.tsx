@@ -321,6 +321,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
               <Button
                 mode='text'
                 textColor={theme.colors.onSurface}
+                style={{ borderRadius: 4 }}
               >
                 MANAGE
               </Button>

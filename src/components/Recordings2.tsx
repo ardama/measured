@@ -8,7 +8,7 @@ import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '
 import { formatValue, intersection, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callGenerateSampleHabits, callGenerateSampleMeasurements, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
+import { callGenerateSampleData, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
@@ -536,7 +536,7 @@ const Recordings = () => {
             clearTimeout(longPressPreviousTimeout.current);
             longPressPreviousTimeout.current = null;
           }}
-          delayLongPress={600}
+          delayLongPress={400}
           size={20}
         />
         <IconButton
@@ -552,7 +552,7 @@ const Recordings = () => {
             clearTimeout(longPressNextTimeout.current);
             longPressNextTimeout.current = null;
           }}
-          delayLongPress={600}
+          delayLongPress={400}
           size={20}
         />
       </View>
@@ -691,21 +691,19 @@ const Recordings = () => {
                     color={color}
                   />
                 )}
-                {!isFuture && (
+                {!isFuture && measurementCount > 0 && (
                   <>
-                    {measurementCount > 0 &&
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
-                        <CircularProgress
-                          size={20}
-                          strokeWidth={2}
-                          progress={measurementCompletion / measurementCount}
-                          color={color}
-                          trackColor={theme.colors.surfaceDisabled}
-                          icon={Icons.measurement}
-                          iconColor={measurementCompletion === measurementCount ? color : theme.colors.surfaceDisabled}
-                        />
-                      </View>
-                    }
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                      <CircularProgress
+                        size={20}
+                        strokeWidth={2}
+                        progress={measurementCompletion / measurementCount}
+                        color={color}
+                        trackColor={theme.colors.surfaceDisabled}
+                        icon={Icons.measurement}
+                        iconColor={measurementCompletion === measurementCount ? color : theme.colors.surfaceDisabled}
+                      />
+                    </View>
                     {displayedHabits.length > 0 && <Points
                       style={styles.dailyPointTotal}
                       points={total}
@@ -982,6 +980,7 @@ const Recordings = () => {
                               nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
                               setExpandedMeasurements(nextExpandedMeasurements);
                             }}
+                            onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
                             archiving={showArchivedMeasurements}
                             onArchive={toggleMeasurementArchived}
                           />
@@ -1005,11 +1004,11 @@ const Recordings = () => {
                         contentStyle={styles.sampleDataButtonContent}
                         mode='contained'
                         onPress={() => {
-                          dispatch(callGenerateSampleMeasurements());
+                          dispatch(callGenerateSampleData());
                         }}
                         >
                         <Text variant='labelLarge' style={styles.sampleDataButtonText}>
-                          Generate sample measurements
+                          Get started with sample data
                         </Text>
                       </Button>
                       <Button
@@ -1075,6 +1074,7 @@ const Recordings = () => {
                               nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
                               setExpandedHabits(nextExpandedHabits);
                             }}
+                            onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
                             archiving={showArchivedHabits}
                             onArchive={toggleHabitArchived}
                           />
@@ -1098,11 +1098,11 @@ const Recordings = () => {
                         contentStyle={styles.sampleDataButtonContent}
                         mode='contained'
                         onPress={() => {
-                          dispatch(callGenerateSampleHabits());
+                          dispatch(callGenerateSampleData());
                         }}
                         >
                         <Text variant='labelLarge' style={styles.sampleDataButtonText}>
-                          Generate sample habits
+                          Get started with sample data
                         </Text>
                       </Button>
                       <Button
@@ -1286,6 +1286,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignSelf: 'center',
       marginBottom: 20,
       borderRadius: 4,
+      width: 280,
     },
     noDataButtonContent: {
       // paddingHorizontal: 12,
@@ -1294,6 +1295,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     noDataButtonText: {
     },
     sampleDataButton: {
+      width: 280,
       borderRadius: 4,
       alignSelf: 'center',
       marginBottom: 20,
@@ -1371,13 +1373,13 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     if (!onValueChange) return;
     longPressLeftInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current - measurement.step);
-    }, 125);
+    }, 100);
   }
   const handleLongPressRight = () => {
     if (!onValueChange) return;
     longPressRightInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current + measurement.step);
-    }, 125);
+    }, 100);
   }
 
   const { getPalette, getCombinedPalette } = usePalettes();
@@ -1399,6 +1401,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         <View style={styles.controlButton} /> :
       isBool ? (
         <IconButton
+          hitSlop={10}
           style={styles.controlButton}
           size={16}
           icon={Icons.subtract}
@@ -1408,6 +1411,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         />
       ) : (
         <IconButton
+          hitSlop={10}
           style={styles.controlButton}
           size={18}
           icon={Icons.subtract}
@@ -1422,7 +1426,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             clearInterval(longPressLeftInterval.current);
             longPressLeftInterval.current = null;
           }}
-          delayLongPress={250}
+          delayLongPress={300}
         />
       );
     const rightButton =
@@ -1430,6 +1434,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         <View style={styles.controlButton} /> :
       isBool ? (
         <IconButton
+          hitSlop={10}
           style={styles.controlButton}
           size={16}
           icon={Icons.add}
@@ -1439,6 +1444,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         />
       ) : (
         <IconButton
+          hitSlop={10}
           style={styles.controlButton}
           size={18}
           icon={Icons.add}
@@ -1453,7 +1459,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             clearInterval(longPressRightInterval.current);
             longPressRightInterval.current = null;
           }}
-          delayLongPress={250}
+          delayLongPress={300}
         />
       );
 
@@ -1500,6 +1506,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         {!isCombo && value !== null && (
           <TouchableRipple
             style={styles.actionButton}
+            hitSlop={6}
             onPress={() => {
               onValueChange ? onValueChange(null) : null;
             }}
@@ -1513,6 +1520,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         )}
         <TouchableRipple
           style={styles.actionButton}
+          hitSlop={6}
           onPress={() => {
             router.push(`/measurement/${measurement.id}`);
           }}
@@ -1624,7 +1632,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           onLongPress={onLongPress ? () => onLongPress(measurement.id) : undefined}
           onPressIn={onPressIn ? () => onPressIn(measurement.id) : undefined}
           onPressOut={onPressOut ? () => onPressOut(measurement.id) : undefined}
-          delayLongPress={300}
+          delayLongPress={400}
         >
           {content}
         </TouchableRipple>
@@ -1684,7 +1692,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     justifyContent: 'center',
 
 
-    height: 32,
+    height: 42,
     width: 104,
 
     paddingHorizontal: 12,
@@ -1712,7 +1720,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     marginVertical: 0,
     width: 42,
     height: 42,
-    borderRadius: 100,
+    borderRadius: 4,
   },
   expandedContent: {
     flexDirection: 'row',
@@ -1942,6 +1950,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       <View style={styles.actionContent}>
         <TouchableRipple
           style={styles.actionButton}
+          hitSlop={6}
           onPress={() => {
             router.push(`/habit/${habit.id}`);
           }}
@@ -2060,8 +2069,8 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
             style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
             onPress={onPress ? () => onPress(habit.id) : undefined}
             onPressIn={onPressIn ? () => onPressIn(habit.id) : undefined}
-          onLongPress={onLongPress ? () => onLongPress(habit.id) : undefined}
-          delayLongPress={300}
+            onLongPress={onLongPress ? () => onLongPress(habit.id) : undefined}
+            delayLongPress={400}
           >
             {content}
           </TouchableRipple>
