@@ -1,292 +1,49 @@
-import { Dimensions, FlatList, PixelRatio, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { FlatList, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Divider, Icon, IconButton, ProgressBar, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Icon, IconButton, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
-import Header from '@c/Header';
-import { getHabitCompletion, getHabitPredicateIcon, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { formatNumber, formatValue, forWeb, intersection, range, triggerHaptic } from '@u/helpers';
+import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
+import { formatValue, intersection, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callUpdateHabits, callUpdateMeasurements } from '@s/dataReducer';
+import { callGenerateSampleData, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
-import { NestableDraggableFlatList, NestableScrollContainer, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Status from '@u/constants/Status';
 import { ImpactFeedbackStyle } from 'expo-haptics';
 import { type Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { measure, runOnJS, runOnRuntime, runOnUI, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { useAnimatedRef } from 'react-native-reanimated';
 import useDimensions from '@u/hooks/useDimensions';
-import useGlobalStyles from '@u/hooks/useGlobalStyles';
-import { createFontStyle } from '@u/styles';
+import AnimatedView from '@c/AnimatedView';
+import ArchedProgressBar from '@c/ArchedProgress';
+import DraggableList from '@c/DraggableList';
+import CircularProgress from '@c/CircularProgress';
+import { Pressable } from 'react-native-gesture-handler';
+import { useToday } from '@u/hooks/useToday';
 
 const Recordings = () => {
   const theme = useTheme();
-  const { basePalette, globalPalette, getCombinedPalette } = usePalettes();
-  const styles = createStyles(theme, globalPalette);
-  const globalStyles = useGlobalStyles(theme);
+  const { baseColor, globalPalette, basePalette } = usePalettes();
+  const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
 
   const measurements = useMeasurements();
 
   const habits = useComputedHabits();
-  const activeHabits = habits.filter((h) => !h.archived);
-  const dailyHabits = activeHabits.filter((h) => !h.isWeekly)
-  const weeklyHabits = activeHabits.filter((h) => h.isWeekly);
+  const activeHabits = useMemo(() => habits.filter((h) => !h.archived), [habits]);
+  const dailyHabits = useMemo(() => activeHabits.filter((h) => !h.isWeekly), [activeHabits]);
+  const weeklyHabits = useMemo(() => activeHabits.filter((h) => h.isWeekly), [activeHabits]);
 
-  const today = SimpleDate.today();
-  
+  const today = useToday();
+
   const [selectedDate, setSelectedDate] = useState(today);
   const selectedDayOfWeek = selectedDate.getDayOfWeek();
-  const selectedWeekDates = SimpleDate.generateWeek(selectedDate);
+  const selectedWeekDates = useMemo(() => SimpleDate.generateWeek(selectedDate), [selectedDate]);
   const isToday = selectedDate.equals(today);
 
-  const handleSelectedDateChange = (date: SimpleDate) => {
-    setSelectedDate(date);
-    
-    if (!flatListRef.current) return;
-    flatListRef.current.scrollToIndex({ index: 52, animated: false});
-  }
-
-  const flatListRef = useAnimatedRef<FlatList<{ dates: SimpleDate[]}>>();
-  const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
-
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / timelineWidth);
-    const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
-    setSelectedDate(nextSelectedDate);
-  }, [weeks])
-
-  const { window: dimensions } = useDimensions();
-  const timelineWidth = PixelRatio.roundToNearestPixel(dimensions.width);
-  const timelineFlatList = (
-    <FlatList
-      style={{ width: timelineWidth, flexShrink: 0 }}
-      ref={flatListRef}
-      data={weeks}
-      keyExtractor={( item ) => item.dates[0].toString()}
-      pagingEnabled
-      horizontal
-      initialScrollIndex={52}
-      showsHorizontalScrollIndicator={false}
-      scrollEventThrottle={32}
-      onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
-      getItemLayout={(_, index) => ({
-        length: timelineWidth,
-        offset: timelineWidth * index,
-        index,
-      })}
-      renderItem={({ item }) => {
-        // return (
-        //   <View style={[styles.timelineContainer, { width: timelineWidth }]}>
-        //     <Text variant='bodyMedium' style={styles.timeHeaderText}>
-        //       {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
-        //     </Text>
-        //     <View style={styles.dailyPointTotalContainer}>
-        //       {selectedWeekDates.map((date, index) => {
-        //         const isToday = date.toString() === today.toString();
-        //         const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-        //         const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-        //         const total = daily + weekly;
-        //         const isSelected = index === selectedDayOfWeek;
-        //         const isFuture = date.after(today);
-
-        //         const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
-        //           const recordings = selectedWeekMeasurementValues.get(measurement.id);
-        //           return !recordings || !recordings.length || recordings[index] === null;
-        //         });
-
-        //         const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-        //         const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
-        //         const noMeasurements = isNullRecordings.length === 0;
-        //         const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
-                                  
-        //         const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-        //         return (
-        //           <TouchableRipple
-        //             key={date.toString()}
-        //             style={[
-        //               styles.dailyPoints,
-        //               // isSelected ? styles.dailyPointsSelected : {},
-        //               isToday ? styles.dailyPointsToday : {},
-        //             ]}
-        //             onPress={() => handleSelectedDateChange(date)}
-        //           >
-        //             <>
-        //               <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-        //                 {/* <Text variant='titleMedium'
-        //                   style={[
-        //                     styles.timelineDateDay,
-        //                     isToday && styles.timelineDateDayToday,
-        //                     isSelected && styles.timelineDateDaySelected,
-        //                   ]}
-        //                 >
-        //                   {date.day}
-        //                 </Text> */}
-        //                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        //                   <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-        //                   <Icon
-        //                     source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
-        //                     size={10}
-        //                     color={color}
-        //                   />
-        //                 </View>
-        //                 {isFuture ? (
-        //                   <View style={{ padding: 4 }}>
-        //                     <Icon source={Icons.indeterminate} size={16} color={color} />
-        //                   </View>
-        //                 ) : (
-        //                   <Points
-        //                     style={styles.dailyPointTotal}
-        //                     points={total}
-        //                     size='medium'
-        //                     disabled={!isSelected}
-        //                     color={color}
-        //                   />
-        //                 )}
-        //               </View>
-        //             </>
-        //           </TouchableRipple>
-        //         )
-        //       })}
-        //     </View>
-        //     {displayedHabits.length ? (
-        //       <>
-        //         {!!perWeekPointTarget &&
-        //           <View style={styles.pointsProgressContainer}>
-        //             {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
-        //               <View style={styles.pointsProgressTargetOuter}>
-        //                 <View style={{ flexGrow: daysThisWeek }} />
-        //                 <View style={styles.pointsProgressTarget}>
-        //                   <View style={styles.pointsProgressTargetInner} />
-        //                 </View>
-        //                 <View style={{ flexGrow: 7 - daysThisWeek }} />
-        //               </View>
-        //             )}
-        //             {selectedWeekDates.map((date, index) => {
-        //               const dailyPoints = selectedWeekDailyHabitPointTotals[index];
-        //               const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
-                      
-        //               const isFuture = date.after(today);
-        //               const isSelected = date.equals(selectedDate);
-        //               const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
-        //               return isFuture ? null : (
-        //                 <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
-        //                   <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
-        //                   <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
-        //                   <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
-        //                 </View>
-        //               );
-        //             })}
-        //             <View style={{
-        //               flexDirection: 'row',
-        //               flexBasis: 8,
-        //               flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
-        //               justifyContent: 'flex-end',
-        //               alignItems: 'center',
-        //             }}>
-        //               {/* <View style={{
-        //                 flexGrow: 1,
-        //                 height: 8,
-        //                 borderRadius: 8,
-        //                 backgroundColor: theme.colors.surfaceDisabled,
-        //               }} /> */}
-        //             </View>
-        //           </View>
-        //         }
-        //         <View style={styles.weekPointsContainer}>
-        //           <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
-        //           <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
-        //           <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-        //           <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        //           <View style={{ flexGrow: 1 }} />
-        //           <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
-        //           <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
-        //           <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-        //           <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        //         </View>
-        //       </>
-        //     ) : null}
-        //   </View>
-        // )
-        
-        return (
-          <View style={[styles.timelineContent, { width: timelineWidth }]}>
-            {item.dates.map((date) => {
-              const dayOfWeek = date.getDayOfWeekLabel();
-              const isSelected = date.getDayOfWeek() === selectedDayOfWeek;
-              const isToday = date.equals(today);
-
-              return (
-                <View
-                  key={date.toString()}
-                  style={[
-                    styles.timelineDate,
-                    isToday && styles.timelineDateToday,
-                    // isSelected && globalStyles.elevation1,
-                    isSelected && styles.timelineDateSelected,
-                  ]}
-                >
-                  <Pressable
-                    onPress={() => handleSelectedDateChange(date)}
-                    style={[
-                      styles.timelineDateContainer,
-                      isToday && styles.timelineDateContainerToday,
-                      isSelected && styles.timelineDateContainerSelected,
-                    ]}
-                  >
-                    <>
-                      <View
-                        style={[
-                          styles.timelineDateContent,
-                          isToday && styles.timelineDateContentToday,
-                          isSelected && styles.timelineDateContentSelected,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.timelineDateDayOfWeek,
-                            isToday && styles.timelineDateDayOfWeekToday,
-                            isSelected && styles.timelineDateDayOfWeekSelected,
-                          ]}
-                          >
-                          {dayOfWeek.toUpperCase()}
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                          {isToday && <View
-                            style={[
-                              styles.todayIndicator,
-                              isSelected && styles.todayIndicatorToday,
-                            ]}
-                          />}
-                          <Text variant='titleMedium'
-                            style={[
-                              styles.timelineDateDay,
-                              isToday && styles.timelineDateDayToday,
-                              isSelected && styles.timelineDateDaySelected,
-                            ]}
-                          >
-                            {date.day}
-                          </Text>
-                        </View>
-                      </View>
-                    </>
-                  </Pressable>
-                </View>
-              )
-            })}
-          </View>
-        )
-      }}
-    />
-  )
-
-
-  const [isMeasurementMenuVisible, setIsMeasurementMenuVisible] = useState(false);
   const [showArchivedMeasurements, setShowArchivedMeasurements] = useState(false);
   const [isReorderingMeasurements, setIsReorderingMeasurements] = useState(false);
   const [measurementPriorityOverrides, setMeasurementPriorityOverrides] = useState<string[] | null>(null);
@@ -297,8 +54,10 @@ const Recordings = () => {
     .filter((m) => !!m)
   : measurements;
 
-  const displayedMeasurements = orderedMeasurements
-    .filter(m => !m.archived || showArchivedMeasurements);
+  const displayedMeasurements = useMemo(
+    () => orderedMeasurements.filter(m => !m.archived || showArchivedMeasurements),
+    [orderedMeasurements, showArchivedMeasurements]
+  );
   const [expandedMeasurements, setExpandedMeasurements] = useState(new Set());
   const displayedMeasurementIds = displayedMeasurements.map(({ id }) => id);
   const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
@@ -319,44 +78,46 @@ const Recordings = () => {
     dispatch(callUpdateMeasurements(updatedMeasurements));
   }
 
+  const toggleMeasurementArchived = (measurement: Measurement, archived: boolean) => {
+    const updatedMeasurement = { ...measurement, archived };
+    dispatch(callUpdateMeasurement(updatedMeasurement));
+  }
+
   const measurementMenuItems: BottomDrawerItem<string>[] = [
     {
-      icon: Icons.measurement,
-      title: 'Create',
+      icon: Icons.add,
+      title: 'CREATE',
       value: 'create',
-      subtitle: 'Define a new measurement.',
+      // subtitle: 'Define a new measurement.',
     },
     {
       icon: Icons.move,
-      title: isReorderingMeasurements ? 'Save order' : 'Reorder',
+      title: 'REORDER',
       value: 'reorder',
-      subtitle: isReorderingMeasurements ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
-      disabled: measurements.length <= 1,
+      // subtitle: isReorderingMeasurements ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
     },
     {
-      icon: Icons.expand,
-      title: `Expand all`,
-      subtitle: `Show all expanded content.`,
-      value: 'expand',
-      disabled: areAllMeasurementsExpanded,
-    },
-    {
-      icon: Icons.collapse,
-      title: `Collapse all`,
-      subtitle: `Hide all expanded content.`,
-      value: 'collapse',
-      disabled: expandedMeasurements.size === 0,
-    },
-    {
-      icon: showArchivedMeasurements ? Icons.hide : Icons.show,
-      title: `${showArchivedMeasurements ? 'Hide' : 'Show'} archived`,
-      subtitle: `Toggle the visibility of archived measurements.`,
+      icon: Icons.show,
+      title: `HIDE / SHOW`,
+      // subtitle: showArchivedMeasurements ? `Disable archiving mode.` : 'Enable archiving mode.',
       value: 'visibility',
     },
     {
+      icon: Icons.expand,
+      title: `EXPAND ALL`,
+      // subtitle: `Show all expanded content.`,
+      value: 'expand',
+    },
+    {
+      icon: Icons.collapse,
+      title: `COLLAPSE ALL`,
+      // subtitle: `Hide all expanded content.`,
+      value: 'collapse',
+    },
+    {
       icon: Icons.delete,
-      title: `Reset recordings`,
-      subtitle: `Delete recorded values for the current day.`,
+      title: `RESET DAY`,
+      // subtitle: `Delete recorded values for the current day.`,
       value: 'reset',
     },
   ];
@@ -365,6 +126,8 @@ const Recordings = () => {
   const [showArchivedHabits, setShowArchivedHabits] = useState(false);
   const [isReorderingHabits, setIsReorderingHabits] = useState(false);
   const [habitPriorityOverrides, setHabitPriorityOverrides] = useState<string[] | null>(null);
+
+  
 
   const orderedHabits = habitPriorityOverrides?.length
   ? habitPriorityOverrides
@@ -393,43 +156,50 @@ const Recordings = () => {
     dispatch(callUpdateHabits(updatedHabits));
   }
 
+  const toggleHabitArchived = (habit: ComputedHabit, archived: boolean) => {
+    const updatedHabit = { ...habit, archived };
+    dispatch(callUpdateHabit(updatedHabit));
+  }
+
   const habitMenuItems: BottomDrawerItem<string>[] = [
     {
-      icon: Icons.habit,
-      title: 'Create',
+      icon: Icons.add,
+      title: 'CREATE',
       value: 'create',
-      subtitle: 'Define a new habit.',
+      // subtitle: 'Define a new habit.',
     },
     {
       icon: Icons.move,
-      title: isReorderingHabits ? 'Save order' : 'Reorder',
+      title: 'REORDER',
       value: 'reorder',
-      subtitle: isReorderingHabits ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
-      disabled: habits.length <= 1,
+      // subtitle: isReorderingHabits ? 'Disable drag and drop mode.' : 'Enable drag and drop mode.',
+    },
+    {
+      icon: Icons.show,
+      title: `SHOW / HIDE`,
+      // subtitle: showArchivedHabits ? `Disable archiving mode.` : 'Enable archiving mode.',
+      value: 'visibility',
     },
     {
       icon: Icons.expand,
-      title: `Expand all`,
-      subtitle: `Show all expanded content.`,
+      title: `EXPAND ALL`,
+      // subtitle: `Show all expanded content.`,
       value: 'expand',
-      disabled: areAllHabitsExpanded,
     },
     {
       icon: Icons.collapse,
-      title: `Collapse all`,
-      subtitle: `Hide all expanded content.`,
+      title: `COLLAPSE ALL`,
+      // subtitle: `Hide all expanded content.`,
       value: 'collapse',
-      disabled: expandedHabits.size === 0,
     },
     {
-      icon: showArchivedHabits ? Icons.hide : Icons.show,
-      title: `${showArchivedHabits ? 'Hide' : 'Show'} archived`,
-      subtitle: `Toggle the visibility of archived habits.`,
-      value: 'visibility',
+      icon: Icons.delete,
+      title: `RESET DAY`,
+      // subtitle: `Delete recorded values for the current day.`,
+      value: 'reset',
     },
   ];
-  const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
-  const addMenuItems: BottomDrawerItem<string>[] = [
+  const addMenuItems: BottomDrawerItem<string>[] = useMemo(() => [
     {
       icon: Icons.measurement,
       title: 'Measurement',
@@ -443,23 +213,29 @@ const Recordings = () => {
       subtitle: 'Recurring targets to define goals and score progress.',
       disabled: measurements.length === 0,
     }
-  ];
+  ], [measurements.length]);
 
   const [tempRecordingsMap, setTempRecordingsMap] = useState<Map<string, Map<string, number | null>>>(new Map());
-  const mergedRecordingsMap = new Map(measurements.map(({ id, recordings}) => [
-    id,
-    new Map<string, number | null>(recordings.map(({ date, value }) => [
-      date,
-      value,
-    ])),
-  ]));
-  [...tempRecordingsMap.entries()].forEach(([id, recordingsMap]) => {
-    const mergedRecordings = mergedRecordingsMap.get(id) || new Map<string, number | null>();
-    [...recordingsMap.entries()].forEach(([date, value]) => {
-      mergedRecordings.set(date, value);
+  const mergedRecordingsMap = useMemo(() => {
+    const result = new Map(measurements.map(({ id, recordings}) => [
+      id,
+      new Map<string, number | null>(recordings.map(({ date, value }) => [
+        date,
+        value,
+      ])),
+    ]));
+
+    [...tempRecordingsMap.entries()].forEach(([id, recordingsMap]) => {
+      const mergedRecordings = result.get(id) || new Map<string, number | null>();
+      [...recordingsMap.entries()].forEach(([date, value]) => {
+        mergedRecordings.set(date, value);
+      });
+      result.set(id, mergedRecordings);
     });
-    mergedRecordingsMap.set(id, mergedRecordings);
-  });
+
+    return result;
+  }, [measurements, tempRecordingsMap]);
+  
 
   const selectedWeekHabitCompletionMaps = [
     new Map<string, boolean>(),
@@ -470,52 +246,51 @@ const Recordings = () => {
     new Map<string, boolean>(),
     new Map<string, boolean>(),
   ];
-  const selectedWeekDailyHabitPointTotals = selectedWeekDates.map((date, index) => {
+  const selectedWeekDailyHabitPointTotals = useMemo(() => selectedWeekDates.map((date, index) => {
     return date.after(today) ? 0 : dailyHabits.reduce((previous: number, habit: ComputedHabit) => {
       const [complete, _, __] = getHabitCompletion(habit, measurements, [date], mergedRecordingsMap);  
       selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
       return previous + (complete ? habit.points : 0);
     }, 0);
-  });
+  }), [selectedWeekDates, today, dailyHabits, measurements, mergedRecordingsMap]);
   
-  const selectedWeekWeeklyHabitPointTotals = [0, 0, 0, 0, 0, 0, 0];
-  weeklyHabits.forEach((habit) => {
-    selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
-      const dates = selectedWeekDates.slice(0, index + 1);
-      const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
-      selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
+  const selectedWeekWeeklyHabitPointTotals = useMemo(() => {
+    const totals = [0, 0, 0, 0, 0, 0, 0];
+    weeklyHabits.forEach((habit) => {
+      selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
+        const dates = selectedWeekDates.slice(0, index + 1);
+        const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
+        selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
 
-      if (complete) selectedWeekWeeklyHabitPointTotals[index] += habit.points;
-      return complete;
+        if (complete) totals[index] += habit.points;
+        return complete;
+      });
     });
-  });
-  const selectedWeekHabitPointTotals = selectedWeekWeeklyHabitPointTotals.map((curr, index) => curr + (selectedWeekDailyHabitPointTotals[index] || 0));
+    return totals;
+  }, [selectedWeekDates, today, weeklyHabits, measurements, mergedRecordingsMap]);
 
-  // const selectedDatePointTotal = (
-  //   selectedWeekDailyHabitPointTotals[selectedDayOfWeek]
-  //   + selectedWeekWeeklyHabitPointTotals[selectedDayOfWeek]
-  // );
-
-  // const selectedDateCumulativePointTotal = (
-  //   selectedWeekDailyHabitPointTotals.slice(0, selectedDayOfWeek + 1).reduce((previous: number, current: number) => previous + current, 0)
-  //   + selectedWeekWeeklyHabitPointTotals.slice(0, selectedDayOfWeek + 1).reduce((previous: number, current: number) => previous + current, 0)
-  // );
+  const selectedWeekHabitPointTotals = useMemo(
+    () => selectedWeekWeeklyHabitPointTotals.map((curr, index) => curr + (selectedWeekDailyHabitPointTotals[index] || 0)),
+    [selectedWeekWeeklyHabitPointTotals, selectedWeekDailyHabitPointTotals]
+  );
 
   const selectedWeekPointTotal = selectedWeekHabitPointTotals.reduce((acc, curr) => acc + curr, 0);
   const perWeekPointTarget = activeHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
   }, 0);
 
-  // const weekProgressTarget = Math.max(selectedWeekPointTotal, perWeekPointTarget);
   const daysThisWeek = Math.min(SimpleDate.daysBetween(today, selectedWeekDates[0]) + 1, 7);
 
-  const selectedWeekMeasurementValues = new Map<string, (number | null)[]>();
-  measurements.forEach(({ id }) => {
-    const values = selectedWeekDates.map((date) => {
-      return getMeasurementRecordingValue(id, date, measurements, mergedRecordingsMap);
+  const selectedWeekMeasurementValues = useMemo(() => {
+    const valueMap = new Map<string, (number | null)[]>();
+    measurements.forEach(({ id }) => {
+      const values = selectedWeekDates.map((date) => {
+        return getMeasurementRecordingValue(id, date, measurements, mergedRecordingsMap);
+      });
+      valueMap.set(id, values);
     });
-    selectedWeekMeasurementValues.set(id, values);
-  });
+    return valueMap;
+  }, [measurements, selectedWeekDates, mergedRecordingsMap]);
 
   const dispatch = useDispatch();
   const updateRecordings = useRef<null | NodeJS.Timeout>(null);
@@ -558,9 +333,12 @@ const Recordings = () => {
   }
   
   const clearRecordings = (date = selectedDate) => {
+    setTempRecordingsMap(new Map());
+    if (updateRecordings.current) clearTimeout(updateRecordings.current);
+
     const updatedMeasurements: Measurement[] = [];
     measurements.forEach((measurement) => {
-      const nextRecordings = [...measurement.recordings].filter((recording) => recording.date !== date.toString());
+      const nextRecordings = measurement.recordings.filter((recording) => recording.date !== date.toString());
       if (nextRecordings.length !== measurement.recordings.length) updatedMeasurements.push({ ...measurement, recordings: nextRecordings });
     });
     
@@ -610,7 +388,7 @@ const Recordings = () => {
   const handleLongPressPrevious = (selectedDate: SimpleDate, delay: number = 250) => {
     triggerHaptic('impact', ImpactFeedbackStyle.Light);
     const nextSelectedDate = selectedDate.getDaysAgo(7);
-    setSelectedDate(nextSelectedDate);
+    handleDateSelection(nextSelectedDate, false);
     
     const nextDelay = Math.max(delay - 25, 100);
     longPressPreviousTimeout.current = setTimeout(() => handleLongPressPrevious(nextSelectedDate, nextDelay), delay);
@@ -619,189 +397,171 @@ const Recordings = () => {
   const handleLongPressNext = (selectedDate: SimpleDate, delay: number = 250) => {
     triggerHaptic('impact', ImpactFeedbackStyle.Light);
     const nextSelectedDate = selectedDate.getDaysAgo(-7);
-    setSelectedDate(nextSelectedDate);
+    handleDateSelection(nextSelectedDate, false);
     
     const nextDelay = Math.max(delay - 25, 100);
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
-
-  const measurementsWithStartDates = useMemo(() => {
-    const result: [Measurement, SimpleDate][] = [];
-    displayedMeasurements.map((measurement) => {
-      const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
-      if (measurement.type !== 'combo' && startDate) result.push([measurement, SimpleDate.fromString(startDate)]);
-    });
-    return result;
-  }, [displayedMeasurements, measurements, mergedRecordingsMap]);
-
-  const measurementStatuses = (
-    <View style={styles.measurementsStatusContainer}>
-      {selectedWeekDates.map((date, index) => {
-        const isSelected = index === selectedDayOfWeek;
-        const isFuture = date.after(today);
-
-        const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
-          const recordings = selectedWeekMeasurementValues.get(measurement.id);
-          return !recordings || !recordings.length || recordings[index] === null;
-        });
-
-        const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-        const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
-        const noMeasurements = isNullRecordings.length === 0;
-        const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
-
-        const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-        const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-        const total = daily + weekly;
-        
-        const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-        return (
-          <View
-            key={date.toString()}
-            style={[
-              styles.measurementsStatus,
-              isSelected ? styles.measurementsStatusSelected : {},
-            ]}
-          >
-            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-end' }}> */}
-            {/* <View style)={{ width: 1, borderRadius: 100, backgroundColor: color, alignSelf: 'stretch' }} /> */}
-            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-start' }}> */}
-            <View>
-              <Icon
-                source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
-                size={14}
-                color={color}
-              />
-            </View>
-            {/* <View
-              style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
-            > */}
-              {/* {isSelected
-                ? <>
-                  {filteredMeasurements.map((measurement, index) => {
-                    const palette = getCombinedPalette(measurement.baseColor);
-                    const isNull = isNullRecordings[index];
-                    return !isNull && <View
-                      style={[styles.measurementsProgressPiece, {
-                        backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
-                      }]}
-                    />
-                  })}
-                  {filteredMeasurements.map((measurement, index) => {
-                    const isNull = isNullRecordings[index];
-                    return isNull && <View
-                      style={[styles.measurementsProgressPiece, {
-                        // backgroundColor: theme.colors.surfaceDisabled,
-                      }]}
-                    />
-                  })}
-                </>
-                : <View
-                style={[styles.measurementsProgressBar, {
-                  width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                  backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
-                }]}
-              />
-              } */}
-              {/* <View
-                  style={[styles.measurementsProgressBar, {
-                    width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                    backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
-                  }]}
-                />
-            </View> */}
-            {/* <ProgressBar
-              style={styles.measurementsProgressBar}
-              color={isSelected ? globalPalette.primary : globalPalette.alt}
-              progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
-            /> */}
-          </View>
-        )
-      })}
-    </View>
-  );
-
-  // const weeklyPoints = (
-  //   <>
-  //     {selectedWeekDates.map((date) => {
-        
-
-  //       return (
-  //         <>
-  //           {isFuture ? (
-  //             <View style={{ padding: 4 }}>
-  //               <Icon source={Icons.indeterminate} size={16} color={color} />
-  //             </View>
-  //           ) : (
-  //             <Points
-  //               style={styles.dailyPointTotal}
-  //               points={total}
-  //               size='medium'
-  //               disabled={!isSelected}
-  //               color={color}
-  //             />
-  //           )}
-  //         </>
-  //       )
-  //     })}
-  //   </>
-  // )
-
-  const measurementDailyProgressSection = (() => {
-    const filteredMeasurements = displayedMeasurements.filter((measurement) => {
-      const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
-      return startDate && selectedDate.toString() >= startDate;
-    });
-
-    const isNullRecordings = filteredMeasurements.map((measurement) => {
-      const recordings = selectedWeekMeasurementValues.get(measurement.id);
-      return !recordings || !recordings.length || recordings[selectedDayOfWeek] === null;
-    });
-    
-    const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-    const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
-
-    return (
-      <View>
-        <View style={styles.measurementDailyProgress}>
-          {filteredMeasurements.map((measurement, index) => {
-            
-            const isNull = isNullRecordings[index];
-            const palette = getCombinedPalette(measurement.baseColor);
   
-            const color = palette.primary;
-            return (
-              <View
-                key={measurement.id.toString()}
-                style={[
-                  styles.measurementDailyProgressIcon,
-                ]}
-              >
-                <View>
-                  <Icon
-                    source={isNull ? Icons.progressNone : Icons.progressComplete}
-                    size={8}
-                    color={color}
-                  />
-                </View>
-              </View>
-            )
-          })}
-        </View>
-        <View style={styles.weekPointsContainer}>
-          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Day</Text>
-          <View style={{ flexGrow: 1 }} />
-          <Text variant='titleSmall'>{formatNumber(nonNullRecordingCount, 0)}</Text>
-          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-          <Text variant='titleSmall'>{formatNumber(filteredMeasurements.length, 0)}</Text>
-        </View>
-      </View>
-    );
-  })();
+  const flatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
+  const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
 
-  const measurementWeeklyProgressSection = (() => {
-    const measurementCounts: number[] = [];
-    const measurementCompletions: number[] = [];
+  const handleDateSelection = (date: SimpleDate, updateState: boolean = true) => {
+    const firstDate = weeks[0].dates[0];
+    const delta = SimpleDate.daysBetween(date, firstDate);
+    const weekIndex = Math.floor(delta / 7);
+    flatListRef.current?.scrollToIndex({ index: weekIndex });
+    updateState && setSelectedDate(date);
+  }
+
+  const { window: dimensions } = useDimensions();
+  const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(108), []);
+  const timelineWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / timelineWidth);
+    const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
+    setSelectedDate(nextSelectedDate);
+  }, [weeks, selectedDayOfWeek, timelineWidth])
+
+  const timelineWeeks = weeks.map((week) => {
+    return {
+      week,
+      elements: week.dates.map((date) => {
+        const daysBetween = SimpleDate.daysBetween(date, selectedDate);
+        const isNearSelection = Math.abs(daysBetween) <= 14;
+        const isSelected = isNearSelection && date.getDayOfWeek() === selectedDayOfWeek;
+        const isToday = date.equals(today);
+        
+        return useMemo(() => { 
+          return (
+            <Pressable
+              key={date.toString()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => handleDateSelection(date)}
+              style={[
+                styles.timelineDateContainer,
+                isToday && styles.timelineDateContainerToday,
+                isSelected && styles.timelineDateContainerSelected,
+              ]}
+            >
+              <>
+                <View
+                  style={[
+                    styles.timelineDateContent,
+                    isToday && styles.timelineDateContentToday,
+                    isSelected && styles.timelineDateContentSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.timelineDateDayOfWeek,
+                      isToday && styles.timelineDateDayOfWeekToday,
+                      isSelected && styles.timelineDateDayOfWeekSelected,
+                    ]}
+                    variant='labelLarge'
+                  >
+                    {date.getDayOfWeekLabel()}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
+                    {isToday && <View
+                      style={[
+                        styles.todayIndicator,
+                        isSelected && styles.todayIndicatorToday,
+                      ]}
+                    />}
+                    <Text variant='titleMedium'
+                      style={[
+                        styles.timelineDateDay,
+                        isToday && styles.timelineDateDayToday,
+                        isSelected && styles.timelineDateDaySelected,
+                      ]}
+                    >
+                      {date.day}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            </Pressable>
+          );
+        }, [date, isToday, isSelected, styles]);
+      })
+    }
+  });
+
+  const timeline = useMemo(() => {
+    return (
+      <FlatList
+        style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
+        ref={flatListRef}
+        data={timelineWeeks}
+        keyExtractor={({ week }) => week.dates[0].toString()}
+        pagingEnabled
+        initialScrollIndex={52}
+        horizontal
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
+        getItemLayout={(_, index) => ({
+          length: timelineWidth,
+          offset: timelineWidth * index,
+          index,
+        })}
+        renderItem={({ item }) => {
+          return (
+            <View style={[styles.timelineContent, { height: timelineHeight, width: timelineWidth }]}>
+              {item.elements}
+            </View>
+          )
+        }}
+      />
+    );
+  }, [weeks, timelineWidth, timelineHeight, styles, selectedDate]);
+
+  const renderTimelineHeader = () => {
+    return (
+      <View style={styles.timelineHeader}>
+        <IconButton
+          style={styles.timelineHeaderButton}
+          icon={Icons.left}
+          onPress={() => {
+            triggerHaptic('selection');
+            handleDateSelection(selectedDate.getDaysAgo(7), false);
+          }}
+          onLongPress={() => handleLongPressPrevious(selectedDate)}
+          onPressOut={() => {
+            if (longPressPreviousTimeout.current === null) return;
+            clearTimeout(longPressPreviousTimeout.current);
+            longPressPreviousTimeout.current = null;
+          }}
+          delayLongPress={400}
+          size={20}
+        />
+        <IconButton
+          style={styles.timelineHeaderButton}
+          icon={Icons.right}
+          onPress={() => {
+            triggerHaptic('selection');
+            handleDateSelection(selectedDate.getDaysAgo(-7), false);
+          }}
+          onLongPress={() => handleLongPressNext(selectedDate)}
+          onPressOut={() => {
+            if (longPressNextTimeout.current === null) return;
+            clearTimeout(longPressNextTimeout.current);
+            longPressNextTimeout.current = null;
+          }}
+          delayLongPress={400}
+          size={20}
+        />
+      </View>
+    )
+  }
+
+  const [measurementCounts, measurementCompletions] = useMemo(() => {
+    const counts: number[] = [];
+    const completions: number[] = [];
     selectedWeekDates.forEach((date, index) => {
       const isFuture = date.after(today);
       const filteredMeasurements = displayedMeasurements.filter((measurement) => {
@@ -817,821 +577,389 @@ const Recordings = () => {
       const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
       const noMeasurements = filteredMeasurements.length === 0;
       
-      
-      measurementCompletions[index] = noMeasurements || isFuture ? 0 : nonNullRecordingCount;
-      measurementCounts[index] = filteredMeasurements.length;
+      completions[index] = noMeasurements || isFuture ? 0 : nonNullRecordingCount;
+      counts[index] = filteredMeasurements.length;
     });
+    return [counts, completions];
+  }, [measurements, selectedWeekDates, displayedMeasurements, selectedWeekMeasurementValues, mergedRecordingsMap, today]);
 
-    const weekMeasurementCount = measurementCounts.reduce((acc, curr) => acc + curr, 0);
-    const weekMeasurementCompletions = measurementCompletions.reduce((acc, curr) => acc + curr, 0);
+  const [contentSwitchValue, setContentSwitchValue] = useState(0);
+  const showMeasurements = contentSwitchValue === 0;
+  const showHabits = !showMeasurements;
 
+  const isReordering = (showMeasurements && isReorderingMeasurements) || (showHabits && isReorderingHabits);
+  const isArchiving = (showMeasurements && showArchivedMeasurements) || (showHabits && showArchivedHabits);
+  const contentSwitch = useMemo(() => {
+    const isDisabled = isReordering || isArchiving;
+
+    let switchColor = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
+    if (isDisabled) switchColor = theme.colors.surfaceDisabled;
+    else if (baseColor) switchColor = globalPalette.backdrop;
+  
     return (
-      <View>
-        <View style={styles.measurementsStatusContainer}>
+      <View style={{
+        marginHorizontal: -4,
+        borderRadius: 0,
+        backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
+        overflow: 'hidden',
+        paddingHorizontal: 12,
+        paddingTop: 8,
+        paddingBottom: 8,
+        alignSelf: 'stretch'
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center'}}>
+          <AnimatedView
+            style={{
+              position: 'absolute',
+              height: '100%',
+              width: '50%',
+              backgroundColor: switchColor,
+              borderRadius: 4,
+              opacity: isDisabled ? 0.5 : 1,
+            }}
+            startLeft={0}
+            endLeft={50}
+            isSpring
+            isEnd={showHabits}
+          />
+          <Pressable
+            style={[
+              { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+            ]}
+            onPressIn={() => setContentSwitchValue(0)}
+            disabled={isDisabled}
+          >
+            <View>
+              <Icon source={Icons.measurement} size={14} color={showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
+            </View>
+            <Text variant='labelLarge' style={[
+              { color: showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
+            ]}>
+              MEASUREMENTS
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+            ]}
+            onPressIn={() => setContentSwitchValue(1)}
+            disabled={isDisabled}
+          >
+            <View>
+              <Icon source={Icons.habit} size={14} color={showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
+            </View>
+            <Text variant='labelLarge' style={[
+              { color: showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
+            ]}>
+              HABITS
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    )
+  }, [isReordering, isArchiving, baseColor, showMeasurements, showHabits, styles]);
+
+  const timelineStatuses = useMemo(() => {
+    return displayedMeasurements.length > 0 && (
+      <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
+        <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
+            const isToday = date.toString() === today.toString();
             const isSelected = index === selectedDayOfWeek;
+            const isFuture = date.after(today);            
+            const measurementCount = measurementCounts[index];
+            const measurementCompletion = measurementCompletions[index];
             
-            const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
+            const color = isSelected ? theme.colors.onSurface : basePalette.disabled;
+            const daily = selectedWeekDailyHabitPointTotals[index] || 0;
+            const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
+            const total = daily + weekly;
             return (
-              <View
-                key={date.toString()}
+              <Pressable
+                key={'h' + date.toString()}
                 style={[
-                  styles.measurementsStatus,
-                  isSelected ? styles.measurementsStatusSelected : {},
+                  styles.dailyPointsContainer,
+                  isToday && styles.dailyPointsContainerToday,
+                  isSelected && styles.dailyPointsContainerSelected,
                 ]}
+                onPress={() => handleDateSelection(date)}
               >
-                <View>
+                {(isFuture || measurementCount === 0) && (
                   <Icon
-                    source={measurementCompletions[index] === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletions[index] / measurementCounts[index])}
-                    size={12}
+                    source={Icons.indeterminate}
+                    size={14}
                     color={color}
                   />
-                </View>
-              </View>
-            )
+                )}
+                {!isFuture && measurementCount > 0 && (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                      <CircularProgress
+                        size={20}
+                        strokeWidth={2}
+                        progress={measurementCompletion / measurementCount}
+                        color={color}
+                        trackColor={theme.colors.surfaceDisabled}
+                        icon={Icons.measurement}
+                        iconColor={measurementCompletion === measurementCount ? color : theme.colors.surfaceDisabled}
+                      />
+                    </View>
+                    {displayedHabits.length > 0 && <Points
+                      style={styles.dailyPointTotal}
+                      points={total}
+                      size='medium'
+                      inline
+                      color={color}
+                    />}
+                  </>
+                )}
+              </Pressable>
+            );
           })}
         </View>
-        <View style={styles.weekPointsContainer}>
-          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Week</Text>
-          <View style={{ flexGrow: 1 }} />
-          <Text variant='titleSmall'>{formatNumber(weekMeasurementCompletions, 0)}</Text>
-          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-          <Text variant='titleSmall'>{formatNumber(weekMeasurementCount, 0)}</Text>
+      </View>
+    )
+  }, [
+    displayedMeasurements.length,
+    displayedHabits.length,
+    selectedWeekDates,
+    selectedWeekDailyHabitPointTotals,
+    selectedWeekWeeklyHabitPointTotals,
+    measurementCounts,
+    measurementCompletions,
+    selectedWeekPointTotal,
+    perWeekPointTarget,
+    daysThisWeek,
+    styles,
+    theme,
+    basePalette,
+  ]);
+
+  const habitProgressBar = useMemo(() => {
+    return displayedHabits.length > 0 && (
+      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 8, marginBottom: 32, gap: 12, alignItems: 'center' }}>
+        <ArchedProgressBar
+          width={dimensions.width - 40}
+          strokeWidth={6}
+          backgroundColor={theme.colors.elevation.level3}
+          progress={selectedWeekPointTotal / perWeekPointTarget}
+          progressColor={globalPalette.primary}
+          progressTarget={daysThisWeek < 7 ? daysThisWeek / 7 : 0}
+          progressTargetColor={theme.colors.surfaceDisabled}
+          tickCount={0}
+          tickLength={2}
+          tickWidth={3}
+          tickColor={theme.colors.onSurfaceDisabled}
+        />
+        <View style={{ position: 'absolute', width: '100%', top: 16, left: 0, overflow: 'visible' }}>
+          <View style={{ alignSelf: 'center' }}>
+            <View style={styles.weekPointsContainer}>
+              <Points inline size={'x-large'} style={{ width: 48 }} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+              <Text variant='bodyMedium' style={styles.weekPointsDivider}>/</Text>
+              <Text variant='bodyLarge' style={{ textAlign: 'right' }}>{perWeekPointTarget}</Text>
+            </View>
+          </View>
         </View>
       </View>
     );
-  })();
+  }, [displayedHabits.length, dimensions.width, selectedWeekPointTotal, perWeekPointTarget, daysThisWeek, styles]);
 
-  const habitStatuses = (
-    <View style={styles.measurementsStatusContainer}>
-      {selectedWeekDates.map((date, index) => {
-        const isSelected = index === selectedDayOfWeek;
-        const isFuture = date.after(today);
-        const filteredMeasurements = displayedMeasurements.filter((measurement) => {
-          const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingsMap);
-          return measurement.type !== 'combo' && startDate && date.toString() >= startDate;
-        });
+  const renderSectionTitle = useCallback(() => {
+    const buttonStyle: ViewStyle = {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexDirection: 'row',
+      overflow: 'hidden',
+      marginTop: 0,
+      marginBottom: 0,
+      gap: 8,
+      height: 40,
+      borderRadius: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: globalPalette.backdrop,
+    };
 
-        const isNullRecordings = filteredMeasurements.map((measurement) => {
-          const recordings = selectedWeekMeasurementValues.get(measurement.id);
-          return !recordings || !recordings.length || recordings[index] === null;
-        });
-
-        const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-        const nonNullRecordingCount = filteredMeasurements.length - nullRecordingCount;
-        const noMeasurements = filteredMeasurements.length === 0;
-        const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length;
-
-        const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-        const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-        const total = daily + weekly;
-        
-        const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-        return (
-          <View
-            key={date.toString()}
-            style={[
-              styles.measurementsStatus,
-              isSelected ? styles.measurementsStatusSelected : {},
-            ]}
+    if (isReordering || isArchiving) {
+      return (
+        <View style={{ width: '100%', alignItems: 'flex-end', flexDirection: 'row'}}>
+          <TouchableRipple
+            onPress={() => {
+              if (showMeasurements) {
+                if (isArchiving) {
+                  setShowArchivedMeasurements(false);
+                } else if (isReordering) {
+                  submitMeasurementOrder();
+                  setIsReorderingMeasurements(false);
+                }
+              } else if (showHabits) {
+                if (isArchiving) {
+                  setShowArchivedHabits(false);
+                } else if (isReordering) {
+                  submitHabitOrder();
+                  setIsReorderingHabits(false);
+                }
+              }
+            }}
+            style={buttonStyle}
           >
-            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-end' }}> */}
-            {/* <View style)={{ width: 1, borderRadius: 100, backgroundColor: color, alignSelf: 'stretch' }} /> */}
-            {/* <View style={{ flexShrink: 1, width: '100%', alignItems: 'flex-start' }}> */}
-            <View>
-              {isFuture || noMeasurements ? (
-                <View style={{ padding: 5 }}>
-                  <Icon source={Icons.indeterminate} size={14} color={color} />
-                </View>
-              ) : (
-                <Points
-                  style={styles.dailyPointTotal}
-                  points={total}
-                  size='medium'
-                  disabled={!isSelected}
-                  color={color}
-                  inline
-                />
-              )}
-            </View>
-            {/* <View
-              style={[styles.measurementsProgressBar, isSelected && styles.measurementsProgressBarSelected ]}
-            > */}
-              {/* {isSelected
-                ? <>
-                  {filteredMeasurements.map((measurement, index) => {
-                    const palette = getCombinedPalette(measurement.baseColor);
-                    const isNull = isNullRecordings[index];
-                    return !isNull && <View
-                      style={[styles.measurementsProgressPiece, {
-                        backgroundColor: isNull ? theme.colors.surfaceDisabled : globalPalette.primary,
-                      }]}
-                    />
-                  })}
-                  {filteredMeasurements.map((measurement, index) => {
-                    const isNull = isNullRecordings[index];
-                    return isNull && <View
-                      style={[styles.measurementsProgressPiece, {
-                        // backgroundColor: theme.colors.surfaceDisabled,
-                      }]}
-                    />
-                  })}
-                </>
-                : <View
-                style={[styles.measurementsProgressBar, {
-                  width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                  backgroundColor: isSelected ? globalPalette.primary : globalPalette.alt,
-                }]}
-              />
-              } */}
-              {/* <View
-                  style={[styles.measurementsProgressBar, {
-                    width: `${100 * (noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length)}%`,
-                    backgroundColor: isSelected ? globalPalette.primary : nullRecordingCount ? theme.colors.surfaceDisabled : globalPalette.alt,
-                  }]}
-                />
-            </View> */}
-            {/* <ProgressBar
-              style={styles.measurementsProgressBar}
-              color={isSelected ? globalPalette.primary : globalPalette.alt}
-              progress={noMeasurements || isFuture ? 0 : nonNullRecordingCount / filteredMeasurements.length}
-            /> */}
-          </View>
-        )
-      })}
-    </View>
-  );
-  
-  const habitProgressSection = displayedHabits.length ? !!perWeekPointTarget &&
-    <>
-      <View style={styles.pointsProgressContainer}>
-        {!today.after(selectedWeekDates[5]) && !today.before(selectedWeekDates[0]) && (
-          <View style={styles.pointsProgressTargetOuter}>
-            <View style={{ flexGrow: daysThisWeek }} />
-            <View style={styles.pointsProgressTarget}>
-              <View style={styles.pointsProgressTargetInner} />
-            </View>
-            <View style={{ flexGrow: 7 - daysThisWeek }} />
-          </View>
-        )}
-        {selectedWeekDates.map((date, index) => {
-          const dailyPoints = selectedWeekDailyHabitPointTotals[index];
-          const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
-          
-          const isFuture = date.after(today);
-          const isSelected = date.equals(selectedDate);
-          const backgroundColor = globalPalette.primary;
-          return isFuture ? null : (
-            <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
-              {/* <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} /> */}
-              {/* <View style={[styles.pointsProgressBarEnd, { right: -2 }]} /> */}
-              {/* <View style={[styles.pointsProgressBarBackdrop]} /> */}
-              <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
-            </View>
-          );
-        })}
-        <View style={{
-          flexDirection: 'row',
-          flexBasis: 8,
-          flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-        }}>
+            <>
+              <Icon source={Icons.complete} size={16} color={theme.colors.onSurface} />
+              <Text variant='labelLarge' style={{ textTransform: 'uppercase' }}>Done</Text>
+            </>
+          </TouchableRipple>
         </View>
-      </View>
-      <View style={styles.weekPointsContainer}>
-        <View style={{ flexGrow: 1 }} />
-        {/* <Text variant='bodySmall' style={styles.weekPointsLabel}>Day</Text>
-        <Points size={'small'} points={selectedWeekHabitPointTotals[selectedDayOfWeek]} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        <View style={{ flexGrow: 0, width: 12 }} /> */}
-        <Text variant='bodySmall' style={styles.weekPointsLabel}>Week</Text>
-        <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
-        <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-        <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        {/* <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
-        <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
-        <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-        <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} /> */}
-      </View>
-    </> : null;
+      );
+    }
 
+    return (
+      <>
+        {isToday && <Text variant='bodyMedium' style={{ }}>TODAY</Text>}
+        <Text variant='titleLarge' style={{ }}>{selectedDate.toFormattedString(true, false, true)}</Text>
+      </>
+    );
+  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles]);
 
-  const habitDailyProgressSection = (
-      <View style={{ paddingHorizontal: 0 }}>
-        <View style={styles.pointsProgressContainer}>
-          {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
-            <View style={styles.pointsProgressTargetOuter}>
-              <View style={{ flexGrow: daysThisWeek }} />
-              <View style={styles.pointsProgressTarget}>
-                <View style={styles.pointsProgressTargetInner} />
-              </View>
-              <View style={{ flexGrow: 7 - daysThisWeek }} />
-            </View>
-          )}
-          {(() => {
-            
-            const isFuture = selectedDate.after(today);
-            const isSelected = selectedDate.equals(selectedDate);
-
-            return displayedHabits.map((habit, index) => {
-              const palette = getCombinedPalette(habit.baseColor);
-              const backgroundColor = isSelected ? palette.primary : palette.alt;
-              const isComplete = selectedWeekHabitCompletionMaps[selectedDayOfWeek].get(habit.id);
-              return isComplete ? (
-                <View key={habit.id} style={[styles.pointsProgressBar, { flexGrow: habit.points }]}>
-                  <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
-                  <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
-                  <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
-                </View>
-              ) : null;
-            });
-          })()}
-          <View style={{
-            flexDirection: 'row',
-            flexBasis: 0,
-            flexGrow: Math.max(0, (perWeekPointTarget / 7) - selectedWeekHabitPointTotals[selectedDayOfWeek]),
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-          }}>
-            {/* <View style={{
-              flexGrow: 1,
-              height: 8,
-              borderRadius: 8,
-              backgroundColor: theme.colors.surfaceDisabled,
-            }} /> */}
-          </View>
+  const contentHeader = useMemo(() => {
+    return (
+      <View style={styles.sectionHeader}>
+        {!isReordering && !isArchiving && <BottomDrawer
+          title='Create'
+          anchor={
+            <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.add}
+              size={20}
+            />
+          }
+          items={addMenuItems}
+          onSelect={(item) => {
+            setTimeout(() => {
+              router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
+            }, 0);
+          }}
+        />}
+        <View style={{ flexDirection: 'row', flexGrow: 1, justifyContent: 'center', alignItems: 'baseline', gap: 8 }}>
+          {renderSectionTitle()}
         </View>
-        <View style={styles.weekPointsContainer}>
-          <Text variant='bodySmall' style={[styles.weekPointsLabel]}>Day</Text>
-          <View style={{ flexGrow: 1 }} />
-          <Text variant='titleSmall'>{formatNumber(selectedWeekHabitPointTotals[selectedDayOfWeek], 1)}</Text>
-          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-          <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} inline textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        </View>
+        {!isReordering && !isArchiving && <BottomDrawer
+          title={showMeasurements ? 'Measurements' : 'Habits'}
+          anchor={
+            <IconButton
+              style={styles.sectionHeaderButton}
+              icon={Icons.settings}
+              size={20}
+            />
+          }
+          items={showMeasurements ? measurementMenuItems : habitMenuItems}
+          onSelect={({ value }) => {
+            setTimeout(() => {
+              if (showMeasurements) {
+                switch (value) {
+                  case 'create':
+                    router.push('/measurement/create');
+                    break;
+                  case 'reorder':
+                    if (isReorderingMeasurements) submitMeasurementOrder()
+                    else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
+                    setIsReorderingMeasurements(!isReorderingMeasurements);
+                    setShowArchivedHabits(false);
+                    break;
+                  case 'expand':
+                    setExpandedMeasurements(new Set(displayedMeasurementIds));
+                    break;
+                  case 'collapse':
+                    setExpandedMeasurements(new Set());
+                    break;
+                  case 'visibility':
+                    setShowArchivedMeasurements(!showArchivedMeasurements);
+                    setIsReorderingMeasurements(false);
+                    break;
+                  case 'reset':
+                    clearRecordings();
+                    break;
+                  default:
+                    break;
+                }
+              } else {
+                switch (value) {
+                  case 'create':
+                    router.push('/habit/create');
+                    break;
+                  case 'reorder':
+                    if (isReorderingHabits) submitHabitOrder();
+                    else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
+                    setIsReorderingHabits(!isReorderingHabits);
+                    setShowArchivedHabits(false);
+                    break;
+                  case 'expand':
+                    setExpandedHabits(new Set(displayedHabitIds));
+                    break;
+                  case 'collapse':
+                    setExpandedHabits(new Set());
+                    break;
+                  case 'visibility':
+                    setShowArchivedHabits(!showArchivedHabits);
+                    setIsReorderingHabits(false);
+                    break;
+                  case 'reset':
+                    clearRecordings();
+                    break;
+                  default:
+                    break;
+                }
+              }
+            }, 150);
+          }}
+        />}
       </View>
-  );
-  
-  const habitWeeklyProgressSection = (
-    displayedHabits.length ? (
-      <View style={{ paddingHorizontal: 0 }}>
-        {!!perWeekPointTarget &&
-          <View style={styles.pointsProgressContainer}>
-            {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
-              <View style={styles.pointsProgressTargetOuter}>
-                <View style={{ flexGrow: daysThisWeek }} />
-                <View style={styles.pointsProgressTarget}>
-                  <View style={styles.pointsProgressTargetInner} />
-                </View>
-                <View style={{ flexGrow: 7 - daysThisWeek }} />
-              </View>
-            )}
-            {selectedWeekDates.map((date, index) => {
-              const dailyPoints = selectedWeekDailyHabitPointTotals[index];
-              const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
-              
-              const isFuture = date.after(today);
-              const isSelected = date.equals(selectedDate);
-              const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
-              return isFuture ? null : (
-                <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
-                  <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
-                  <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
-                  <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
-                </View>
-              );
-            })}
-            <View style={{
-              flexDirection: 'row',
-              flexBasis: 0,
-              flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-            }}>
-              {/* <View style={{
-                flexGrow: 1,
-                height: 8,
-                borderRadius: 8,
-                backgroundColor: theme.colors.surfaceDisabled,
-              }} /> */}
-            </View>
-          </View>
-        }
-        <View style={styles.weekPointsContainer}>
-          <Text variant='bodySmall' style={styles.weekPointsLabel}>Week</Text>
-          <View style={{ flexGrow: 1 }} />
-          <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
-          <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-          <Points size={'small'} points={perWeekPointTarget} inline textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-        </View>
-      </View>
-    ) : null
-  );
+    )
+  }, [isReordering, isArchiving, showMeasurements, showHabits, addMenuItems, styles, renderSectionTitle]);
 
   return (
     <>
-      <Header
-        // color={theme.colors.elevation.level3}
-        color={theme.dark ? globalPalette.backdrop : theme.colors.elevation.level5}
-        showMenuButton
-        // bordered
-        // title={'Measure'}
-        title={
-          isToday ? 'Today' :
-          `${selectedDate.toFormattedString(true, false, true)}`
-        }
-        // subtitle={
-        //   isReorderingMeasurements ? ' : Measurements' :
-        //   isReorderingHabits ? ' : Habits' : 
-        //   ''
-        // }
-        actionContent={
-          <>
-            {/* {
-              !isToday ? (
-                <Button
-                  mode='text'
-                  style={{ borderRadius: 12, marginRight: 4 }}
-                  textColor={theme.colors.onSurface}
-                  onPress={() => {
-                    setSelectedDate(today);
-
-                    if (!flatListRef.current) return;
-                    flatListRef.current.scrollToIndex({ index: 52, animated: false});
-                  }}
-                >
-                  TODAY
-                </Button>
-              ) : null
-            } */}
-            {/* <BottomDrawer
-              title='Create'
-              visible={isAddMenuVisible}
-              onDismiss={() => setIsAddMenuVisible(false)}
-              anchor={
-                <IconButton
-                  style={styles.headerCreateButton}
-                  containerColor={globalPalette.backdrop}
-                  iconColor={theme.colors.onSurface}
-                  icon={Icons.add}
-                  size={18}
-                  onPress={() => setIsAddMenuVisible(true)}
-                />
-              }
-              items={addMenuItems}
-              onSelect={(item) => {
-                setIsAddMenuVisible(false);
-                setTimeout(() => {
-                  router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
-                }, 0);
-              }}
-            /> */}
-          </>
-        }
+      <StatusBar
+        backgroundColor={theme.colors.surface} barStyle={theme.dark ? 'light-content' : 'dark-content'}
       />
       <View
-        // onLayout={onLayout}
         style={styles.container}
       >
-        <View style={[styles.timelineContainer]}>
-          {/* <Text variant='bodyMedium' style={styles.timeHeaderText}>
-            {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
-          </Text> */}
-          {timelineFlatList}
-          {/* {measurementStatuses} */}
-          {/* {habitStatuses} */}
-          {habitProgressSection}
+        <View style={{ backgroundColor: theme.colors.surface }}>
+          {timeline}
+          {/* {renderTimelineHeader()} */}
+          {habitProgressBar}
+          {timelineStatuses}
+          {contentHeader}
+          {measurements.length > 0 && contentSwitch}
         </View>
-        {/* <View style={{ flexDirection: 'row', paddingHorizontal: 8, gap: 12, marginBottom: 8 }}>
-          <View style={{ width: '100%', flexGrow: 1, flexShrink: 1, }}>
-            <View style={[{ borderRadius: 20, width: '100%', gap: 8, flexGrow: 1, flexShrink: 1, padding: 16 }, globalStyles.elevation1]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 0, gap: 8 }}>
-              <Text variant='bodyLarge' style={{ flexShrink: 0, textAlign: 'left', marginTop: 4, marginBottom: 2 }}>
-                Measurements
-              </Text>
-
-              <Text variant='titleMedium' style={{ flexGrow: 0, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
-                {selectedDate.toFormattedString()}
-              </Text>
-            </View>
-              {measurementDailyProgressSection}
-              {measurementWeeklyProgressSection}
-            </View>
-          </View>
-          <View style={{ width: '100%', flexGrow: 1, flexShrink: 1, }}>
-            <View style={[{ borderRadius: 20, width: '100%', gap: 8, flexGrow: 1, flexShrink: 1, padding: 16 }, globalStyles.elevation1]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 0, gap: 8 }}>
-                <Text variant='bodyLarge' style={{ flexShrink: 0, textAlign: 'left', marginTop: 4, marginBottom: 2 }}>
-                  Habits
-                </Text>
-
-                <Text variant='titleMedium' style={{ flexGrow: 0, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
-                  {selectedWeekDates[0].toFormattedString(false, false, false, true)} - {selectedWeekDates[6].toFormattedString(false, false, false, true)}
-                </Text>
-              </View>
-              {habitDailyProgressSection}
-              {habitWeeklyProgressSection}
-            </View>
-          </View>
-
-        </View> */}
-        {/* <GestureDetector gesture={panGesture}> */}
-          {/* <Animated.View style={[
-            styles.timelineContainer,
-            {left: -containerWidth.value},
-            timelineContainerAnimated,
-            // animatedSelectedDate.value === selectedDate.toString() && { transform: [{ translateX: 0}]}
-          ]}> */}
-            {/* <View style={styles.timelineHeader}>
-              <IconButton
-                style={styles.timelineHeaderButton}
-                icon={Icons.left}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setSelectedDate(selectedDate.getDaysAgo(7));
-                }}
-                onLongPress={() => handleLongPressPrevious(selectedDate)}
-                onPressOut={() => {
-                  if (longPressPreviousTimeout.current === null) return;
-                  clearTimeout(longPressPreviousTimeout.current);
-                  longPressPreviousTimeout.current = null;
-                }}
-                delayLongPress={600}
-              />
-              <Text variant='bodyMedium' style={styles.timeHeaderText}>
-                {selectedWeekDates[0].toFormattedString()} - {selectedWeekDates[6].toFormattedString()}
-              </Text>
-              <IconButton
-                style={styles.timelineHeaderButton}
-                icon={Icons.right}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setSelectedDate(selectedDate.getDaysAgo(-7));
-                }}
-                onLongPress={() => handleLongPressNext(selectedDate)}
-                onPressOut={() => {
-                  if (longPressNextTimeout.current === null) return;
-                  clearTimeout(longPressNextTimeout.current);
-                  longPressNextTimeout.current = null;
-                }}
-                delayLongPress={600}
-              />
-            </View> */}
-            {/* <View style={[styles.timelineContent]}>
-              {previousWeekDates.map((date) => {
-                const dayOfWeek = date.getDayOfWeekLabel();
-                const isSelected = date.equals(selectedDate);
-                const isToday = date.equals(today);
-
-                return (
-                  <View
-                    key={date.toString()}
-                    style={[
-                      styles.timelineDate,
-                      isToday && styles.timelineDateToday,
-                      isSelected && styles.timelineDateSelected,
-                    ]}
-                  >
-                    <Pressable
-                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
-                      style={[
-                        styles.timelineDateContainer,
-                        isToday && styles.timelineDateContainerToday,
-                        isSelected && styles.timelineDateContainerSelected,
-                      ]}
-                    >
-                      <>
-                        <View
-                          style={[
-                            styles.timelineDateContent,
-                            isToday && styles.timelineDateContentToday,
-                            isSelected && styles.timelineDateContentSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.timelineDateDayOfWeek,
-                              isToday && styles.timelineDateDayOfWeekToday,
-                              isSelected && styles.timelineDateDayOfWeekSelected,
-                            ]}
-                            >
-                            {dayOfWeek.toUpperCase()}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                            {isToday && <View
-                              style={[
-                                styles.todayIndicator,
-                                isSelected && styles.todayIndicatorToday,
-                              ]}
-                            />}
-                            <Text variant='titleMedium'
-                              style={[
-                                styles.timelineDateDay,
-                                isToday && styles.timelineDateDayToday,
-                                isSelected && styles.timelineDateDaySelected,
-                              ]}
-                            >
-                              {date.day}
-                            </Text>
-                          </View>
-                        </View>
-                      </>
-                    </Pressable>
-                  </View>
-                )
-              })}
-            </View>
-            <View style={styles.timelineContent}>
-              {selectedWeekDates.map((date) => {
-                const dayOfWeek = date.getDayOfWeekLabel();
-                const isSelected = date.equals(selectedDate);
-                const isToday = date.equals(today);
-
-                return (
-                  <View
-                    key={date.toString()}
-                    style={[
-                      styles.timelineDate,
-                      isToday && styles.timelineDateToday,
-                      isSelected && styles.timelineDateSelected,
-                    ]}
-                  >
-                    <Pressable
-                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
-                      style={[
-                        styles.timelineDateContainer,
-                        isToday && styles.timelineDateContainerToday,
-                        isSelected && styles.timelineDateContainerSelected,
-                      ]}
-                    >
-                      <>
-                        <View
-                          style={[
-                            styles.timelineDateContent,
-                            isToday && styles.timelineDateContentToday,
-                            isSelected && styles.timelineDateContentSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.timelineDateDayOfWeek,
-                              isToday && styles.timelineDateDayOfWeekToday,
-                              isSelected && styles.timelineDateDayOfWeekSelected,
-                            ]}
-                            >
-                            {dayOfWeek.toUpperCase()}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                            {isToday && <View
-                              style={[
-                                styles.todayIndicator,
-                                isSelected && styles.todayIndicatorToday,
-                              ]}
-                            />}
-                            <Text variant='titleMedium'
-                              style={[
-                                styles.timelineDateDay,
-                                isToday && styles.timelineDateDayToday,
-                                isSelected && styles.timelineDateDaySelected,
-                              ]}
-                            >
-                              {date.day}
-                            </Text>
-                          </View>
-                        </View>
-                      </>
-                    </Pressable>
-                  </View>
-                )
-              })}
-            </View>
-            <View style={styles.timelineContent}>
-              {nextWeekDates.map((date) => {
-                const dayOfWeek = date.getDayOfWeekLabel();
-                const isSelected = date.equals(selectedDate);
-                const isToday = date.equals(today);
-
-                return (
-                  <View
-                    key={date.toString()}
-                    style={[
-                      styles.timelineDate,
-                      isToday && styles.timelineDateToday,
-                      isSelected && styles.timelineDateSelected,
-                    ]}
-                  >
-                    <Pressable
-                      onPress={() => sharedSelectedDate.value === animatedSelectedDate.value && handleSelectedDateChange(date)}
-                      style={[
-                        styles.timelineDateContainer,
-                        isToday && styles.timelineDateContainerToday,
-                        isSelected && styles.timelineDateContainerSelected,
-                      ]}
-                    >
-                      <>
-                        <View
-                          style={[
-                            styles.timelineDateContent,
-                            isToday && styles.timelineDateContentToday,
-                            isSelected && styles.timelineDateContentSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.timelineDateDayOfWeek,
-                              isToday && styles.timelineDateDayOfWeekToday,
-                              isSelected && styles.timelineDateDayOfWeekSelected,
-                            ]}
-                            >
-                            {dayOfWeek.toUpperCase()}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
-                            {isToday && <View
-                              style={[
-                                styles.todayIndicator,
-                                isSelected && styles.todayIndicatorToday,
-                              ]}
-                            />}
-                            <Text variant='titleMedium'
-                              style={[
-                                styles.timelineDateDay,
-                                isToday && styles.timelineDateDayToday,
-                                isSelected && styles.timelineDateDaySelected,
-                              ]}
-                            >
-                              {date.day}
-                            </Text>
-                          </View>
-                        </View>
-                      </>
-                    </Pressable>
-                  </View>
-                )
-              })}
-            </View> */}
-          {/* </Animated.View> */}
-        {/* </GestureDetector> */}
-        {/* <View style={[styles.sectionHeader, { borderBottomWidth: 1 }]}>
-
-        </View> */}
-        <NestableScrollContainer style={styles.content}>
-          <View style={[globalStyles.elevation1, styles.section]}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderIcon}>
-                <Icon source={Icons.measurement} size={14} />
-              </View>
-              <Text style={styles.sectionHeaderTitle} variant='labelLarge'>MEASUREMENTS</Text>
-              {!!measurements.length && isReorderingMeasurements && <IconButton
-                style={styles.sectionHeaderButton}
-                icon={Icons.move}
-                size={16}
-                onPress={() => {
-                  submitMeasurementOrder();
-                  setIsReorderingMeasurements(false);
-                }}
-                disabled={!measurements.length}
-                containerColor={globalPalette.backdrop}
-              />}
-              {!!measurements.length && showArchivedMeasurements && <IconButton
-                style={styles.sectionHeaderButton}
-                icon={Icons.show}
-                size={16}
-                onPress={() => {
-                  setShowArchivedMeasurements(false)
-                }}
-                disabled={!measurements.length}
-                containerColor={globalPalette.backdrop}
-              />}
-              {<BottomDrawer
-                  title='Measurements'
-                  visible={isMeasurementMenuVisible}
-                  onDismiss={() => setIsMeasurementMenuVisible(false)}
-                  anchor={
-                    <IconButton
-                      style={styles.sectionHeaderButton}
-                      icon={Icons.settings}
-                      size={16}
-                      onPress={() => {
-                        setIsMeasurementMenuVisible(true);
-                      }}
-                    />
-                  }
-                  items={measurementMenuItems}
-                  onSelect={({ value }) => {
-                    switch (value) {
-                      case 'create':
-                        router.push('/measurement/create');
-                        break;
-                      case 'reorder':
-                        if (isReorderingMeasurements) submitMeasurementOrder()
-                        else setMeasurementPriorityOverrides(orderedMeasurements.map(({ id }) => id));
-                        setIsReorderingMeasurements(!isReorderingMeasurements);
-                        break;
-                      case 'expand':
-                        setExpandedMeasurements(new Set(displayedMeasurementIds));
-                        break;
-                      case 'collapse':
-                        setExpandedMeasurements(new Set());
-                        break;
-                      case 'visibility':
-                        setShowArchivedMeasurements(!showArchivedMeasurements);
-                        break;
-                      case 'reset':
-                        setTempRecordingsMap(new Map());
-                        clearRecordings();
-                        break;
-                      default:
-                        break;
-                    }
-                    setIsMeasurementMenuVisible(false);
-                  }}
-                />
-              }
-            <View style={styles.dailyPointTotalContainer}>
-              {selectedWeekDates.map((date, index) => {
-                const isToday = date.toString() === today.toString();
-                const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                const total = daily + weekly;
-                const isSelected = index === selectedDayOfWeek;
-                const isFuture = date.after(today);
-
-                const isNullRecordings = measurementsWithStartDates.filter(([_, startDate]) => !startDate.after(date)).map(([measurement]) => {
-                  const recordings = selectedWeekMeasurementValues.get(measurement.id);
-                  return !recordings || !recordings.length || recordings[index] === null;
-                });
-
-                const nullRecordingCount = isNullRecordings.filter((value) => value).length;
-                const nonNullRecordingCount = isNullRecordings.length - nullRecordingCount;
-                const noMeasurements = isNullRecordings.length === 0;
-                const measurementCompletion = noMeasurements || isFuture ? 0 : nonNullRecordingCount / isNullRecordings.length;
-                                  
-                const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-                return (
-                  <TouchableRipple
-                    key={date.toString()}
-                    style={[
-                      styles.dailyPoints,
-                      // isSelected ? styles.dailyPointsSelected : {},
-                      isToday ? styles.dailyPointsToday : {},
-                    ]}
-                    onPress={() => handleSelectedDateChange(date)}
-                  >
-                    <>
-                      <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-                        <View style={{ alignItems: 'center', gap: 4 }}>
-                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                          <Icon
-                            source={(isFuture || isNullRecordings.length === 0) ? Icons.indeterminate : measurementCompletion === 0 ? Icons.progressNone : Icons.progressPartial(measurementCompletion)}
-                            size={12}
-                            color={color}
-                          />
-                        </View>
-                      </View>
-                    </>
-                  </TouchableRipple>
-                )
-              })}
-            </View>
-            </View>
-            <View style={styles.sectionContent}>
-            <View style={styles.recordingView}>
+          {showMeasurements && 
+            <>
               {displayedMeasurements.length ? (
-                <>
+                <View style={styles.recordingView}>
                   {isReorderingMeasurements ? (
-                    <NestableDraggableFlatList
-                      data={measurementPriorityOverrides || []}
-                      onDragEnd={({ data }) => {
-                        setMeasurementPriorityOverrides(data);
+                    <DraggableList
+                      items={measurementPriorityOverrides || []}
+                      onReorder={(nextItems) => {
+                        setMeasurementPriorityOverrides(nextItems);
                       }}
-                      keyExtractor={(id) => id}
-                      activationDistance={forWeb(1, 20)}
-                      renderItem={({ item: measurementId, getIndex, drag, isActive }) => {
-                        const measurement = measurements.find(({ id }) => id === measurementId);
-                        if (!measurement) return;
-  
+                      renderItem={(item, index, isDragging) => {
+                        const measurement = measurements.find(({ id }) => id === item);
+                        if (!measurement) return null;
+
                         return (
-                          <ScaleDecorator activeScale={1.05}>
                             <RecordingMeasurementItem
-                              index={getIndex() || 0}
+                              index={index}
                               measurement={measurement}
                               currentDate={selectedDate}
                               weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                              onLongPress={forWeb(null, () => {
-                                if (isReorderingMeasurements) {
-                                  drag();
-                                  triggerHaptic('selection');
-                                }
-                              })}
-                              onPressIn={forWeb(() => isReorderingMeasurements && drag(), null)}
-                              disabled={isActive}
+                              disabled={isDragging}
                               reordering
                             />
-                          </ScaleDecorator>
                         );
                       }}
                     />
                   ) : (
-                    <>
+                    <ScrollView>
                       {displayedMeasurements.map((measurement, index) => {
                         const { id } = measurement;
                         return (
@@ -1652,375 +980,147 @@ const Recordings = () => {
                               nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
                               setExpandedMeasurements(nextExpandedMeasurements);
                             }}
-                            onLongPress={(id) => {
-                              triggerHaptic('selection');
-                              router.push(`/measurement/${id}`);
-                            }}
+                            onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
+                            archiving={showArchivedMeasurements}
+                            onArchive={toggleMeasurementArchived}
                           />
                         );
                       })}
-                    </>
+                    </ScrollView>
                   )}
-                </>
+                </View>
               ) : (
                 <>
                   <View style={styles.noData}>
                     <View style={styles.noDataIcon}>
                       <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
                     </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No active measurements</Text>
+                    <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
                   </View>
                   {!measurements.length && (
-                    <Button
-                      style={styles.noDataButton}
-                      mode='contained'
-                      onPress={() => { router.push('/measurement/create'); }}
-                    >
-                      <Text variant='labelLarge' style={styles.noDataButtonText}>
-                        Create your first measurement
-                      </Text>
-                    </Button>
+                    <>
+                      <Button
+                        style={styles.sampleDataButton}
+                        contentStyle={styles.sampleDataButtonContent}
+                        mode='contained'
+                        onPress={() => {
+                          dispatch(callGenerateSampleData());
+                        }}
+                        >
+                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
+                          Get started with sample data
+                        </Text>
+                      </Button>
+                      <Button
+                        style={styles.noDataButton}
+                        contentStyle={styles.noDataButtonContent}
+                        mode='outlined'
+                        onPress={() => { router.push('/measurement/create'); }}
+                      >
+                        <Text variant='labelLarge' style={styles.noDataButtonText}>
+                          Create a custom measurement
+                        </Text>
+                      </Button>
+                    </>
                   )}
                 </>
               )}
-            </View>
-            </View>
-          </View>
-            <View style={[globalStyles.elevation1, styles.section]}>
-            {!!measurements.length && (  
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeaderIcon}>
-                  <Icon source={Icons.habit} size={14} />
-                </View>
-                <Text style={styles.sectionHeaderTitle} variant='labelLarge'>HABITS</Text>
-                {!!habits.length && isReorderingHabits && <IconButton
-                  style={styles.sectionHeaderButton}
-                  icon={Icons.move}
-                  size={16}
-                  onPress={() => {
-                    submitHabitOrder();
-                    setIsReorderingHabits(false);
-                  }}
-                  disabled={!habits.length}
-                  containerColor={globalPalette.backdrop}
-                />}
-                {!!habits.length && showArchivedHabits && <IconButton
-                  style={styles.sectionHeaderButton}
-                  icon={Icons.show}
-                  size={16}
-                  onPress={() => {
-                    setShowArchivedHabits(false)
-                  }}
-                  disabled={!habits.length}
-                  containerColor={globalPalette.backdrop}
-                />}
-                <BottomDrawer
-                  title='Habits'
-                  visible={isHabitMenuVisible}
-                  onDismiss={() => setIsHabitMenuVisible(false)}
-                  anchor={
-                    <IconButton
-                      style={styles.sectionHeaderButton}
-                      icon={Icons.settings}
-                      size={16}
-                      onPress={() => {
-                        setIsHabitMenuVisible(true);
+            </>
+          }
+          {showHabits && (
+            <>
+              {displayedHabits.length ? (
+                <View style={styles.recordingView}>
+                  {isReorderingHabits ? (
+                    <DraggableList
+                      items={habitPriorityOverrides || []}
+                      onReorder={(nextItems) => {
+                        setHabitPriorityOverrides(nextItems);
+                      }}
+                      renderItem={(item, index, isDragging) => {
+                        const habit = habits.find(({ id }) => id === item);
+                        if (!habit) return null;
+  
+                        return (
+                          <RecordingDataHabit
+                            index={index}
+                            habit={habit}
+                            currentDate={selectedDate}
+                            weekDates={selectedWeekDates}
+                            measurements={measurements}
+                            recordingData={mergedRecordingsMap}
+                            disabled={isDragging}
+                            reordering
+                          />
+                        );
                       }}
                     />
-                  }
-                  items={habitMenuItems}
-                  onSelect={({ value }) => {
-                    setTimeout(() => {
-                      switch (value) {
-                        case 'create':
-                          router.push('/habit/create');
-                          break;
-                        case 'reorder':
-                          if (isReorderingHabits) submitHabitOrder();
-                          else setHabitPriorityOverrides(orderedHabits.map(({ id }) => id));
-                          setIsReorderingHabits(!isReorderingHabits);
-                          break;
-                        case 'expand':
-                          setExpandedHabits(new Set(displayedHabitIds));
-                          break;
-                        case 'collapse':
-                          setExpandedHabits(new Set());
-                          break;
-                        case 'visibility':
-                          setShowArchivedHabits(!showArchivedHabits);
-                          break;
-                        default:
-                          break;
-                      }
-                    }, 150);
-                    setIsHabitMenuVisible(false);
-                  }}
-                />
-                {/* {displayedHabits.length ? (
-                  <>
-                    {!!perWeekPointTarget &&
-                      <View style={styles.pointsProgressContainer}>
-                        {!today.after(selectedWeekDates[6]) && !today.before(selectedWeekDates[0]) && (
-                          <View style={styles.pointsProgressTargetOuter}>
-                            <View style={{ flexGrow: daysThisWeek }} />
-                            <View style={styles.pointsProgressTarget}>
-                              <View style={styles.pointsProgressTargetInner} />
-                            </View>
-                            <View style={{ flexGrow: 7 - daysThisWeek }} />
-                          </View>
-                        )}
-                        {selectedWeekDates.map((date, index) => {
-                          const dailyPoints = selectedWeekDailyHabitPointTotals[index];
-                          const weeklyPoints = selectedWeekWeeklyHabitPointTotals[index];
-                          
-                          const isFuture = date.after(today);
-                          const isSelected = date.equals(selectedDate);
-                          const backgroundColor = isSelected ? globalPalette.primary : globalPalette.alt;
-                          return isFuture ? null : (
-                            <View key={date.toString()} style={[styles.pointsProgressBar, { flexGrow: dailyPoints + weeklyPoints }]}>
-                              <View style={[styles.pointsProgressBarEnd, { left: -2, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]} />
-                              <View style={[styles.pointsProgressBarEnd, { right: -2 }]} />
-                              <View style={[styles.pointsProgressBarInner, { backgroundColor }]} />
-                            </View>
-                          );
-                        })}
-                        <View style={{
-                          flexDirection: 'row',
-                          flexBasis: 8,
-                          flexGrow: Math.max(0, perWeekPointTarget - selectedWeekPointTotal),
-                          justifyContent: 'flex-end',
-                          alignItems: 'center',
-                        }}>
-                          <View style={{
-                            flexGrow: 1,
-                            height: 8,
-                            borderRadius: 8,
-                            backgroundColor: theme.colors.surfaceDisabled,
-                          }} />
-                        </View>
-                      </View>
-                    }
-                    <View style={styles.weekPointsContainer}>
-                      <Text variant='bodySmall' style={styles.weekPointsLabel}>Total</Text>
-                      <Text variant='titleSmall'>{selectedWeekPointTotal}</Text>
-                      <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-                      <Points size={'small'} points={perWeekPointTarget} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                      <View style={{ flexGrow: 1 }} />
-                      <Text variant='bodySmall' style={[styles.weekPointsLabel, { marginLeft: 16 }]}>Average</Text>
-                      <Text variant='titleSmall'>{formatNumber(selectedWeekPointTotal / daysThisWeek, 1)}</Text>
-                      <Text variant='bodySmall' style={styles.weekPointsDivider}>/</Text>
-                      <Points size={'small'} points={perWeekPointTarget / 7} decimals={1} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
-                    </View>
-                  </>
-                ) : null}
-                <View style={styles.dailyPointTotalContainer}>
-                  {selectedWeekDates.map((date, index) => {
-                    const isToday = date.toString() === today.toString();
-                    const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                    const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                    const total = daily + weekly;
-                    const isSelected = index === selectedDayOfWeek;
-                    const isFuture = date.after(today);
-                    
-                    const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-                    return (
-                      <TouchableRipple
-                        key={date.toString()}
-                        style={[
-                          styles.dailyPoints,
-                          isSelected ? styles.dailyPointsSelected : {},
-                          isToday ? styles.dailyPointsToday : {},
-                        ]}
-                        onPress={() => handleSelectedDateChange(date)}
-                      >
-                        <>
-                          <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-                            <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                            {isFuture ? (
-                              <View style={{ padding: 4 }}>
-                                <Icon source={Icons.indeterminate} size={16} color={color} />
-                              </View>
-                            ) : (
-                              <Points
-                                style={styles.dailyPointTotal}
-                                points={total}
-                                size='medium'
-                                disabled={!isSelected}
-                                color={color}
-                              />
-                            )}
-                          </View>
-                        </>
-                      </TouchableRipple>
-                    )
-                  })}
-                </View> */}
-                <View style={styles.dailyPointTotalContainer}>
-              {selectedWeekDates.map((date, index) => {
-                const isToday = date.toString() === today.toString();
-                const daily = selectedWeekDailyHabitPointTotals[index] || 0;
-                const weekly = selectedWeekWeeklyHabitPointTotals[index] || 0;
-                const total = daily + weekly;
-                const isSelected = index === selectedDayOfWeek;
-                const isFuture = date.after(today);
-                                  
-                const color = isSelected ? globalPalette.primary : theme.colors.onSurfaceDisabled;
-                return (
-                  <TouchableRipple
-                    key={date.toString()}
-                    style={[
-                      styles.dailyPoints,
-                      // isSelected ? styles.dailyPointsSelected : {},
-                      isToday ? styles.dailyPointsToday : {},
-                    ]}
-                    onPress={() => handleSelectedDateChange(date)}
-                  >
-                    <>
-                      <View style={[styles.dailyPointsContainer, isToday ? styles.dailyPointsContainerToday : {}, isSelected ? styles.dailyPointsContainerSelected : {}]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Text variant='bodySmall' style={{ ...styles.dailyPointDayOfWeek, color }}>{date.getDayOfWeekLabel().toUpperCase()}</Text>
-                        </View>
-
-                        {isFuture ? (
-                          <View style={{ padding: 3 }}>
-                            <Icon source={Icons.indeterminate} size={16} color={color} />
-                          </View>
-                        ) : (
-                          <Points
-                          style={styles.dailyPointTotal}
-                          points={total}
-                          size='medium'
-                          inline
-                          disabled={!isSelected}
-                          color={color}
-                          />
-                        )}
-                      </View>
-                    </>
-                  </TouchableRipple>
-                )
-              })}
-            </View>
-              </View>
-              
-            )}
-            <View style={styles.sectionContent}>
-              {!!measurements.length && (
-                <View style={styles.recordingView}>
-                  {displayedHabits.length ? (
-                    <>
-                      {isReorderingHabits ? (
-                        <NestableDraggableFlatList
-                          data={habitPriorityOverrides || []}
-                          onDragEnd={({ data }) => {
-                            setHabitPriorityOverrides(data);
-                          }}
-                          keyExtractor={(id) => id}
-                          activationDistance={forWeb(1, 20)}
-                          renderItem={({ item: habitId, getIndex, drag, isActive }) => {
-                            const habit = habits.find(({ id }) => id === habitId);
-                            if (!habit) return;
-      
-                            return (
-                              <ScaleDecorator activeScale={1.05}>
-                                <RecordingDataHabit
-                                  index={getIndex() || 0}
-                                  habit={habit}
-                                  date={selectedDate}
-                                  weekDates={selectedWeekDates}
-                                  measurements={measurements}
-                                  recordingData={mergedRecordingsMap}
-                                  onLongPress={forWeb(null, () => {
-                                    if (isReorderingHabits) {
-                                      drag();
-                                      triggerHaptic('selection');
-                                    }
-                                  })}
-                                  onPressIn={forWeb(() => isReorderingHabits && drag(), null)}
-                                  disabled={isActive}
-                                  reordering
-                                />
-                              </ScaleDecorator>
-                            );
-                          }}
-                        />
-                      ) : (
-                        <>
-                          {displayedHabits.map((habit, index) => {
-                            const { id } = habit;
-                            return (
-                              <RecordingDataHabit
-                                key={habit.id}
-                                index={index}
-                                habit={habit}
-                                date={selectedDate}
-                                weekDates={selectedWeekDates}
-                                measurements={measurements}
-                                expanded={expandedHabits.has(id)}
-                                recordingData={mergedRecordingsMap}
-                                onPress={() => {
-                                  const nextExpandedHabits = new Set([...expandedHabits]);
-                                  nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
-                                  setExpandedHabits(nextExpandedHabits);
-                                }}
-                                onLongPress={(id) => {
-                                  triggerHaptic('selection');
-                                  router.push(`/habit/${id}`);
-                                }}
-                              />
-                            );
-                          })}
-                        </>
-                      )}
-                    </>
                   ) : (
-                    <>
-                      <View style={styles.noData}>
-                        <View style={styles.noDataIcon}>
-                          <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                        </View>
-                        <Text style={styles.noDataText} variant='bodyLarge'>No active habits</Text>
-                      </View>
-                      {!habits.length && (
-                        <Button
-                          style={styles.noDataButton}
-                          mode='contained'
-                          onPress={() => { router.push('/habit/create'); }}
-                        >
-                          <Text variant='labelLarge' style={styles.noDataButtonText}>
-                            Create your first habit
-                          </Text>
-                        </Button>
-                      )}
-                    </>
+                    <ScrollView>
+                      {displayedHabits.map((habit, index) => {
+                        const { id } = habit;
+                        return (
+                          <RecordingDataHabit
+                            key={habit.id}
+                            index={index}
+                            habit={habit}
+                            currentDate={selectedDate}
+                            weekDates={selectedWeekDates}
+                            measurements={measurements}
+                            expanded={expandedHabits.has(id)}
+                            recordingData={mergedRecordingsMap}
+                            onPress={() => {
+                              const nextExpandedHabits = new Set([...expandedHabits]);
+                              nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
+                              setExpandedHabits(nextExpandedHabits);
+                            }}
+                            onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
+                            archiving={showArchivedHabits}
+                            onArchive={toggleHabitArchived}
+                          />
+                        );
+                      })}
+                    </ScrollView>
                   )}
                 </View>
+              ) : (
+                <>
+                  <View style={styles.noData}>
+                    <View style={styles.noDataIcon}>
+                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                    </View>
+                    <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
+                  </View>
+                  {!habits.length && (
+                    <>
+                      <Button
+                        style={styles.sampleDataButton}
+                        contentStyle={styles.sampleDataButtonContent}
+                        mode='contained'
+                        onPress={() => {
+                          dispatch(callGenerateSampleData());
+                        }}
+                        >
+                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
+                          Get started with sample data
+                        </Text>
+                      </Button>
+                      <Button
+                        style={styles.noDataButton}
+                        contentStyle={styles.noDataButtonContent}
+                        mode='outlined'
+                        onPress={() => { router.push('/habit/create'); }}
+                      >
+                        <Text variant='labelLarge' style={styles.noDataButtonText}>
+                          Create a custom habit
+                        </Text>
+                      </Button>
+                    </>
+                  )}
+                </>
               )}
-            </View>
-          </View>
-        </NestableScrollContainer>
-        <BottomDrawer
-          title='Create'
-          visible={isAddMenuVisible}
-          onDismiss={() => setIsAddMenuVisible(false)}
-          anchor={
-            <IconButton
-              style={[globalStyles.elevation2, styles.createButton, ]}
-              containerColor={globalPalette.primary}
-              iconColor={theme.colors.inverseOnSurface}
-              icon={Icons.add}
-              size={18}
-              onPress={() => setIsAddMenuVisible(true)}
-            />
-          }
-          items={addMenuItems}
-          onSelect={(item) => {
-            setIsAddMenuVisible(false);
-            setTimeout(() => {
-              router.push(item.value === 'measurement' ? '/measurement/create' : '/habit/create');
-            }, 0);
-          }}
-        />
+            </>
+          )}
       </View>
     </>
   );
@@ -2029,83 +1129,50 @@ const Recordings = () => {
 const createStyles = (theme: MD3Theme, palette: Palette) => {
   return StyleSheet.create({
     container: {
-      flex: 1,
-      // backgroundColor: theme.dark ? palette.backdrop : theme.colors.surface,
-    },
-    headerCreateButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      margin: 0,
-      marginRight: 14,
-    },
-    timelineContainer: {
-
-      // marginHorizontal: 12,
-      // paddingHorizontal: 12,
-      paddingBottom: 8,
-      // borderRadius: 20,
-      backgroundColor: theme.dark ? palette.backdrop : theme.colors.elevation.level5,
-      // borderBottomWidth: 1,
-      // borderColor: theme.colors.elevation.level3,
-      // position: 'relative',
-      // backgroundColor: theme.colors.elevation.level3,
-      // flexGrow: 0,
-      // flexShrink: 0,
-      // borderBottomWidth: 1,
-      // borderColor: theme.colors.surfaceVariant,
-      // width: '100%',
-      // marginVertical: 8,
-      // marginHorizontal: 16,
-      // borderRadius: 24,
-      // gap: 4,
-      // paddingBottom: 40,
-      // marginBottom: -28,
-      // borderBottomLeftRadius: 20,
-      // borderBottomRightRadius: 20,
+      flexGrow: 1,
+      flexShrink: 1,
+      backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
     },
     timelineHeader: {
+      alignSelf: 'stretch',
+      flexGrow: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      marginBottom: 8,
+      justifyContent: 'space-between',
+      paddingHorizontal: 8,
     },
-    timelineHeaderButton: {
-      margin: 0,
-      borderRadius: 16,
-    },
-    timeHeaderText: {
+    timelineHeaderText: {
       flexGrow: 1,
       textAlign: 'center',
-      color: theme.colors.onSurfaceDisabled,
+    },
+    timelineHeaderButton: {
+      width: 40,
+      height: 40,
+      margin: 0,
+      borderRadius: 4,
+      marginHorizontal: 4,
+      marginBottom: -20,
+      marginTop: -8
     },
     timelineContent: {
       flexDirection: 'row',
       justifyContent: 'space-around',
+      alignItems: 'center',
       gap: 8,
-      paddingHorizontal: 8,
-      flexGrow: 1,
-      flexShrink: 0,
-      alignItems: 'stretch',
-      width: '100%',
-      paddingTop: 2,
-      paddingBottom: 10,
-      // marginBottom: -8,
+      paddingHorizontal: 16,
     },
     timelineDate: {
-      flexBasis: 100,
-      flexShrink: 1,
-      // paddingVertical: 8,
-      alignItems: 'center',
-      borderRadius: 15,
-      overflow: 'hidden',
+
     },
     timelineDateToday: {},
     timelineDateSelected: {
-      backgroundColor: 'transparent',
-      // backgroundColor: theme.colors.surfaceDisabled,
+
     },
     timelineDateContainer: {
+      flexBasis: 100,
+      flexShrink: 1,
+      // alignItems: 'center',
+      overflow: 'hidden',
       flexGrow: 1,
       borderRadius: 15,
 
@@ -2114,29 +1181,22 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignItems: 'stretch',
       gap: 4,
 
-      overflow: 'hidden',
     },
     timelineDateContainerToday: {},
     timelineDateContainerSelected: {},
     timelineDateContent: {
-      borderRadius: 19,
-      paddingTop: 10,
-      paddingBottom: 10,
-      paddingHorizontal: 1,
-      borderWidth: 0,
+      gap: 4,
     },
     timelineDateContentToday: {},
     timelineDateContentSelected: {},
     timelineDateDayOfWeek: {
       textAlign: 'center',
       color: theme.colors.onSurfaceDisabled,
-      fontSize: 12,
+      textTransform: 'uppercase',
     },
     timelineDateDayOfWeekToday: {},
     timelineDateDayOfWeekSelected: {
-      // color: palette.primary,
-      // color: palette.secondary,
-      color: theme.colors.onSurface,
+      color: theme.colors.onSurfaceVariant,
     },
     timelineDateDay: {
       textAlign: 'center',
@@ -2151,8 +1211,6 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     timelineDateDayToday: {},
     timelineDateDaySelected: {
       color: theme.colors.onSurface,
-      // color: palette.secondary,
-      // color: palette.primary,
     },
     timelineDateIcon: {
       marginTop: 4,
@@ -2165,222 +1223,49 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       width: 5,
       height: 5,
       borderRadius: 4,
-      backgroundColor: theme.colors.onSurfaceDisabled,
+      backgroundColor: palette.primary,
       transform: [{ translateX: -2 }],
     },
     todayIndicatorToday: {
-      backgroundColor: palette.primary,
-    },
-    measurementsProgressBar: {
-      height: 8,
-      borderRadius: 8,
-      width: '100%',
-      backgroundColor: theme.colors.surfaceDisabled,
-      overflow: 'hidden',
-    },
-    measurementsProgressBarSelected: {
-      // height: 10,
-      // flexDirection: 'row',
-      // gap: 2,
-      // backgroundColor: 'none',
-    },
-    measurementsProgressPiece: {
-      // height: 10,
-      flexShrink: 1,
-      width: '100%',
-      // borderRadius: 100,
-    },
-    pointsProgressContainer: {
-      marginHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 0,
-      borderRadius: 100,
-      overflow: 'hidden',
-      backgroundColor: theme.colors.surfaceDisabled,
-      height: 6,
-    },
-    pointsProgressBar: {
-      position: 'relative',
-      height: 6,
-      // borderRadius: 8,
-      flexBasis: 0,
-    },
-    pointsProgressBarInner: {
-      flexGrow: 1,
-      alignSelf: 'stretch',
-      // borderRadius: 8,
-      // borderTopLeftRadius: 0,
-      // borderBottomLeftRadius: 0,
-    },
-    pointsProgressBarEnd: {
-      position: 'absolute',
-      top: -2,
-      height: 12,
-      width: 12,
-      borderRadius: 12,
-      zIndex: -1,
-      // backgroundColor: palette.backdrop,
-      // backgroundColor: 'red',
-      // backgroundColor: theme.colors.elevation.level3,
-    },
-    pointsProgressBarBackdrop: {
-      position: 'absolute',
-      top: 0,
-      height: 8,
-      width: '100%',
-      // borderRadius: 8,
-      // borderTopLeftRadius: 0,
-      // borderBottomLeftRadius: 0,
-      zIndex: -1,
-      backgroundColor: palette.backdrop,
-      // backgroundColor: theme.colors.elevation.level3,
-    },
-    pointsProgressTargetOuter: {
-      flexDirection: 'row',
-      height: 6,
-      width: '100%',
-      position: 'absolute',
-      top: 0,
-      zIndex: 1,
-    },
-    pointsProgressTarget: {
-      height: 6,
-      width: 2,
-      borderRadius: 0,
-      backgroundColor: palette.backdrop,
-      // backgroundColor: theme.colors.elevation.level3,
-      justifyContent: 'center',
-      flexGrow: 0,
-    },
-    pointsProgressTargetInner: {
-      // top: 16,
-      // width: 4,
-      // height: 4,
-      // borderRadius: 2,
-      // backgroundColor: palette.primary,
-    },
-    overlapProgress: {
-      height: '100%',
-      borderRadius: 8,
-      flexGrow: 0,
-
-      backgroundColor: 'transparent',
-    },
-    baseProgress: {
-      height: '100%',
-      borderRadius: 8,
-      flexGrow: 0,
     },
     weekPointsContainer: {
-      flexGrow: 1,
+      flexGrow: 0,
+      flexShrink: 0,
       flexDirection: 'row',
       alignItems: 'baseline',
-      marginHorizontal: 16,
-      marginVertical: 4,
-      // justifyContent: 'flex-start',
       gap: 6,
     },
-    weekPointsLabel: {
-      // color: theme.colors.onSurfaceDisabled,
-    },
     weekPointsDivider: {},
-    content: {
-      paddingBottom: 80,
-    },
-    section: {
-      margin: 8,
-      borderRadius: 20,
-      overflow: 'hidden',
-    },
     sectionHeader: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       alignItems: 'center',
       paddingHorizontal: 8,
-      paddingVertical: 12,
-      backgroundColor: theme.colors.elevation.level2,
-      // backgroundColor: theme.colors.surface,
-      borderTopWidth: 1,
-      borderColor: theme.colors.elevation.level5,
-      marginTop: -1,
       gap: 4,
-    },
-    sectionHeaderIcon: {
-      marginLeft: 8,
-    },
-    sectionHeaderTitle: {
-      flex: 1,
+      marginBottom: 4,
+      minHeight: 48,
     },
     sectionHeaderButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
+      width: 48,
+      height: 48,
+      borderRadius: 4,
       margin: 0,
-      marginRight: 0,
     },
-    sectionContent: {},
-    recordingView: {},
-    measurementDailyProgress: {
-      width: '100%',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      gap: 4,
-      rowGap: 4,
-    },
-    measurementDailyProgressIcon: {
-      paddingVertical: 2,
-    },
-    measurementsStatusContainer: {
-      width: '100%',
-      marginBottom: 4,
-      // marginTop: -4,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-around',
-      gap: 16,
-      // paddingHorizontal: 8,
-    },
-    measurementsStatus: {
-      // paddingVertical: 6,
-      width: '100%',
+    recordingView: {
+      flexGrow: 1,
       flexShrink: 1,
-      alignItems: 'center',
-      overflow: 'hidden',
-      // flexDirection: 'row',
-      // justifyContent: 'center',
-      gap: 4,
     },
-    measurementsStatusSelected: {
-      // flexShrink: 0.9,
-    },
-    dailyPointTotalContainer: {
-      width: '100%',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-around',
-      gap: 8,
-    },
-    dailyPoints: {
-      paddingVertical: 8,
-      width: '100%',
-      flexShrink: 1,
-      alignItems: 'stretch',
-      borderRadius: 16,
-      overflow: 'hidden',
-    },
-    dailyPointsSelected: {
-      backgroundColor: theme.colors.elevation.level4,
-    },
-    dailyPointsToday: {},
     dailyPointsContainer: {
+      flexBasis: 100,
+      flexShrink: 1,
       alignItems: 'center',
+      justifyContent: 'center',
+      padding: 4,
+      gap: 4,
+      height: 60,
     },
     dailyPointsContainerToday: {},
-    dailyPointsContainerSelected: {},
-    dailyPointDayOfWeek: {},
+    dailyPointsContainerSelected: {
+    },
     dailyPointTotal: {
       justifyContent: 'center',
     },
@@ -2399,37 +1284,27 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     },
     noDataButton: {
       alignSelf: 'center',
-      marginBottom: 24,
+      marginBottom: 20,
+      borderRadius: 4,
+      width: 280,
+    },
+    noDataButtonContent: {
+      // paddingHorizontal: 12,
+      paddingVertical: 4,
     },
     noDataButtonText: {
-      paddingHorizontal: 4,
+    },
+    sampleDataButton: {
+      width: 280,
+      borderRadius: 4,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    sampleDataButtonContent: {
+      paddingVertical: 4,
+    },
+    sampleDataButtonText: {
       color: theme.colors.surface,
-    },
-    createButtonContainer: {
-      position: 'absolute',
-      bottom: 16,
-      right: 24,
-    },
-    createButton: {
-      position: 'absolute',
-      bottom: 16,
-      right: 16,
-      margin: 0,
-      height: 48,
-      width: 48,
-      borderRadius: 16,
-      backgroundColor: palette.primary,
-    },
-    createButtonContent: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      width: 56,
-      height: 56,
-      alignItems: 'center',
-      gap: 4,
-    },
-    createButtonText: {
-      color: theme.colors.onSurface,
     },
   });
 };
@@ -2447,8 +1322,11 @@ type RecordingMeasurementItemProps = {
   onPress?: (id: string) => void,
   onLongPress?: (id: string) => void,
   onPressIn?: (id: string) => void,
+  onPressOut?: (id: string) => void,
   disabled?: boolean,
   reordering?: boolean,
+  archiving?: boolean,
+  onArchive?: (measurement: Measurement, archived: boolean) => void,
 }
 
 const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
@@ -2463,8 +1341,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     onPress,
     onLongPress,
     onPressIn,
-    disabled,
+    onPressOut,
     reordering,
+    archiving,
+    onArchive,
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -2477,7 +1357,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const isCombo = measurement.type === 'combo';
 
   const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingValues);
-  const today = SimpleDate.today();
+  const today = useToday();
   
   const longPressLeftInterval = useRef<null | NodeJS.Timeout>(null);
   const longPressRightInterval = useRef<null | NodeJS.Timeout>(null);
@@ -2493,170 +1373,201 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     if (!onValueChange) return;
     longPressLeftInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current - measurement.step);
-    }, 125);
+    }, 100);
   }
   const handleLongPressRight = () => {
     if (!onValueChange) return;
     longPressRightInterval.current = setInterval(() => {
       onValueChange(valueRef.current === null ? measurement.initial : valueRef.current + measurement.step);
-    }, 125);
+    }, 100);
   }
 
-  const { getPalette, getCombinedPalette, globalPalette } = usePalettes();
+  const { getPalette, getCombinedPalette } = usePalettes();
   const measurementPalette = getPalette(measurement.baseColor);
   const combinedPalette = getCombinedPalette(measurement.baseColor);
   const styles = createMeasurementStyles(theme, measurementPalette, combinedPalette, index);
 
   const renderControlContent = () => {
-    if (isBool) {
-      return (
-        <>
-          {value !== null && (
-            <TouchableRipple style={styles.value} onLongPress={() => onValueChange ? onValueChange(null) : null} delayLongPress={600} disabled={isCombo}>
-              <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={18} />
-            </TouchableRipple>
-          )}
-          <View style={styles.controls}>
-            <IconButton
-              style={styles.controlButton}
-              size={16}
-              icon={Icons.incomplete}
-              onPress={() => {
-                onValueChange ? onValueChange(0) : null;
-              }}
-              />
-            <IconButton
-              style={styles.controlButton}
-              size={16}
-              icon={Icons.complete}
-              onPress={() => {
-                onValueChange ? onValueChange(1) : null;
-              }}
-            />
-          </View>
-        </>
+    if (reordering) return <Icon source={Icons.drag} size={24} />
+    if (archiving) return (
+      <Icon
+        source={measurement.archived ? Icons.hide : Icons.show}
+        size={24}
+        color={measurement.archived ? theme.colors.onSurfaceDisabled : undefined}
+      />
+    );
+    const leftButton =
+      isCombo ?
+        <View style={styles.controlButton} /> :
+      isBool ? (
+        <IconButton
+          hitSlop={10}
+          style={styles.controlButton}
+          size={16}
+          icon={Icons.subtract}
+          onPress={() => {
+            onValueChange ? onValueChange(0) : null;
+          }}
+        />
+      ) : (
+        <IconButton
+          hitSlop={10}
+          style={styles.controlButton}
+          size={18}
+          icon={Icons.subtract}
+          onPress={() => {
+            onValueChange ? onValueChange(value === null ? measurement.initial - measurement.step : value - measurement.step) : null;
+          }}
+          onLongPress={() => {
+            handleLongPressLeft();
+          }}
+          onPressOut={() => {
+            if (longPressLeftInterval.current === null) return;
+            clearInterval(longPressLeftInterval.current);
+            longPressLeftInterval.current = null;
+          }}
+          delayLongPress={300}
+        />
       );
-    } else {
-      const valueString = formatValue(value, measurement.type, measurement.unit, true);
-      return (
-        <>
-          {!!valueString && (
-            <TouchableRipple style={styles.value} onLongPress={() => onValueChange ? onValueChange(null) : null} delayLongPress={600} disabled={isCombo}>
-              <Text style={styles.valueText} variant='titleMedium'>{valueString}</Text>
-            </TouchableRipple>
-          )}
-          {isCombo ? <View style={{ ...styles.controls, marginRight: -16 }} /> : (
-            <View style={styles.controls}>
-              <IconButton
-                style={styles.controlButton}
-                size={18}
-                icon={Icons.subtract}
-                disabled={(!isTime && value === 0)}
-                onPress={() => {
-                  onValueChange ? onValueChange(value === null ? measurement.initial : value - measurement.step) : null;
-                }}
-                onLongPress={() => {
-                  handleLongPressLeft();
-                }}
-                onPressOut={() => {
-                  if (longPressLeftInterval.current === null) return;
-                  clearInterval(longPressLeftInterval.current);
-                  longPressLeftInterval.current = null;
-                }}
-                delayLongPress={250}
-                />
-              <IconButton
-                style={styles.controlButton}
-                size={18}
-                icon={Icons.add}
-                onPress={() => {
-                  onValueChange ? onValueChange(value === null ? measurement.initial + measurement.step : value + measurement.step) : null;
-                }}
-                onLongPress={() => {
-                  handleLongPressRight();
-                }}
-                onPressOut={() => {
-                  if (longPressRightInterval.current === null) return;
-                  clearInterval(longPressRightInterval.current);
-                  longPressRightInterval.current = null;
-                }}
-                delayLongPress={250}
-              />
-            </View>
-          )}
-        </>
-      )
-    }
+    const rightButton =
+      isCombo ?
+        <View style={styles.controlButton} /> :
+      isBool ? (
+        <IconButton
+          hitSlop={10}
+          style={styles.controlButton}
+          size={16}
+          icon={Icons.add}
+          onPress={() => {
+            onValueChange ? onValueChange(1) : null;
+          }}
+        />
+      ) : (
+        <IconButton
+          hitSlop={10}
+          style={styles.controlButton}
+          size={18}
+          icon={Icons.add}
+          onPress={() => {
+            onValueChange ? onValueChange(value === null ? measurement.initial + measurement.step : value + measurement.step) : null;
+          }}
+          onLongPress={() => {
+            handleLongPressRight();
+          }}
+          onPressOut={() => {
+            if (longPressRightInterval.current === null) return;
+            clearInterval(longPressRightInterval.current);
+            longPressRightInterval.current = null;
+          }}
+          delayLongPress={300}
+        />
+      );
+
+    return (
+      <View style={styles.controls}>
+        {leftButton}
+        {value !== null ? (
+          <TouchableRipple style={styles.value} disabled={isCombo}>
+            {isBool ? (
+              <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={14} />
+            ) : (
+              <Text style={{ color: combinedPalette.primary }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
+                {formatValue(value, measurement.type, measurement.unit, true)}
+              </Text>
+            )}
+          </TouchableRipple>
+        ) : (
+          <TouchableRipple style={[styles.value, styles.defaultValue]} onPress={() => onValueChange ? onValueChange(measurement.initial) : null} disabled={isCombo}>
+            {isBool ? (
+              <Icon source={value ? Icons.complete : Icons.incomplete} color={theme.colors.onSurfaceDisabled} size={14} />
+            ) : (
+              <Text style={{ color: theme.colors.onSurfaceDisabled }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
+                {formatValue(measurement.initial, measurement.type, measurement.unit, true)}
+              </Text>
+            )}
+          </TouchableRipple>
+        )}
+        {rightButton}
+      </View>
+    );
   }
 
   const renderExpandedContent = () => {
+    if (!expanded || reordering || archiving) return null;
+
     const total = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr || 0), 0);
     const totalString = formatValue(total, isBool ? 'count' : measurement.type, measurement.unit, true);
     const count = weekMeasurementValues.reduce((acc: number, curr) => acc + (curr === null ? 0 : 1), 0);
     const average = count === 0 ? null : total / count;
     const averageString = formatValue(average, isBool ? 'count' : measurement.type, measurement.unit, true);
-    return expanded && [
-      (
-        <View key={'completion'} style={styles.completionContent}>
-          <View style={styles.completionStatuses}>
-            {weekMeasurementValues.map((value, index) => {
-              const date = currentDate.getDaysAgo(currentDate.getDayOfWeek() - index);
-              const isFuture = date.after(today);
-              const isSelected = index === currentDate.getDayOfWeek();
-              const hasNotStarted = !startDate || startDate > date.toString();
 
-              return (
-                <View key={date.toString()} style={styles.completionStatus}>
-                  {isFuture || hasNotStarted ? (
-                    <Icon source={Icons.indeterminate} size={14} color={isSelected ? combinedPalette.primary : theme.colors.surfaceDisabled} />
-                  ) : (
-                  <Icon
-                    source={value === null ? Icons.progressNone : Icons.progressComplete}
-                    size={14}
-                    color={isSelected ? combinedPalette.primary : isFuture ? theme.colors.surfaceDisabled : combinedPalette.backdrop}
-                  />)}
-                </View>
-              );
-            })}
-          </View>
-          <View style={styles.aggregateContent}>
-            {isTime ? null : (<View style={styles.aggregateMetric}>
-              <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
-                Total
-              </Text>
-              <Text variant='titleSmall' style={styles.aggregateMetricValue}>
-                {count ? totalString : '--'}
-              </Text>
-            </View>)}
-            <View style={styles.aggregateMetric}>
-              <Text variant='bodySmall' style={styles.aggregateMetricLabel}>
-                Average
-              </Text>
-              <Text variant='titleSmall' style={styles.aggregateMetricValue}>
-                {count ? averageString : '--'}
-              </Text>
+    const actionContent = (
+      <View style={styles.actionContent}>
+        {!isCombo && value !== null && (
+          <TouchableRipple
+            style={styles.actionButton}
+            hitSlop={6}
+            onPress={() => {
+              onValueChange ? onValueChange(null) : null;
+            }}
+            disabled={value === null}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon source={Icons.delete} size={14} />
+              <Text variant="labelLarge">CLEAR</Text>
             </View>
+          </TouchableRipple>
+        )}
+        <TouchableRipple
+          style={styles.actionButton}
+          hitSlop={6}
+          onPress={() => {
+            router.push(`/measurement/${measurement.id}`);
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon source={Icons.edit} size={14} />
+            <Text variant="labelLarge">EDIT</Text>
           </View>
+        </TouchableRipple>
+      </View>
+    );
+
+    const aggregateContent = (
+      <View style={styles.aggregateContent}>
+        {isTime ? null : (<View style={styles.aggregateMetric}>
+          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
+            Total:
+          </Text>
+          <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
+            {count ? totalString : '--'}
+          </Text>
+        </View>)}
+        <View style={styles.aggregateMetric}>
+          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
+            Average:
+          </Text>
+          <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
+            {count ? averageString : '--'}
+          </Text>
         </View>
-      ),
-    ];
+      </View>
+    );
+
+    return expanded && (
+      <View style={styles.expandedContent}>
+        {aggregateContent}
+        {actionContent}
+      </View>
+    );
   }
 
-
-  return (
-    <TouchableRipple
-      style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
-      onPress={() => onPress ? onPress(measurement.id) : null}
-      onLongPress={() => onLongPress ? onLongPress(measurement.id) : null}
-      onPressIn={() => onPressIn ? onPressIn(measurement.id) : null}
-      delayLongPress={300}
-      disabled={disabled}
-    >
-      <>
-        <View style={[styles.content]}>
+  const content = (
+    <>
+      <View style={[styles.content]}>
+        <View style={{ flexGrow: 1, flexShrink: 1 }}>
           <View style={styles.label}>
-            {!!measurement.baseColor && <View style={styles.colorSwatch} />}
-            <Text numberOfLines={1} ellipsizeMode="tail" variant='titleMedium' style={styles.labelActivity}>{measurement.name}</Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={styles.labelActivity}>{measurement.name}</Text>
             {measurement.variant ? (
               <>
                 <Text variant='bodyLarge' style={styles.labelDivider}> : </Text>
@@ -2664,25 +1575,87 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
               </>
             ) : null}
           </View>
-          {!reordering && renderControlContent()}
+          <View style={styles.completionStatuses}>
+            {weekMeasurementValues.map((value, index) => {
+              const date = currentDate.getDaysAgo(currentDate.getDayOfWeek() - index);
+              const isFuture = date.after(today);
+              const isSelected = index === currentDate.getDayOfWeek();
+              const hasNotStarted = !startDate || startDate > date.toString();
+
+              const dayLabel = date.getDayOfWeekLetter();
+
+              return (
+                <View
+                  key={date.toString()}
+                  style={[
+                    styles.completionStatus,
+                    !isSelected && { opacity: 0.8 },
+                  ]}
+                >
+                  {
+                    isFuture || hasNotStarted ? (
+                      <Icon source={Icons.subtract} size={isSelected ? 16 : 12} color={theme.colors.onSurfaceDisabled} />
+                    ) : (
+                    <Icon
+                      source={value === null ? Icons.subtract : Icons.recorded}
+                      size={isSelected ? 16 : 12}
+                      color={combinedPalette.primary}
+                    />
+                  )}
+                </View>
+              );
+            })}
+      </View>
         </View>
+        {renderControlContent()}
+      </View>
+      {/* {renderExpandedContent()} */}
+    </>
+  );
+
+  return reordering ? (
+      <View style={[styles.container]}>
+        {content}
+      </View>
+    ) : archiving ? (
+      <TouchableRipple
+        style={[styles.container, measurement.archived && { opacity: 0.5 }]}
+        onPress={() => { onArchive && onArchive(measurement, !measurement.archived)}}
+      >
+        {content}
+      </TouchableRipple>
+    ) : (
+      <>
+        <TouchableRipple
+          style={[styles.container]}
+          onPress={onPress ? () => onPress(measurement.id) : undefined}
+          onLongPress={onLongPress ? () => onLongPress(measurement.id) : undefined}
+          onPressIn={onPressIn ? () => onPressIn(measurement.id) : undefined}
+          onPressOut={onPressOut ? () => onPressOut(measurement.id) : undefined}
+          delayLongPress={400}
+        >
+          {content}
+        </TouchableRipple>
         {renderExpandedContent()}
       </>
-    </TouchableRipple>
   );
 }
 
 const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, combinedPalette: Palette, index: number) => StyleSheet.create({
+  wrapper: {
+    
+  },
   container: {
+    marginHorizontal: 8,
+    marginBottom: 8,
+    marginTop: 0,
+    borderRadius: 4,
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 8,
-    gap: 8,
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.elevation.level3,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
+    gap: 4,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
+    overflow: 'hidden',
   },
   content: {
     flexDirection: 'row',
@@ -2695,14 +1668,6 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 4,
-  },
-  colorSwatch: {
-    height: 8,
-    width: 15,
-    borderRadius: 4,
-    backgroundColor: measurementPalette.primary,
-    marginRight: 8,
   },
   typeIconContainer: {
     paddingVertical: 6,
@@ -2718,60 +1683,77 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   },
   labelVariant: {
     flexShrink: 1,
+    color: theme.colors.onSurfaceVariant,
   },
   value: {
     flexShrink: 0,
     textAlign: 'right',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
 
-    height: 40,
-    minWidth: 40,
 
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    height: 42,
+    width: 104,
+
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  defaultValue: {
+    backgroundColor: 'transparent',
   },
   valueText: {
-    color: combinedPalette.primary,
+    color: theme.colors.onSurface,
+  },
+  defaultValueText: {
+    color: theme.colors.onSurfaceDisabled,
   },
   controls: {
     flexShrink: 0,
     flexGrow: 0,
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
+    marginRight: -8,
   },
   controlButton: {
     margin: 0,
-    marginHorizontal: -2,
     marginVertical: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 4,
   },
-  completionContent: {
+  expandedContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: -6,
+    backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
+
+    marginTop: -4,
+    marginBottom: 12,
+    paddingLeft: 24,
+    paddingRight: 8,
+    paddingVertical: 0,
   },
   completionStatuses: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    gap: 12,
+    gap: 2,
+    height: 20,
   },
   completionStatus: {
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 14,
+    height: 20,
+    width: 20,
+    borderRadius: 100,
   },
   aggregateContent: {
+    // flexGrow: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 24,
-    paddingRight: 4,
+    // justifyContent: 'flex-end',
+    gap: 16,
+    paddingRight: 8,
   },
   aggregateMetric: {
     flexDirection: 'row',
@@ -2779,17 +1761,29 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     gap: 4,
   },
   aggregateMetricLabel: {
-
+    color: theme.colors.onSurfaceVariant,
   },
   aggregateMetricValue: {
 
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    borderRadius: 4,
+    height: 32,
+    paddingHorizontal: 16,
+    margin: 0,
+    justifyContent: 'center',
   },
 });
 
 type RecordingDataHabitProps = {
   habit: ComputedHabit,
   index: number,
-  date: SimpleDate,
+  currentDate: SimpleDate,
   weekDates: SimpleDate[],
   measurements: Measurement[],
   expanded?: boolean,
@@ -2799,20 +1793,34 @@ type RecordingDataHabitProps = {
   onLongPress?: (id: string) => void,
   disabled?: boolean,
   reordering?: boolean,
+  archiving?: boolean,
+  onArchive?: (habit: ComputedHabit, archived: boolean) => void,
 }
 
 const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | null => {
-  const { habit, index, date, weekDates, measurements, expanded, recordingData, onPress, onPressIn, onLongPress, disabled, reordering } = props;
+  const {
+    habit,
+    index,
+    currentDate,
+    weekDates,
+    measurements,
+    expanded,
+    recordingData,
+    onPress,
+    onPressIn,
+    onLongPress,
+    reordering,
+    archiving,
+    onArchive,
+  } = props;
 
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
   const combinedPalette = getCombinedPalette(habit.baseColor);
-  const styles = createHabitStyles(theme, combinedPalette, index);
+  const styles = useMemo(() => createHabitStyles(theme, combinedPalette, index), [theme, combinedPalette, index]);
 
-  const today = SimpleDate.today();
-  const isFuture = date.after(SimpleDate.today());
-  // const dayRecordings = getDateRecordings(measurements, date);
-  // const weekRecordings = weekDates.map((weekDate) => getDateRecordings(measurements, weekDate));
+  const today = useToday();
+  const isFuture = currentDate.after(today);
 
   const firstWeeklyCompletionIndex = habit.isWeekly ? range(0, 7).map((_, index) => {
     const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1), recordingData);
@@ -2820,51 +1828,54 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   }).findIndex((completion) => completion) : -1;
 
   const renderCompletionContent = () => {
+    const completionCounts: number[] = [];
+    const completionCount = weekDates.reduce((count, weekDate, index) => {
+      const dates = habit.isWeekly ? weekDates : [weekDate];
+      const complete = habit.isWeekly ? index === firstWeeklyCompletionIndex : getHabitCompletion(habit, measurements, dates, recordingData)[0];
+      completionCounts.push(complete ? count + 1 : 0);
+      return count + (complete ? 1 : 0);
+    }, 0);
+
+    const targetCount = habit.isWeekly ? 1 : habit.daysPerWeek;
+
     return (
       <View style={styles.completionContent}>
-        {weekDates.map((weekDate, index) => {
-          const dates = habit.isWeekly ? weekDates : [weekDate];
-          const [complete] = getHabitCompletion(habit, measurements, dates, recordingData);
-          
-          const isSelected = index === date.getDayOfWeek();
-          const isFuture = weekDate.after(today);
-          let source = Icons.progressNone;
-          let color = combinedPalette.backdrop;
-          let size = 14;
-          if (isFuture) {
-            color = theme.colors.surfaceDisabled;
-            source = Icons.indeterminate;
-            size = 14;
-          } else if (habit.isWeekly && firstWeeklyCompletionIndex !== -1) {
-            if (index === firstWeeklyCompletionIndex) {
-              source = Icons.progressComplete;
-            } else if (index !== firstWeeklyCompletionIndex) {
-              source = Icons.indeterminate;
-              size = 14;
-            }
-          } else if (complete) {
-            color = combinedPalette.backdrop;
-            source = Icons.progressComplete;
-          }
-          
-          if (isSelected) {
-            color = combinedPalette.primary;
-          }
+        {completionCounts.map((count, index) => {
+          if (count === 0) return null;
+
+          const isSelected = index === currentDate.getDayOfWeek();
+          const isExtra = count > targetCount;
+          let source = isExtra ? Icons.extra : Icons.habitComplete;
+          let color = combinedPalette.primary;
         
           return (
             <View
-              key={weekDate.toString()}
-              style={styles.completionIcon}
+              key={index}
+              style={[
+                styles.completionIcon,
+                !isSelected && { opacity: 0.8 },
+              ]}
             >
-              <Icon source={source} size={size} color={color} />
+              <Icon source={source} size={isSelected ? 16 : 12} color={color} />
             </View>
           );
         })}
+        {range(completionCount, targetCount).map((index) => (
+          <View
+            key={index}
+            style={[
+              styles.completionIcon,
+              { opacity: 0.8 },
+            ]}
+          >
+            <Icon source={Icons.subtract} size={12} color={combinedPalette.primary} />
+          </View>
+        ))}
       </View>
     )
   };
 
-  const dates = weekDates.slice(habit.isWeekly ? 0 : date.getDayOfWeek(), date.getDayOfWeek() + 1);
+  const dates = weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
   const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, measurements, dates, recordingData);
   const renderConditionContent = () => {
     return (
@@ -2879,22 +1890,19 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
           const conditionCompletion = conditionCompletions[index];
           const conditionValue = conditionValues[index];
-          const conditionProgress = conditionProgressions[index];
+          const conditionProgress = conditionProgressions[index] || 0;
 
           const valueString = conditionValue === null ? '-' : formatValue(conditionValue, measurement.type, measurement.unit, false);
           const targetString = formatValue(target, measurement.type, measurement.unit, true);
 
-          const progressLabelColor = theme.colors.onSurface;
-          const progressColor = conditionCompletion ? palette.backdrop : palette.disabled;
           return (
             <View key={`${measurementId}${operator}${target}`} style={styles.condition}>
               <View style={styles.conditionMeasurement}>
-                {!!measurement.baseColor && <View style={[styles.conditionColorSwatch, { backgroundColor: palette.primary }]} />}
-                <Text variant='labelLarge'>{measurement.name}</Text>
+                <Text variant='bodyMedium'>{measurement.name}</Text>
                 {measurement.variant ? (
                   <>
-                    <Text variant='bodyMedium'>:</Text>
-                    <Text variant='bodyMedium'>{measurement.variant}</Text>
+                    <Text style={{ color: theme.colors.onSurfaceVariant }} variant='bodyMedium'>:</Text>
+                    <Text style={{ color: theme.colors.onSurfaceVariant }} variant='bodyMedium'>{measurement.variant}</Text>
                   </>
                 ) : null}
 
@@ -2906,11 +1914,11 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                     size={16}
                   />
                 ) : (
-                  <Text style={{ ...styles.conditionProgressCurrent, color: progressLabelColor }} variant='labelLarge'>
+                  <Text style={{ ...styles.conditionProgressCurrent, color: theme.colors.onSurface }} variant='bodyMedium'>
                     {valueString}
                   </Text>
                 )}
-                <Text style={{ ...styles.conditionProgressDivider, color: progressLabelColor }} variant='bodyMedium'>
+                <Text style={{ ...styles.conditionProgressDivider, color: theme.colors.onSurfaceVariant }} variant='bodyMedium'>
                   {' / '}
                 </Text>
                 {isBool ? (
@@ -2919,18 +1927,17 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
                     size={16}
                   />
                 ) : (
-                  <Text style={{ ...styles.conditionProgressTarget, color: progressLabelColor }} variant='bodyMedium' numberOfLines={1}>
+                  <Text style={{ ...styles.conditionProgressTarget, color: theme.colors.onSurfaceVariant }} variant='bodyMedium' numberOfLines={1}>
                     {targetString}
                   </Text>
                 )}
               </View>
-              <View style={styles.conditionProgress}>
-                <ProgressBar
-                  style={[styles.conditionProgressBar, conditionCompletion ? styles.conditionProgressBarComplete : {}]}
-                  progress={conditionProgress || 0}
-                  color={progressColor}
-                />
-              </View>
+              <CircularProgress
+                size={18}
+                strokeWidth={2}
+                color={conditionCompletion ? palette.primary : palette.disabled}
+                progress={conditionProgress}
+              />
             </View>
           );
         })}
@@ -2938,98 +1945,176 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     )
   }
 
-  return (
-    <TouchableRipple
-      style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
-      onPress={() => onPress ? onPress(habit.id) : null}
-      onPressIn={() => onPressIn ? onPressIn(habit.id) : null}
-      onLongPress={() => onLongPress ? onLongPress(habit.id) : null}
-      delayLongPress={300}
-      disabled={disabled}
-    >
-      <>
-        <View style={[styles.content]}>
-          {!!habit.baseColor && <View style={styles.colorSwatch} />}
-          <Text variant='titleMedium'>{habit.name}</Text>
-          <View style={styles.scopeTag}>
-            <Text variant='bodySmall' style={styles.scopeTagText}>
-              {habit.isWeekly ? 'WEEKLY' : `DAILY x${habit.daysPerWeek}`}
-            </Text>
+  const renderExpandedContent = () => {
+    const actionContent = (
+      <View style={styles.actionContent}>
+        <TouchableRipple
+          style={styles.actionButton}
+          hitSlop={6}
+          onPress={() => {
+            router.push(`/habit/${habit.id}`);
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon source={Icons.edit} size={14} />
+            <Text variant="labelLarge">EDIT</Text>
           </View>
-          {isFuture || reordering ? null : (
-            <View style={styles.dayCompletion}>
-              {habit.conditions.length > 1 && (
-                <View style={styles.predicate}>
-                  <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} />
-                  <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
-                </View>
-              )}
-              {habit.conditions.map((condition, index) => {
-                const conditionCompletion = conditionCompletions[index];
-                const measurement = measurements.find(({ id }) => id === condition.measurementId);
-                const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
-                return (
-                  <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
-                    <Icon
-                      source={conditionCompletion ? Icons.progressComplete : Icons.progressNone}
-                      color={complete ? palette.primary : conditionCompletion ? palette.backdrop : palette.disabled}
-                      size={12}
-                    />
-                  </View>
-                )
-              })}
-              <Points
-                style={[styles.dayCompletionPoints]}
-                size='medium'
-                points={habit.points}
-                color={complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
-              />
-            </View>
-          )}
+        </TouchableRipple>
+      </View>
+    );
+
+    return (
+      <View style={styles.expandedContent}>
+        {actionContent}
+      </View>
+    );
+  }
+  const expandedContent = useMemo(() => expanded && renderExpandedContent(), [styles, expanded]);
+
+  const renderPointsContent = () => {
+    return (
+      <View style={{
+        marginLeft: 12,
+        paddingVertical: 8,
+        width: 52,
+        justifyContent: 'flex-start',
+        alignItems: 'flex-end',
+        borderColor: theme.colors.surfaceDisabled,
+        borderLeftWidth: 1,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          <Text
+            variant='titleSmall'
+            style={{ marginTop: -6, color: complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
+          >
+            +
+          </Text>
+          <Points
+            style={[styles.dayCompletionPoints]}
+            size='large'
+            points={habit.points}
+            inline
+            color={complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
+          />
         </View>
-        {expanded && (
-          <>
-            {renderConditionContent()}
+      </View>
+    );
+  }
+  const pointsContent = useMemo(
+    () => !reordering && !archiving && renderPointsContent(),
+    [habit.points, complete, combinedPalette, theme, reordering, archiving, styles],
+  );
+
+  const content = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 0 }}>
+      <View style={{ flexGrow: 1 }}>
+        <View style={[styles.content]}>
+          <View>
+            <Text variant='bodyLarge'>{habit.name}</Text>
             {renderCompletionContent()}
-          </>
-        )}
-      </>
+          </View>
+          <View style={styles.dayCompletion}>
+            {!isFuture && !reordering && !archiving && (
+              <>
+                {habit.conditions.length > 1 && (
+                  <View style={styles.predicate}>
+                    {/* <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} /> */}
+                    <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
+                  </View>
+                )}
+                {!expanded && habit.conditions.map((condition, index) => {
+                  const conditionCompletion = conditionCompletions[index];
+                  const conditionProgress = conditionProgressions[index] || 0;
+                  const measurement = measurements.find(({ id }) => id === condition.measurementId);
+                  const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
+                  return (
+                    <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
+                      <CircularProgress
+                        size={18}
+                        strokeWidth={2}
+                        color={conditionCompletion ? palette.primary : palette.disabled}
+                        progress={conditionProgress}
+                      />
+                    </View>
+                  )
+                })}
+              </>
+            )}
+            {reordering && <Icon source={Icons.drag} size={24} />}
+            {archiving && <Icon source={habit.archived ? Icons.hide : Icons.show} size={24} color={habit.archived ? theme.colors.onSurfaceDisabled : undefined}/>}
+          </View>
+        </View>
+        {expanded && renderConditionContent()}
+      </View>
+      {pointsContent}
+    </View>
+  );
+
+  return reordering ? (
+    <View style={[styles.container]}>
+      {content}
+    </View>
+  ) : archiving ? (
+    <TouchableRipple
+      style={[styles.container, habit.archived && { opacity: 0.5 }]}
+      onPress={() => onArchive ? onArchive(habit, !habit.archived) : null}
+    >
+      {content}
     </TouchableRipple>
+  ) : (
+    <>
+      <View style={{ flexDirection: 'row' }}>
+        <View style={{ flexGrow: 1 }}>
+          <TouchableRipple
+            style={[styles.container, reordering && { backgroundColor : theme.colors.surface }]}
+            onPress={onPress ? () => onPress(habit.id) : undefined}
+            onPressIn={onPressIn ? () => onPressIn(habit.id) : undefined}
+            onLongPress={onLongPress ? () => onLongPress(habit.id) : undefined}
+            delayLongPress={400}
+          >
+            {content}
+          </TouchableRipple>
+        </View>
+      </View>
+      {expandedContent}
+    </>
   );
 }
 
 const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number) => StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    marginHorizontal: 8,
+    marginBottom: 8,
+    marginTop: 0,
+    borderRadius: 4,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingVertical: 8,
     gap: 8,
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.elevation.level3,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    marginTop: index === 0 ? 0 : -1,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
+    overflow: 'hidden',
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
-    gap: 8,
+    minHeight: 42,
+    gap: 16,
   },
   colorSwatch: {
-    height: 8,
-    width: 15,
-    borderRadius: 4,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: '300%',
+    width: 4,
     backgroundColor: habitPalette.primary,
   },
   scopeTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: theme.colors.elevation.level4,
-    borderRadius: 6,
+    width: 48,
+    borderRadius: 4,
   },
   scopeTagText: {
     color: theme.colors.outline,
@@ -3044,7 +2129,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   dayCompletionIcon: {},
   dayCompletionIconComplete: {},
   dayCompletionPoints: {
-    marginLeft: 8,
+    // marginLeft: 8,
   },
   predicate: {
     flexDirection: 'row',
@@ -3060,12 +2145,13 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   },
   conditionContent: {
     paddingHorizontal: 4,
+    flexGrow: 1,
   },
   condition: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    // alignItems: 'center',
     rowGap: 4,
+    gap: 12,
     paddingVertical: 4,
     justifyContent: 'space-between',
   },
@@ -3078,6 +2164,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    flexGrow: 1,
   },
   conditionProgressBarComplete: {
   },
@@ -3105,13 +2192,48 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   completionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    gap: 12,
+    gap: 2,
+    height: 20,
   },
   completionIcon: {
     flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: 20,
+    width: 20,
+    borderRadius: 100,
+  },
+  expandedContent: {
+    // width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    gap: 8,
+    backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
+
+
+    // marginLeft: -16,
+    // marginRight: -16,
+    marginTop: -4,
+    marginBottom: 12,
+    paddingLeft: 8,
+    paddingRight: 8,
+    paddingVertical: 0,
+    // borderWidth: 6,
+    // borderRadius: 10,
+    // borderColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
+
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    borderRadius: 4,
+    height: 32,
+    paddingHorizontal: 16,
+    margin: 0,
+    justifyContent: 'center',
   },
 });

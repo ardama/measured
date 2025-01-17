@@ -51,6 +51,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     flexGrow: 1,
     justifyContent: 'space-between',
+    minWidth: 300,
   },
   colorOuter: {
     flexGrow: 1,

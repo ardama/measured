@@ -95,7 +95,7 @@ const Settings = () => {
     },
     {
       icon: Icons.delete,
-      title: 'RESET ACCOUNT',
+      title: 'DELETE ACCOUNT',
       onPress: () => setShowDeleteAllDialog(true),
     }
   ];
@@ -165,10 +165,10 @@ const Settings = () => {
           visible={showDeleteAllDialog}
           onDismiss={() => setShowDeleteAllDialog(false)}
         >
-          <Dialog.Title>Reset Account</Dialog.Title>
+          <Dialog.Title>Delete Account</Dialog.Title>
           <Dialog.Content>
             <Text variant='bodyMedium'>
-              Are you sure you want to reset your account and delete all data? This action cannot be undone.
+              Are you sure you want to delete account data? This action cannot be undone.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -191,7 +191,7 @@ const Settings = () => {
               textColor={theme.colors.error}
               contentStyle={styles.dialogButton}
             >
-              RESET
+              DELETE
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -200,73 +200,73 @@ const Settings = () => {
   )
 }
 
-const createStyles = (theme: MD3Theme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-  },
-  scrollContainer: {
-    padding: 0,
-    flex: 1,
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 0,
-    backgroundColor: theme.colors.elevation.level3,
-    minHeight: 48,
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderColor: theme.colors.elevation.level5,
-    marginTop: -1,
-  },
-  sectionHeaderTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexGrow: 1,
-    gap: 8
-  },
-  sectionHeaderTitleIcon: {
-    
-  },
-  sectionHeaderText: {
-    color: theme.colors.onSurface,
-    flexGrow: 1,
-  },
-  sectionHeaderIcon: {
-    marginRight: 8,
-  },
-  item: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginTop: -1,
-    borderBottomWidth: 1,
-    borderTopWidth: 1,
-    borderColor: theme.colors.elevation.level3,
-    minHeight: 64,
+const createStyles = (theme: MD3Theme) => {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+    },
+    scrollContainer: {
+      padding: 0,
+      flex: 1,
+    },
+    sectionHeader: {
+      paddingHorizontal: 20,
+      paddingTop: 0,
+      paddingBottom: 0,
+      backgroundColor: theme.colors.elevation.level3,
+      minHeight: 48,
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      borderColor: theme.colors.elevation.level5,
+      marginTop: -1,
+    },
+    sectionHeaderTitle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexGrow: 1,
+      gap: 8
+    },
+    sectionHeaderTitleIcon: {},
+    sectionHeaderText: {
+      color: theme.colors.onSurface,
+      flexGrow: 1,
+    },
+    sectionHeaderIcon: {
+      marginRight: 8,
+    },
+    item: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      marginTop: -1,
+      borderBottomWidth: 1,
+      borderTopWidth: 1,
+      borderColor: theme.colors.elevation.level3,
 
-    flexGrow: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-  },
-  itemTitle: {
-    flexShrink: 0,
-    marginRight: 8,
-  },
-  itemContent: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    flexGrow: 1,
-  },
-  itemIcon: {
-    marginRight: -2,
-  },
-  dialogButton: {
-    paddingHorizontal: 8,
-  },
-});
+      flexGrow: 1,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 8,
+    },
+    itemTitle: {
+      flexShrink: 0,
+      marginRight: 8,
+      paddingVertical: 8,
+    },
+    itemContent: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      flexGrow: 1,
+    },
+    itemIcon: {
+      marginRight: -2,
+    },
+    dialogButton: {
+      paddingHorizontal: 8,
+    },
+  });
+};
 
 
 export default Settings;

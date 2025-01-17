@@ -505,7 +505,6 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
   return habits.length === 0 ? null : (
     <Surface style={cardStyles.cardContainer} elevation={0}>
       <View style={cardStyles.header}>
-        <Text style={[styles.title]} variant='titleLarge'>Habits: </Text>
         <Text style={[cardStyles.title, styles.title]} variant='bodyLarge'>{firstDate.toFormattedMonthYear()}</Text>
         <IconButton
           style={styles.headerButton}
