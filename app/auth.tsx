@@ -3,7 +3,7 @@ import { useAuthAction, useAuthState } from '@s/selectors';
 import { Error, NoError } from '@u/constants/Errors';
 import { withUser } from '@u/hocs/withUser';
 import React, { useEffect, useState } from 'react';
-import { ImageBackground, StatusBar, StyleSheet, View } from 'react-native';
+import { ImageBackground, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import Logo from '@a/images/m_logo_2.svg';
@@ -108,96 +108,98 @@ const LoginScreen = () => {
         />
         <Text variant='headlineSmall' style={styles.logoTitle}>measured</Text>
       </View>
-      <View style={styles.content}>
-        <View style={styles.formContainer}>
-          <Text style={styles.title} variant='titleLarge'>
-            {isSignUp ? 'Create an account' : isLogin ? 'Log in to your account' : 'Reset password'}
-          </Text>
-          <Text style={styles.subtitle} variant='bodyLarge'>
-            {isSignUp ? 'Start measuring your life.' : isLogin ? 'Continue measuring your life.' : 'Enter your email to receive a password reset link.'}
-          </Text>
-          <TextInput
-            value={email}
-            mode='outlined'
-            style={styles.input}          
-            placeholder='Email'
-            placeholderTextColor={theme.colors.outline}
-            error={lastestAction === userAction && getEmailErrors().hasError}
-            onChangeText={(text) => setEmail(text) }
-            left={<TextInput.Icon tabIndex={-1} icon={'at'} rippleColor={'transparent'} />}
-            onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-            activeOutlineColor={palette.primary}
-          />
-          {isReset ? null : <TextInput
-            value={password}
-            mode='outlined'
-            style={styles.input}          
-            placeholder={isSignUp ? 'New password' : 'Password'}
-            placeholderTextColor={theme.colors.outline}
-            error={lastestAction === userAction && getPasswordErrors().hasError}
-            onChangeText={(text) => setPassword(text) }
-            secureTextEntry
-            left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
-            onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-            activeOutlineColor={palette.primary}
-          />}
-          {isSignUp && (
-            <>
-              <TextInput
-                value={passwordConfirmation}
-                mode='outlined'
-                style={styles.input}          
-                placeholder='Confirm password'
-                placeholderTextColor={theme.colors.outline}
-                error={lastestAction === userAction && getConfirmationErrors().hasError}
-                onChangeText={(text) => setPasswordConfirmation(text) }
-                secureTextEntry
-                left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
-                onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
-                activeOutlineColor={palette.primary}
-              />
-            </>
-          )}
-          {lastestAction === userAction && errorText && <HelperText style={styles.helperText} type="error">{errorText}</HelperText>}
-          {info && <HelperText style={styles.helperText} type='info'>{info}</HelperText>}
-        </View>
-        <View style={styles.controlContainer}>
-          <Button
-            style={styles.button}
-            contentStyle={styles.buttonContent}
-            mode="contained"
-            loading={loading}
-            onPress={handleSubmit}
-            buttonColor={palette.primary}
-            uppercase
-          >
-            {isSignUp ? 'Sign Up' : isReset ? 'Reset password' : 'Login'}
-          </Button>
-          <Button
-            style={styles.button}
-            contentStyle={styles.buttonContent}
-            mode="text"
-            loading={loading}
-            onPress={handleGuest}
-            uppercase
-            textColor={palette.primary}
-            
-          >
-            Continue as guest
-          </Button>
-        </View>
-        <View style={{ flexGrow: 1 }} />
-        <View style={styles.linkContainer}>
-          {!isLogin && <Button onPress={() => dispatch(setAuthAction('login'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
-            {'Already have an account? Log in'}
-          </Button>}
-          {!isSignUp && <Button onPress={() => dispatch(setAuthAction('signup'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
-            {'Don\'t have an account? Sign Up'}
-          </Button>}
-          {!isReset && <Button onPress={() => dispatch(setAuthAction('reset'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
-            {'Having trouble? Reset password'}
-          </Button>}
-        </View>
+      <View style={styles.formContainer}>
+        <ScrollView style={styles.formWrapper} contentContainerStyle={{ alignItems: 'center' }}>
+          <View style={styles.form}>
+            <Text style={styles.title} variant='titleLarge'>
+              {isSignUp ? 'Create an account' : isLogin ? 'Log in to your account' : 'Reset password'}
+            </Text>
+            <Text style={styles.subtitle} variant='bodyLarge'>
+              {isSignUp ? 'Start measuring your life.' : isLogin ? 'Continue measuring your life.' : 'Enter your email to receive a password reset link.'}
+            </Text>
+            <TextInput
+              value={email}
+              mode='outlined'
+              style={styles.input}          
+              placeholder='Email'
+              placeholderTextColor={theme.colors.outline}
+              error={lastestAction === userAction && getEmailErrors().hasError}
+              onChangeText={(text) => setEmail(text) }
+              left={<TextInput.Icon tabIndex={-1} icon={'at'} rippleColor={'transparent'} />}
+              onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+              activeOutlineColor={palette.primary}
+            />
+            {isReset ? null : <TextInput
+              value={password}
+              mode='outlined'
+              style={styles.input}          
+              placeholder={isSignUp ? 'New password' : 'Password'}
+              placeholderTextColor={theme.colors.outline}
+              error={lastestAction === userAction && getPasswordErrors().hasError}
+              onChangeText={(text) => setPassword(text) }
+              secureTextEntry
+              left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
+              onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+              activeOutlineColor={palette.primary}
+            />}
+            {isSignUp && (
+              <>
+                <TextInput
+                  value={passwordConfirmation}
+                  mode='outlined'
+                  style={styles.input}          
+                  placeholder='Confirm password'
+                  placeholderTextColor={theme.colors.outline}
+                  error={lastestAction === userAction && getConfirmationErrors().hasError}
+                  onChangeText={(text) => setPasswordConfirmation(text) }
+                  secureTextEntry
+                  left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
+                  onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
+                  activeOutlineColor={palette.primary}
+                />
+              </>
+            )}
+            {lastestAction === userAction && errorText && <HelperText style={styles.helperText} type="error">{errorText}</HelperText>}
+            {info && <HelperText style={styles.helperText} type='info'>{info}</HelperText>}
+          </View>
+          <View style={styles.controlContainer}>
+            <Button
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              mode="contained"
+              loading={loading}
+              onPress={handleSubmit}
+              buttonColor={palette.primary}
+              uppercase
+            >
+              {isSignUp ? 'Sign Up' : isReset ? 'Reset password' : 'Login'}
+            </Button>
+            <Button
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              mode="text"
+              loading={loading}
+              onPress={handleGuest}
+              uppercase
+              textColor={palette.primary}
+              
+            >
+              Continue as guest
+            </Button>
+          </View>
+          <View style={{ flexGrow: 1 }} />
+          <View style={styles.linkContainer}>
+            {!isLogin && <Button onPress={() => dispatch(setAuthAction('login'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
+              {'Already have an account? Log in'}
+            </Button>}
+            {!isSignUp && <Button onPress={() => dispatch(setAuthAction('signup'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
+              {'Don\'t have an account? Sign Up'}
+            </Button>}
+            {!isReset && <Button onPress={() => dispatch(setAuthAction('reset'))} style={styles.toggle} textColor={theme.colors.onSurfaceVariant}>
+              {'Having trouble? Reset password'}
+            </Button>}
+          </View>
+        </ScrollView>
       </View>
     </View>
   )
@@ -244,26 +246,31 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     opacity: 0.8,
     ...createFontStyle(500, false, 'fira'),
   },
-  content: {
+  formContainer: {
     position: 'absolute',
     bottom: 0,
     flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: 40,
     minHeight: '50%',
+    maxHeight: '100%',
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
-
+    alignItems: 'center',
+    paddingTop: 40,
+    
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-
+    
     shadowRadius: 16,
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 3 },
     elevation: 24,
     gap: 12,
+  },
+  formWrapper: {
+    width: '100%',
+    paddingBottom: 40,
   },
   title: {
     color: palette.primary,
@@ -273,7 +280,7 @@ const createStyles = (theme: MD3Theme, palette: Palette, basePalette: Palette) =
     marginTop: 2,
     marginBottom: 12,
   },
-  formContainer: {
+  form: {
     width: '100%',
     paddingHorizontal: 40,
     flexShrink: 0,

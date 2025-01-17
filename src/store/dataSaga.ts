@@ -377,8 +377,17 @@ function* deleteAllSaga(): Generator<any, void, any> {
 }
 
 function* generateSampleDataSaga() {
-  yield put(callCreateMeasurements(sampleMeasurements));
-  yield put(callCreateHabits(sampleHabits));
+  const measurements = sampleMeasurements.map(measurement => ({
+    ...measurement,
+    userId: auth.currentUser?.uid || '',
+  }));
+  yield put(callCreateMeasurements(measurements));
+
+  const habits = sampleHabits.map(habit => ({
+    ...habit,
+    userId: auth.currentUser?.uid || '',
+  }));
+  yield put(callCreateHabits(habits));
 }
 
 export function* dataSaga() {

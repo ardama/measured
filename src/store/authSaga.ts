@@ -60,9 +60,9 @@ function* signUpSaga(action: PayloadAction<AuthCredentials>) {
     yield put(resetData());
     const result: UserCredential = yield call(createUserWithEmailAndPassword, auth, email.trim(), password.trim());
     
-    yield call(handleLocalDataImport, result.user.uid);
     yield call([storageService, storageService.setActiveUserId], result.user.uid);
     yield put(signUpSuccess(serializeUser(result.user)));
+    yield call(handleLocalDataImport, result.user.uid);
     
     const account: Account = yield select((state: RootState): Account => state.data.account);
     yield put(callUpdateAccount(account));
@@ -84,9 +84,9 @@ function* signInSaga(action: PayloadAction<AuthCredentials>) {
   try {
     yield put(resetData());
     const result: UserCredential = yield call(signInWithEmailAndPassword, auth, email.trim(), password.trim());
-    yield call(handleLocalDataImport, result.user.uid);
     yield call([storageService, storageService.setActiveUserId], result.user.uid);
     yield put(signInSuccess(serializeUser(result.user)));
+    yield call(handleLocalDataImport, result.user.uid);
   } catch (error) {
     if (error instanceof FirebaseError) {
       yield put(signInFailure(error.code));

@@ -1,11 +1,11 @@
-import { FlatList, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Icon, IconButton, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Dialog, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { formatValue, intersection, range, triggerHaptic } from '@u/helpers';
+import { computeTimeValue, formatTime, formatTimeValue, formatValue, intersection, parseTimeString, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
 import { callGenerateSampleData, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
@@ -24,6 +24,7 @@ import DraggableList from '@c/DraggableList';
 import CircularProgress from '@c/CircularProgress';
 import { Pressable } from 'react-native-gesture-handler';
 import { useToday } from '@u/hooks/useToday';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const Recordings = () => {
   const theme = useTheme();
@@ -1355,6 +1356,8 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const isBool = measurement.type === 'bool';
   const isTime = measurement.type === 'time';
   const isCombo = measurement.type === 'combo';
+  const unitString = isDuration ? 'minutes' : isBool ? '--' : isTime ? 'hours' : measurement.unit;
+
 
   const startDate = getMeasurementStartDate(measurement.id, measurements, mergedRecordingValues);
   const today = useToday();
@@ -1364,6 +1367,12 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
   const value = weekMeasurementValues[currentDate.getDayOfWeek()];
   const valueRef = useRef(value);
+
+  const [showValueDialog, setShowValueDialog] = useState(false);
+  const [valueDialogError, setValueDialogError] = useState(false);
+  const [valueString, setValueString] = useState('');
+  const [timeOffsetString, setTimeOffsetString] = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     valueRef.current = value;
@@ -1383,9 +1392,12 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   }
 
   const { getPalette, getCombinedPalette } = usePalettes();
-  const measurementPalette = getPalette(measurement.baseColor);
-  const combinedPalette = getCombinedPalette(measurement.baseColor);
-  const styles = createMeasurementStyles(theme, measurementPalette, combinedPalette, index);
+  const measurementPalette = useMemo(() => getPalette(measurement.baseColor), [measurement.baseColor, getPalette]);
+  const combinedPalette = useMemo(() => getCombinedPalette(measurement.baseColor), [measurement.baseColor, getCombinedPalette]);
+  const styles = useMemo(() =>
+    createMeasurementStyles(theme, measurementPalette, combinedPalette, index),
+    [theme, measurementPalette, combinedPalette, index]
+  );
 
   const renderControlContent = () => {
     if (reordering) return <Icon source={Icons.drag} size={24} />
@@ -1463,30 +1475,59 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         />
       );
 
+    const valueButton =
+      value !== null ? (
+        <TouchableRipple
+          style={styles.value}
+          onLongPress={() => {
+            setShowValueDialog(true);
+            if (isTime) {
+              const valueWithoutOffset = (24 + (value % 24)) % 24;
+              setValueString(formatTimeValue(valueWithoutOffset));
+              setTimeOffsetString(Math.floor(value / 24).toFixed(0));
+            } else {
+              setValueString(value.toString());
+            }
+          }}
+          disabled={isCombo || isBool}
+        >
+          {isBool ? (
+            <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={14} />
+          ) : (
+            <Text style={{ color: combinedPalette.primary }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
+              {formatValue(value, measurement.type, measurement.unit, true)}
+            </Text>
+          )}
+        </TouchableRipple>
+      ) : (
+        <TouchableRipple
+          style={[styles.value, styles.defaultValue]}
+          onPress={() => onValueChange ? onValueChange(measurement.initial) : null}
+          disabled={isCombo}
+          onLongPress={isCombo || isBool ? undefined : () => {
+            setShowValueDialog(true);
+            if (isTime) {
+              const valueWithoutOffset = (24 + (measurement.initial % 24)) % 24;
+              setValueString(formatTimeValue(valueWithoutOffset));
+              setTimeOffsetString(Math.floor(measurement.initial / 24).toFixed(0));
+            } else {
+              setValueString(measurement.initial.toString());
+            }          }}
+        >
+          {isBool ? (
+            <Icon source={measurement.initial ? Icons.complete : Icons.incomplete} color={theme.colors.onSurfaceDisabled} size={14} />
+          ) : (
+            <Text style={{ color: theme.colors.onSurfaceDisabled }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
+              {formatValue(measurement.initial, measurement.type, measurement.unit, true)}
+            </Text>
+          )}
+        </TouchableRipple>
+      )
+
     return (
       <View style={styles.controls}>
         {leftButton}
-        {value !== null ? (
-          <TouchableRipple style={styles.value} disabled={isCombo}>
-            {isBool ? (
-              <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={14} />
-            ) : (
-              <Text style={{ color: combinedPalette.primary }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
-                {formatValue(value, measurement.type, measurement.unit, true)}
-              </Text>
-            )}
-          </TouchableRipple>
-        ) : (
-          <TouchableRipple style={[styles.value, styles.defaultValue]} onPress={() => onValueChange ? onValueChange(measurement.initial) : null} disabled={isCombo}>
-            {isBool ? (
-              <Icon source={value ? Icons.complete : Icons.incomplete} color={theme.colors.onSurfaceDisabled} size={14} />
-            ) : (
-              <Text style={{ color: theme.colors.onSurfaceDisabled }} numberOfLines={1} ellipsizeMode='tail' variant='bodyLarge'>
-                {formatValue(measurement.initial, measurement.type, measurement.unit, true)}
-              </Text>
-            )}
-          </TouchableRipple>
-        )}
+        {valueButton}
         {rightButton}
       </View>
     );
@@ -1562,6 +1603,34 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     );
   }
 
+  const completionStatuses = weekMeasurementValues.map((value, index) => {
+    const date = currentDate.getDaysAgo(currentDate.getDayOfWeek() - index);
+    const isFuture = date.after(today);
+    const isSelected = index === currentDate.getDayOfWeek();
+    const hasNotStarted = !startDate || startDate > date.toString();
+
+    return useMemo(() => (
+      <View
+        key={date.toString()}
+        style={[
+          styles.completionStatus,
+          !isSelected && { opacity: 0.8 },
+        ]}
+      >
+        {
+          isFuture || hasNotStarted ? (
+            <Icon source={Icons.subtract} size={isSelected ? 16 : 12} color={theme.colors.onSurfaceDisabled} />
+          ) : (
+          <Icon
+            source={value === null ? Icons.subtract : Icons.recorded}
+            size={isSelected ? 16 : 12}
+            color={combinedPalette.primary}
+          />
+        )}
+      </View>
+    ), [date.toString(), isFuture, hasNotStarted, isSelected, value, combinedPalette.primary, styles]);
+  });
+
   const content = (
     <>
       <View style={[styles.content]}>
@@ -1576,40 +1645,156 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             ) : null}
           </View>
           <View style={styles.completionStatuses}>
-            {weekMeasurementValues.map((value, index) => {
-              const date = currentDate.getDaysAgo(currentDate.getDayOfWeek() - index);
-              const isFuture = date.after(today);
-              const isSelected = index === currentDate.getDayOfWeek();
-              const hasNotStarted = !startDate || startDate > date.toString();
-
-              const dayLabel = date.getDayOfWeekLetter();
-
-              return (
-                <View
-                  key={date.toString()}
-                  style={[
-                    styles.completionStatus,
-                    !isSelected && { opacity: 0.8 },
-                  ]}
-                >
-                  {
-                    isFuture || hasNotStarted ? (
-                      <Icon source={Icons.subtract} size={isSelected ? 16 : 12} color={theme.colors.onSurfaceDisabled} />
-                    ) : (
-                    <Icon
-                      source={value === null ? Icons.subtract : Icons.recorded}
-                      size={isSelected ? 16 : 12}
-                      color={combinedPalette.primary}
-                    />
-                  )}
-                </View>
-              );
-            })}
-      </View>
+            {completionStatuses}
+          </View>
         </View>
         {renderControlContent()}
       </View>
       {/* {renderExpandedContent()} */}
+    </>
+  );
+
+  const handleTimeChange = (_: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) {
+      const hours = selectedDate.getHours() + selectedDate.getMinutes() / 60;
+      setValueString(formatTimeValue(hours));
+    }
+  };
+
+  const onValueDialogSumbit = () => {
+    if (isTime) {
+      const parsedTime = parseTimeString(valueString) || { hours: 12, offset: 0 };
+      const offset = parseInt(timeOffsetString) || 0;
+      const nextValue = computeTimeValue(parsedTime.hours, offset);
+      onValueChange && onValueChange(nextValue);
+    } else {
+      const nextValue = parseFloat(valueString) || 0;
+      onValueChange && onValueChange(nextValue);
+    }
+    setShowValueDialog(false);
+  }
+  const valueDialog = (
+    <>
+      <Portal>
+        <Modal
+          visible={showValueDialog}
+          onDismiss={() => setShowValueDialog(false)}
+          style={styles.dialogModal}
+          contentContainerStyle={styles.dialog}
+        >
+          <View style={styles.dialogContent}>
+            <View style={styles.dialogTitle}>
+              <View style={styles.dialogTitleText}>
+                <Text variant='bodyLarge' style={styles.dialogName}>
+                  {measurement.name}
+                </Text>
+                {measurement.variant ? (
+                  <Text variant='bodyLarge' style={styles.dialogVariant}>
+                    : {measurement.variant}
+                  </Text>
+                ) : null}
+              </View>
+
+              <IconButton
+                icon={Icons.close}
+                size={18}
+                style={styles.closeButton}
+                iconColor={theme.colors.onSurfaceDisabled}
+                onPress={() => setShowValueDialog(false)}
+              />
+            </View>
+            {isTime ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  style={[styles.dialogInput, { flexGrow: 1, flexShrink: 1 }]}
+                  mode='outlined'
+                  label='Time'
+                  value={valueString}
+                  placeholder="12:00pm"
+                  onFocus={() => {
+                    if (Platform.OS !== 'web') {
+                      Keyboard.dismiss();
+                      setShowTimePicker(true);
+                    }
+                  }}
+                  onChangeText={(text) => {
+                    if (Platform.OS !== 'web') return;
+                    setValueString(text);
+                  }}
+                  onBlur={() => {
+                    if (Platform.OS !== 'web') return;
+
+                    const parsedTime = parseTimeString(valueString) || { hours: 12, offset: 0 };
+                    setValueString(formatTimeValue(parsedTime.hours));
+                  }}
+                  activeOutlineColor={combinedPalette.primary || undefined}
+                  showSoftInputOnFocus={Platform.OS === 'web'}
+                />
+                <TextInput
+                  style={[styles.dialogInput, { width: 100, flexShrink: 0 }]}
+                  mode='outlined'
+                  label='Offset'
+                  value={timeOffsetString}
+                  activeOutlineColor={combinedPalette.primary || undefined}
+                  keyboardType="numeric"
+                  right={
+                    <TextInput.Affix text={`days`} />
+                  }
+                  onChangeText={(text) => {
+                    setTimeOffsetString(text);
+                  }}
+                  onBlur={() => {
+                    const offset = parseInt(timeOffsetString) || 0;
+                    setTimeOffsetString(offset.toString());
+                  }}
+                />
+              </View>
+            ) : (
+              <TextInput
+                style={styles.dialogInput}
+                mode='outlined'
+                label='Value'
+                value={valueString}
+                onChangeText={(text) => {
+                  setValueString(text);
+                }}
+                disabled={isBool}
+                right={
+                  isDuration && valueString ? <TextInput.Affix text={`(${formatValue(parseFloat(valueString), measurement.type)})`} /> :
+                  unitString ? <TextInput.Affix text={unitString} /> :
+                  null
+                }
+                activeOutlineColor={combinedPalette.primary || undefined}
+                keyboardType="numeric"
+              />
+            )}
+          </View>
+          <View style={styles.dialogButtons}>
+            <Button
+              mode="contained"
+              style={styles.dialogButton}
+              contentStyle={styles.dialogButtonContent}
+              labelStyle={styles.dialogButtonLabel}
+              onPress={onValueDialogSumbit}
+              buttonColor={combinedPalette.backdrop}
+            >
+              <Text variant='labelLarge' style={[styles.dialogButtonText]}>
+                SUBMIT
+              </Text>
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
+      {showTimePicker && (
+        <DateTimePicker
+          value={new Date(2000, 0, 1, parseInt(valueString), (parseFloat(valueString) % 1) * 60)}
+          mode="time"
+          onChange={handleTimeChange}
+          display="spinner"
+          minuteInterval={5}
+        />
+      )}
     </>
   );
 
@@ -1637,6 +1822,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           {content}
         </TouchableRipple>
         {renderExpandedContent()}
+        {valueDialog}
       </>
   );
 }
@@ -1777,6 +1963,84 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     paddingHorizontal: 16,
     margin: 0,
     justifyContent: 'center',
+  },
+  dialogModal: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialog: {
+    flexGrow: 1,
+    flexShrink: 1,
+    maxWidth: 320,
+    marginHorizontal: 16,
+    
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    boxShadow: `0px 0px 16px ${theme.colors.shadow}40`,
+    overflow: 'hidden',
+
+  },
+  dialogContent: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  dialogTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+    marginBottom: 12,
+  },
+  closeButton: {
+    margin: 0,
+    height: 40,
+    width: 40,
+    borderRadius: 4,
+  },
+  dialogTitleText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dialogName: {
+  },
+  dialogVariant: {
+    color: theme.colors.onSurfaceVariant,
+  },
+  dialogInput: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  dialogButtons: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
+  dialogButton: {
+    flexGrow: 1,
+    flexShrink: 1,
+    width: '100%',
+    borderRadius: 4,
+  },
+  dialogButtonContent: {
+    height: 40,
+    margin: 0,
+  },
+  dialogButtonLabel: {
+    borderRadius: 0,
+  },
+  dialogButtonText: {
+  },
+  cancelButton: {
+  },
+  cancelButtonContent: {
+  },
+  cancelButtonText: {
+    color: theme.colors.onSurface,
   },
 });
 

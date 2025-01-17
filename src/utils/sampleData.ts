@@ -124,7 +124,7 @@ export const sampleHabits: ComputedHabit[] = [
         }
     ],
     predicate: 'AND',
-    priority: 1,
+    priority: 2,
     baseColor: 'red'
   },
   {
@@ -161,7 +161,7 @@ export const sampleHabits: ComputedHabit[] = [
         }
     ],
     predicate: 'AND',
-    priority: 1,
+    priority: 3,
     baseColor: 'green'
   },
 ];
