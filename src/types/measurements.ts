@@ -4,12 +4,12 @@ import { Collections } from '@u/constants/Firestore';
 import { Icons } from '@u/constants/Icons';
 import type { SimpleDate } from '@u/dates';
 
-interface Measurement {
+type Measurement = {
   id: string
   userId: string
   type: MeasurementType
   name: string
-  variant: string
+  category: string
   unit: string
   step: number
   initial: number
@@ -22,11 +22,30 @@ interface Measurement {
   baseColor?: BaseColor
 }
 
-const createMeasurement = (userId: string, name: string, variant: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
+type FormMeasurement = {
+  step: string;
+  id: string;
+  userId: string;
+  type: MeasurementType;
+  name: string;
+  category: string;
+  unit: string;
+  archived: boolean;
+  initial: string,
+  priority: number,
+  comboLeftId?: string,
+  comboRightId?: string,
+  comboOperator?: MeasurementOperator,
+  recordings: MeasurementRecording[],
+  hue?: number
+  baseColor?: BaseColor,
+};
+
+const createMeasurement = (userId: string, name: string, category: string, type: MeasurementType, unit: string, step: number, priority: number): Measurement => ({
   id: generateId(Collections.Measurements),
   userId,
   name,
-  variant,
+  category,
   type,
   unit,
   step,
@@ -41,7 +60,7 @@ const emptyMeasurement = (): Measurement => ({
   userId: '',
   type: '',
   name: '',
-  variant: '',
+  category: '',
   unit: '',
   step: 0,
   initial: 0,
@@ -60,7 +79,7 @@ type MeasurementTypeData = {
   description: string
   examples: string
   namePlaceholder: string
-  variantPlaceholder: string
+  categoryPlaceholder: string
 };
 const measurementTypeData: {
   duration: MeasurementTypeData
@@ -74,35 +93,35 @@ const measurementTypeData: {
     description: 'How much time you spent doing something.',
     examples: 'Hours slept, minutes of cardio, time spent meditating, etc.',
     namePlaceholder: '',
-    variantPlaceholder: '',
+    categoryPlaceholder: '',
   },
   time: {
     label: 'Time', icon: Icons.measurementTypeTime,
     description: 'What time you did something at.',
     examples: 'Bed time, wake up time, etc.',
     namePlaceholder: '',
-    variantPlaceholder: '',
+    categoryPlaceholder: '',
   },
   count: {
     label: 'Count', icon: Icons.measurementTypeCount,
     description: 'How much of something you did.',
-    examples: 'Steps walked, calories eaten, pages read, etc.',
+    examples: 'Steps walked, calories consumed, pages read, etc.',
     namePlaceholder: '',
-    variantPlaceholder: '',
+    categoryPlaceholder: '',
   },
   bool: {
     label: 'Yes / No', icon: Icons.measurementTypeBool,
     description: 'Whether or not you did something.',
     examples: 'Took vitamins, called a friend, etc.',
     namePlaceholder: '',
-    variantPlaceholder: '',
+    categoryPlaceholder: '',
   },
   combo: {
     label: 'Combo', icon: Icons.measurementTypeCombo,
     description: 'Combination of multiple measurements into one.',
     examples: 'Total workout time, total social media time, etc.',
     namePlaceholder: '',
-    variantPlaceholder: '',
+    categoryPlaceholder: '',
   },
 };
 
@@ -206,6 +225,7 @@ const getDateRecordings = (measurements: Measurement[], date: SimpleDate): Measu
 
 export {
   type Measurement,
+  type FormMeasurement,
   createMeasurement,
   emptyMeasurement,
 

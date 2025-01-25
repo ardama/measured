@@ -4,6 +4,7 @@ import { computeHabit, type ComputedHabit, type Habit } from '@t/habits';
 import { type Measurement } from '@t/measurements';
 import type { AppState, AuthState, DataState, RootState } from '@t/redux';
 import type { Account, AccountSettings, User } from '@t/users';
+import type { BaseColor } from '@u/colors';
 import { SimpleDate } from '@u/dates';
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
@@ -168,5 +169,20 @@ const selectMeasurementUsage = createSelector(
     return map;
   }
 );
+
+const selectCategories = createSelector(
+  [selectMeasurements, selectComputedHabits()],
+  (measurements, habits) => [...new Set(
+    [
+      ...measurements
+        .filter(({ category }) => !!category)
+        .map(({ category, baseColor }) => `${category}::::::${baseColor}`),
+      ...habits
+        .filter(({ category }) => !!category)
+        .map(({ category, baseColor }) => `${category}::::::${baseColor}`),
+    ]
+  )].map((str) => str.split('::::::')).map(([category, baseColor]) => ({ category, baseColor: baseColor as BaseColor }))
+);
+export const useCategories = () => useSelector(selectCategories);
 
 export const useMeasurementUsage = () => useSelector(selectMeasurementUsage);

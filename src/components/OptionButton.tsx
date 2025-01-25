@@ -84,7 +84,7 @@ const OptionButton = ({
         disabled={disabled}
 
         background={{ foreground: true }}
-        onPress={() => { !disabled && onPress ? onPress() : null}}
+        onPress={!disabled && !selected && onPress ? onPress : undefined}
       >
         <View style={[
           s.content,
@@ -116,11 +116,15 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: theme.colors.elevation.level2,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   containerSelected: {
     backgroundColor: palette.backdrop,
+    borderColor: palette.alt,
   },
   containerUnselected: {
+    
   },
   containerDisabled: {
     backgroundColor: undefined,

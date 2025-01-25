@@ -10,7 +10,7 @@ import { Divider, Icon, IconButton, Modal, Portal, Searchbar, Text, useTheme, ty
 
 type BottomDrawerProps<T> = {
   title: string
-  anchor: JSX.Element
+  anchor: JSX.Element | ((toggleVisibility: () => void) => JSX.Element)
   selectedItem?: BottomDrawerItem<T> | null
   items: BottomDrawerItem<T>[]
   showSearchbar?: boolean
@@ -22,6 +22,7 @@ type BottomDrawerProps<T> = {
 
 export type BottomDrawerItem<T> = {
   title: string
+  renderItem?: (item: BottomDrawerItem<T>) => JSX.Element
   subtitle?: string
   value: T
   icon?: string
@@ -41,6 +42,10 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, sh
   const handleDismiss = () => {
     setVisible(false);
   }; 
+
+  const toggleVisibility = () => {
+    setVisible(!visible);
+  }
   
   const handleSelect = useCallback((item: BottomDrawerItem<T>) => {
     onSelect(item);
@@ -77,14 +82,15 @@ export default function BottomDrawer<T>({ title, anchor, selectedItem, items, sh
   });
 
   const isSearchbarVisible = showSearchbar || (items.length > 7 && showSearchbar !== false);
+  const anchorElement = typeof anchor === 'function' ? anchor(toggleVisibility) : anchor;
   return (
     <>
-      {React.cloneElement(anchor, {
+      {React.cloneElement(anchorElement, {
         onPress: () => {
           setVisible(true);
 
-          if (anchor.props.onPress) {
-            anchor.props.onPress();
+          if (anchorElement.props.onPress) {
+            anchorElement.props.onPress();
           }
         }
       })}
@@ -182,6 +188,7 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
         onSelect(item);
       }}
     >
+      {item.renderItem ? item.renderItem(item) : (
       <View
         style={[styles.itemContent, selected ? styles.itemContentSelected : {}, item.disabled ? styles.itemContentDisabled : {}]}
       >
@@ -203,8 +210,9 @@ function BottomDrawerItem<T>({ item, selected, onSelect, palette }: BottomDrawer
               {item.subtitle}
             </Text>
           )}
+          </View>
         </View>
-      </View>
+      )}
     </Pressable>
   ), [item, selected, onSelect, palette]);
 }
@@ -216,9 +224,10 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   container: {
     width: '100%',
     position: 'absolute',
-    bottom: 0,
+    bottom: -40,
   },
   content: {
+    paddingBottom: 40,
     width: '100%',
     position: 'absolute',
     bottom: 0,
@@ -276,7 +285,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   },
   scrollContainer: {
     width: '100%',
-    maxHeight: 600,
+    maxHeight: 480,
     paddingHorizontal: 16,
   },
   divider: {
@@ -289,10 +298,9 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 16, 
     paddingHorizontal: 20, 
-    borderColor: 'transparent',
   },
   itemSelected: {
-    backgroundColor: palette.backdrop,
+    backgroundColor: theme.colors.elevation.level3,
   },
   itemDisabled: {
     

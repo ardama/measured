@@ -83,15 +83,19 @@ const Settings = () => {
   ];
   const accountItems: SettingsItem[] = [
     {
+      icon: Icons.user,
+      title: 'CURRENT USER',
+      control: (
+        <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
+      )
+    },
+    {
       icon: user ? Icons.logout : Icons.login,
       title: user ? 'SIGN OUT' : 'CREATE ACCOUNT',
       onPress: () => {
         if (!user) dispatch(setAuthAction('signup'));
         router.push('/signout');
       },
-      control: (
-        <Text variant='bodyMedium' style={{ color: globalPalette.primary }}>{user?.email || 'Guest'}</Text>
-      )
     },
     {
       icon: Icons.delete,

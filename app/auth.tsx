@@ -109,7 +109,7 @@ const LoginScreen = () => {
         <Text variant='headlineSmall' style={styles.logoTitle}>measured</Text>
       </View>
       <View style={styles.formContainer}>
-        <ScrollView style={styles.formWrapper} contentContainerStyle={{ alignItems: 'center' }}>
+        <ScrollView style={styles.formWrapper} contentContainerStyle={{ alignItems: 'center' }} automaticallyAdjustKeyboardInsets>
           <View style={styles.form}>
             <Text style={styles.title} variant='titleLarge'>
               {isSignUp ? 'Create an account' : isLogin ? 'Log in to your account' : 'Reset password'}

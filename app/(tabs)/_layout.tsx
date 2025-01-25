@@ -73,19 +73,6 @@ const TabLayout = () => {
       initialRouteName='home'
     >
       <Tabs.Screen
-        name="history"
-        options={{
-          title: 'Data',
-          tabBarIcon: ({ color, focused, size }) => 
-            <Icon
-              source={focused ? Icons.chartFilled : Icons.chart}
-              color={color}
-              size={size}
-            />
-          ,
-        }}
-        />
-      <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
@@ -99,6 +86,19 @@ const TabLayout = () => {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'Data',
+          tabBarIcon: ({ color, focused, size }) => 
+            <Icon
+              source={focused ? Icons.chartFilled : Icons.chart}
+              color={color}
+              size={size}
+            />
+          ,
+        }}
+        />
       <Tabs.Screen
         name="settings"
         options={{

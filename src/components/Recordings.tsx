@@ -25,11 +25,15 @@ import CircularProgress from '@c/CircularProgress';
 import { Pressable } from 'react-native-gesture-handler';
 import { useToday } from '@u/hooks/useToday';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import QuickStartButton from '@c/QuickStartButton';
+import { HabitLabel, MeasurementLabel } from '@c/Label';
 
 const Recordings = () => {
   const theme = useTheme();
   const { baseColor, globalPalette, basePalette } = usePalettes();
   const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
+  const { top, bottom } = useSafeAreaInsets();
 
   const measurements = useMeasurements();
 
@@ -923,7 +927,7 @@ const Recordings = () => {
         backgroundColor={theme.colors.surface} barStyle={theme.dark ? 'light-content' : 'dark-content'}
       />
       <View
-        style={styles.container}
+        style={[styles.container, { paddingTop: top, paddingBottom: bottom }]}
       >
         <View style={{ backgroundColor: theme.colors.surface }}>
           {timeline}
@@ -987,6 +991,7 @@ const Recordings = () => {
                           />
                         );
                       })}
+                      {measurements.length < 3 && <QuickStartButton />}
                     </ScrollView>
                   )}
                 </View>
@@ -998,32 +1003,7 @@ const Recordings = () => {
                     </View>
                     <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
                   </View>
-                  {!measurements.length && (
-                    <>
-                      <Button
-                        style={styles.sampleDataButton}
-                        contentStyle={styles.sampleDataButtonContent}
-                        mode='contained'
-                        onPress={() => {
-                          dispatch(callGenerateSampleData());
-                        }}
-                        >
-                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
-                          Get started with sample data
-                        </Text>
-                      </Button>
-                      <Button
-                        style={styles.noDataButton}
-                        contentStyle={styles.noDataButtonContent}
-                        mode='outlined'
-                        onPress={() => { router.push('/measurement/create'); }}
-                      >
-                        <Text variant='labelLarge' style={styles.noDataButtonText}>
-                          Create a custom measurement
-                        </Text>
-                      </Button>
-                    </>
-                  )}
+                  {!measurements.length && <QuickStartButton />}
                 </>
               )}
             </>
@@ -1081,6 +1061,7 @@ const Recordings = () => {
                           />
                         );
                       })}
+                      {habits.length < 3 && <QuickStartButton />}
                     </ScrollView>
                   )}
                 </View>
@@ -1092,32 +1073,7 @@ const Recordings = () => {
                     </View>
                     <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
                   </View>
-                  {!habits.length && (
-                    <>
-                      <Button
-                        style={styles.sampleDataButton}
-                        contentStyle={styles.sampleDataButtonContent}
-                        mode='contained'
-                        onPress={() => {
-                          dispatch(callGenerateSampleData());
-                        }}
-                        >
-                        <Text variant='labelLarge' style={styles.sampleDataButtonText}>
-                          Get started with sample data
-                        </Text>
-                      </Button>
-                      <Button
-                        style={styles.noDataButton}
-                        contentStyle={styles.noDataButtonContent}
-                        mode='outlined'
-                        onPress={() => { router.push('/habit/create'); }}
-                      >
-                        <Text variant='labelLarge' style={styles.noDataButtonText}>
-                          Create a custom habit
-                        </Text>
-                      </Button>
-                    </>
-                  )}
+                  {!habits.length && <QuickStartButton />}
                 </>
               )}
             </>
@@ -1272,7 +1228,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     },
     noData: {
       flexDirection: 'row',
-      paddingVertical: 24,
+      marginTop: 20,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1287,7 +1243,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       alignSelf: 'center',
       marginBottom: 20,
       borderRadius: 4,
-      width: 280,
+      width: 300,
     },
     noDataButtonContent: {
       // paddingHorizontal: 12,
@@ -1296,10 +1252,11 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     noDataButtonText: {
     },
     sampleDataButton: {
-      width: 280,
+      width: 300,
       borderRadius: 4,
       alignSelf: 'center',
-      marginBottom: 20,
+      marginTop: 32,
+      marginBottom: 12,
     },
     sampleDataButtonContent: {
       paddingVertical: 4,
@@ -1636,13 +1593,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       <View style={[styles.content]}>
         <View style={{ flexGrow: 1, flexShrink: 1 }}>
           <View style={styles.label}>
-            <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={styles.labelActivity}>{measurement.name}</Text>
-            {measurement.variant ? (
-              <>
-                <Text variant='bodyLarge' style={styles.labelDivider}> : </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" variant='bodyLarge' style={[styles.labelVariant]}>{measurement.variant}</Text>
-              </>
-            ) : null}
+            <MeasurementLabel
+              measurement={measurement}
+              size='large'
+            />
           </View>
           <View style={styles.completionStatuses}>
             {completionStatuses}
@@ -1650,7 +1604,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
         </View>
         {renderControlContent()}
       </View>
-      {/* {renderExpandedContent()} */}
     </>
   );
 
@@ -1676,123 +1629,142 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   }
   const valueDialog = (
     <>
-      <Portal>
+      {(!showTimePicker || Platform.OS === 'ios') && <Portal>
         <Modal
           visible={showValueDialog}
           onDismiss={() => setShowValueDialog(false)}
           style={styles.dialogModal}
-          contentContainerStyle={styles.dialog}
+          contentContainerStyle={styles.dialogContainer}
         >
-          <View style={styles.dialogContent}>
-            <View style={styles.dialogTitle}>
-              <View style={styles.dialogTitleText}>
-                <Text variant='bodyLarge' style={styles.dialogName}>
-                  {measurement.name}
-                </Text>
-                {measurement.variant ? (
-                  <Text variant='bodyLarge' style={styles.dialogVariant}>
-                    : {measurement.variant}
-                  </Text>
-                ) : null}
-              </View>
+          <View style={styles.dialog}>
+            <View style={styles.dialogContent}>
+              <View style={styles.dialogTitle}>
+                <MeasurementLabel
+                  measurement={measurement}
+                  size='large'
+                />
 
-              <IconButton
-                icon={Icons.close}
-                size={18}
-                style={styles.closeButton}
-                iconColor={theme.colors.onSurfaceDisabled}
-                onPress={() => setShowValueDialog(false)}
-              />
-            </View>
-            {isTime ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <IconButton
+                  icon={Icons.close}
+                  size={18}
+                  style={styles.closeButton}
+                  iconColor={theme.colors.onSurfaceDisabled}
+                  onPress={() => setShowValueDialog(false)}
+                />
+              </View>
+              {isTime ? (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      style={[styles.dialogInput, { flexGrow: 1, flexShrink: 1 }]}
+                      mode='outlined'
+                      label='Time'
+                      value={valueString}
+                      placeholder="12:00pm"
+                      onFocus={() => {
+                        if (Platform.OS !== 'web') {
+                          Keyboard.dismiss();
+                          setShowTimePicker(true);
+                        }
+                      }}
+                      onChangeText={(text) => {
+                        if (Platform.OS !== 'web') return;
+                        setValueString(text);
+                      }}
+                      onBlur={() => {
+                        if (Platform.OS !== 'web') return;
+
+                        const parsedTime = parseTimeString(valueString) || { hours: 12, offset: 0 };
+                        setValueString(formatTimeValue(parsedTime.hours));
+                      }}
+                      activeOutlineColor={combinedPalette.primary || undefined}
+                      showSoftInputOnFocus={Platform.OS === 'web'}
+                    />
+                    <TextInput
+                      style={[styles.dialogInput, { width: 100, flexShrink: 0 }]}
+                      mode='outlined'
+                      label='Offset'
+                      value={timeOffsetString}
+                      activeOutlineColor={combinedPalette.primary || undefined}
+                      keyboardType="numeric"
+                      right={
+                        <TextInput.Affix text={`days`} />
+                      }
+                      onChangeText={(text) => {
+                        setTimeOffsetString(text);
+                      }}
+                      onBlur={() => {
+                        const offset = parseInt(timeOffsetString) || 0;
+                        setTimeOffsetString(offset.toString());
+                      }}
+                    />
+                  </View>
+                  {Platform.OS === 'ios' && (
+                    <DateTimePicker
+                      value={new Date(
+                        2000, 0, 1,
+                        Math.floor(parseTimeString(valueString)?.hours || 12),
+                        Math.round((parseTimeString(valueString)?.hours || 12) % 1 * 60)
+                      )}
+                      mode="time"
+                      onChange={handleTimeChange}
+                      display="spinner"
+                      minuteInterval={1}
+                      textColor={combinedPalette.primary}
+                      accentColor={combinedPalette.primary}
+                    />
+                  )}
+                </>
+              ) : (
                 <TextInput
-                  style={[styles.dialogInput, { flexGrow: 1, flexShrink: 1 }]}
+                  style={styles.dialogInput}
                   mode='outlined'
-                  label='Time'
+                  label='Value'
                   value={valueString}
-                  placeholder="12:00pm"
-                  onFocus={() => {
-                    if (Platform.OS !== 'web') {
-                      Keyboard.dismiss();
-                      setShowTimePicker(true);
-                    }
-                  }}
                   onChangeText={(text) => {
-                    if (Platform.OS !== 'web') return;
                     setValueString(text);
                   }}
-                  onBlur={() => {
-                    if (Platform.OS !== 'web') return;
-
-                    const parsedTime = parseTimeString(valueString) || { hours: 12, offset: 0 };
-                    setValueString(formatTimeValue(parsedTime.hours));
-                  }}
-                  activeOutlineColor={combinedPalette.primary || undefined}
-                  showSoftInputOnFocus={Platform.OS === 'web'}
-                />
-                <TextInput
-                  style={[styles.dialogInput, { width: 100, flexShrink: 0 }]}
-                  mode='outlined'
-                  label='Offset'
-                  value={timeOffsetString}
+                  disabled={isBool}
+                  right={
+                    isDuration && valueString ? <TextInput.Affix text={`(${formatValue(parseFloat(valueString), measurement.type)})`} /> :
+                    unitString ? <TextInput.Affix text={unitString} /> :
+                    null
+                  }
                   activeOutlineColor={combinedPalette.primary || undefined}
                   keyboardType="numeric"
-                  right={
-                    <TextInput.Affix text={`days`} />
-                  }
-                  onChangeText={(text) => {
-                    setTimeOffsetString(text);
-                  }}
-                  onBlur={() => {
-                    const offset = parseInt(timeOffsetString) || 0;
-                    setTimeOffsetString(offset.toString());
-                  }}
                 />
-              </View>
-            ) : (
-              <TextInput
-                style={styles.dialogInput}
-                mode='outlined'
-                label='Value'
-                value={valueString}
-                onChangeText={(text) => {
-                  setValueString(text);
-                }}
-                disabled={isBool}
-                right={
-                  isDuration && valueString ? <TextInput.Affix text={`(${formatValue(parseFloat(valueString), measurement.type)})`} /> :
-                  unitString ? <TextInput.Affix text={unitString} /> :
-                  null
-                }
-                activeOutlineColor={combinedPalette.primary || undefined}
-                keyboardType="numeric"
-              />
-            )}
-          </View>
-          <View style={styles.dialogButtons}>
-            <Button
-              mode="contained"
-              style={styles.dialogButton}
-              contentStyle={styles.dialogButtonContent}
-              labelStyle={styles.dialogButtonLabel}
-              onPress={onValueDialogSumbit}
-              buttonColor={combinedPalette.backdrop}
-            >
-              <Text variant='labelLarge' style={[styles.dialogButtonText]}>
-                SUBMIT
-              </Text>
-            </Button>
+              )}
+            </View>
+            <View style={styles.dialogButtons}>
+              <Button
+                mode="contained"
+                style={styles.dialogButton}
+                contentStyle={styles.dialogButtonContent}
+                labelStyle={styles.dialogButtonLabel}
+                onPress={onValueDialogSumbit}
+                buttonColor={combinedPalette.backdrop}
+              >
+                <Text variant='labelLarge' style={[styles.dialogButtonText]}>
+                  SUBMIT
+                </Text>
+              </Button>
+            </View>
           </View>
         </Modal>
-      </Portal>
-      {showTimePicker && (
+      </Portal>}
+      {showTimePicker && Platform.OS !== 'ios' && (
         <DateTimePicker
-          value={new Date(2000, 0, 1, parseInt(valueString), (parseFloat(valueString) % 1) * 60)}
+          value={new Date(
+            2000, 0, 1,
+            Math.floor(parseTimeString(valueString)?.hours || 12),
+            Math.round((parseTimeString(valueString)?.hours || 12) % 1 * 60)
+          )}
           mode="time"
           onChange={handleTimeChange}
           display="spinner"
-          minuteInterval={5}
+          minuteInterval={1}
+          textColor={theme.colors.onSurface}
+          accentColor={combinedPalette.primary}
         />
       )}
     </>
@@ -1838,7 +1810,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     borderRadius: 4,
     paddingLeft: 16,
     paddingRight: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 4,
     backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
     overflow: 'hidden',
@@ -1854,6 +1826,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 0,
   },
   typeIconContainer: {
     paddingVertical: 6,
@@ -1925,6 +1898,8 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     alignItems: 'center',
     gap: 2,
     height: 20,
+    marginTop: 4,
+    marginBottom: -4
   },
   completionStatus: {
     flexShrink: 1,
@@ -1965,6 +1940,8 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     justifyContent: 'center',
   },
   dialogModal: {
+  },
+  dialogContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1972,14 +1949,14 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   dialog: {
     flexGrow: 1,
     flexShrink: 1,
-    maxWidth: 320,
+    maxWidth: 420,
     marginHorizontal: 16,
-    
     backgroundColor: theme.colors.surface,
     borderRadius: 12,
     boxShadow: `0px 0px 16px ${theme.colors.shadow}40`,
+    
     overflow: 'hidden',
-
+    
   },
   dialogContent: {
     paddingHorizontal: 24,
@@ -1997,11 +1974,6 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     height: 40,
     width: 40,
     borderRadius: 4,
-  },
-  dialogTitleText: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   dialogName: {
   },
@@ -2161,16 +2133,10 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
           return (
             <View key={`${measurementId}${operator}${target}`} style={styles.condition}>
-              <View style={styles.conditionMeasurement}>
-                <Text variant='bodyMedium'>{measurement.name}</Text>
-                {measurement.variant ? (
-                  <>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }} variant='bodyMedium'>:</Text>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }} variant='bodyMedium'>{measurement.variant}</Text>
-                  </>
-                ) : null}
-
-              </View>
+              <MeasurementLabel
+                measurement={measurement}
+                size='medium'
+              />
               <View style={styles.conditionProgressLabel}>
                 {isBool && conditionValue !== null ? (
                   <Icon
@@ -2274,7 +2240,10 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
       <View style={{ flexGrow: 1 }}>
         <View style={[styles.content]}>
           <View>
-            <Text variant='bodyLarge'>{habit.name}</Text>
+            <HabitLabel
+              habit={habit}
+              size='large'
+            />
             {renderCompletionContent()}
           </View>
           <View style={styles.dayCompletion}>
@@ -2353,7 +2322,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     borderRadius: 4,
     paddingLeft: 12,
     paddingRight: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 8,
     backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
     overflow: 'hidden',
@@ -2410,6 +2379,7 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
   conditionContent: {
     paddingHorizontal: 4,
     flexGrow: 1,
+    marginTop: 8,
   },
   condition: {
     flexDirection: 'row',
@@ -2424,18 +2394,13 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     width: 11,
     borderRadius: 3,
   },
-  conditionMeasurement: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    flexGrow: 1,
-  },
   conditionProgressBarComplete: {
   },
   conditionProgressLabel: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
+    flexGrow: 1,
   },
   conditionProgressCurrent: {
     textAlign: 'right',
@@ -2458,6 +2423,8 @@ const createHabitStyles = (theme: MD3Theme, habitPalette: Palette, index: number
     alignItems: 'center',
     gap: 2,
     height: 20,
+    marginTop: 4,
+    marginBottom: -4,
   },
   completionIcon: {
     flexShrink: 1,

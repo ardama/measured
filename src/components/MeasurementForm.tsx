@@ -3,7 +3,7 @@ import ColorPicker from '@c/ColorPicker';
 import Header from '@c/Header';
 import OptionButton from '@c/OptionButton';
 import { callCreateMeasurement, callDeleteMeasurement, callUpdateMeasurement } from '@s/dataReducer';
-import { useMeasurements, useMeasurementUsage } from '@s/selectors';
+import { useCategories, useMeasurements, useMeasurementUsage } from '@s/selectors';
 import { getMeasurementOperatorData, getMeasurementTypeData, getMeasurementTypeIcon, measurementOperators, measurementTypes, type Measurement, type MeasurementOperator, type MeasurementRecording, type MeasurementType } from '@t/measurements';
 import { type BaseColor, type Palette } from '@u/colors';
 import { Error, EmptyError, NoError } from '@u/constants/Errors';
@@ -12,48 +12,27 @@ import { formatValue, parseTimeString, formatTimeValue, parseTimeValue, computeT
 import { usePalettes } from '@u/hooks/usePalettes';
 import { router } from 'expo-router';
 import { useState, useEffect, useMemo } from 'react';
-import { Keyboard, ScrollView, StyleSheet, View, Platform } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, View, Platform, Pressable } from 'react-native';
 import { Button, Dialog, Divider, Icon, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { CategoryBadge, MeasurementLabel } from '@c/Label';
+import { type FormMeasurement } from '@t/measurements';
 type MeasurementFormProps = {
   measurement: Measurement,
   formType: 'create' | 'edit',
 }
 
-type FormMeasurement = {
-  step: string;
-  id: string;
-  userId: string;
-  type: MeasurementType;
-  name: string;
-  variant: string;
-  unit: string;
-  archived: boolean;
-  initial: string,
-  priority: number,
-  comboLeftId?: string,
-  comboRightId?: string,
-  comboOperator?: MeasurementOperator,
-  recordings: MeasurementRecording[],
-  hue?: number
-  baseColor?: BaseColor,
-};
-
 export default function MeasurementForm({ measurement, formType } : MeasurementFormProps) {
   const dispatch = useDispatch();
   const measurements = useMeasurements();
-
+  const categories = useCategories();
   const [formMeasurement, setFormMeasurement] = useState<FormMeasurement>({
     ...measurement,
     step: measurement.type === 'time' ? (measurement.step * 60).toString() : measurement.step.toString(),
     initial: measurement.initial.toString(),
   });
   const [saveAttempted, setSaveAttempted] = useState(false);
-  const [isComboLeftMenuVisible, setIsComboLeftMenuVisible] = useState(false);
-  const [isComboRightMenuVisible, setIsComboRightMenuVisible] = useState(false);
-  const [isComboOperatorMenuVisible, setIsComboOperatorMenuVisible] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   const isNew = formType === 'create';
@@ -102,7 +81,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     const nextMeasurement = {
       ...formMeasurement,
       name: formMeasurement.name.trim(),
-      variant: formMeasurement.variant.trim(),
+      category: formMeasurement.category.trim(),
       type: formMeasurement.type || 'duration',
       unit,
       step,
@@ -123,7 +102,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   const hasErrors = () => {
     if (getTypeErrors().hasError) return true;
     if (getNameErrors().hasError) return true;
-    if (getVariantErrors().hasError) return true;
+    if (getCategoryErrors().hasError) return true;
     if (getStepErrors().hasError) return true;
     if (getInitialErrors().hasError) return true;
     if (getUnitErrors().hasError) return true;
@@ -138,7 +117,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     return formMeasurement.name ? NoError : EmptyError;
   }
 
-  const getVariantErrors = () => {
+  const getCategoryErrors = () => {
     return NoError;
   }
 
@@ -170,7 +149,8 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
   const comboMeasurementItems: BottomDrawerItem<string>[] = measurements.map((measurement) => ({
     value: measurement.id,
-    title: `${measurement.name}${measurement.variant ? ` : ${measurement.variant}` : ''}`,
+    title: `${measurement.category ? `${measurement.category} : ` : ''}${measurement.name}`,
+    renderItem: () => <MeasurementLabel measurement={measurement} size='large' />,
     icon: getMeasurementTypeIcon(measurement.type),
     disabled: measurement.id === formMeasurement.id || measurement.type === 'bool',
   }));
@@ -201,11 +181,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     && !deletionTargetUsage?.measurements.length
   );
 
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuItems: BottomDrawerItem<string>[] = [
     {
       icon: measurement.archived ? Icons.show : Icons.hide,
-      title: `${measurement.archived ? 'Unarchive' : 'Archive'}`,
+      title: `${measurement.archived ? 'Show' : 'Hide'}`,
       subtitle: measurement.archived ? 'Restore visibility of this measurement.' : 'Hide this measurement but preserve its data.',
       value: 'archive',
     },
@@ -240,7 +219,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   };
 
   const handleTimeChange = (_: any, selectedDate?: Date) => {
-    setShowTimePicker(false);
+    if (Platform.OS === 'android') setShowTimePicker(false);
     if (selectedDate) {
       const hours = selectedDate.getHours() + selectedDate.getMinutes() / 60;
       const offset = parseInt(timeOffsetString) || 0;
@@ -251,7 +230,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   };
 
   const theme = useTheme();
-  const { getCombinedPalette } = usePalettes();
+  const { getCombinedPalette, getPalette } = usePalettes();
   const palette = useMemo(() => getCombinedPalette(formMeasurement.baseColor), [formMeasurement.baseColor]);
   const s = useMemo(() => createFormStyles(theme, palette), [theme, palette]);
 
@@ -275,7 +254,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
           return (
             <OptionButton
               key={type}
-              onPress={() => {
+              onPress={isNew ? () => {
                 if (type === formMeasurement.type) return;
 
                 const nextMeasurement = { ...formMeasurement, type, step: '', unit: '', initial: '' };
@@ -293,7 +272,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                   nextMeasurement.unit = 'minutes';
                 }
                 handleFormEdit(nextMeasurement);
-              }}
+              } : undefined}
               selected={selected}
               unselected={isUnset}
               disabled={disabled}
@@ -312,8 +291,11 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     <>
       <Header
         showBackButton
-        title={isNew ? 'Create measurement' : `${measurement.name}`}
-        subtitle={measurement.variant ? ` : ${measurement.variant}` : ''}
+        title={
+          formMeasurement.name || formMeasurement.category ?
+            <MeasurementLabel measurement={formMeasurement} size='xlarge' /> :
+            isNew ? 'Create measurement' : 'Edit measurement'
+        }
         actionContent={isNew ? null :
           <BottomDrawer
             title='Manage'
@@ -340,7 +322,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         }
       />
       <View style={s.container}>
-        <ScrollView contentContainerStyle={s.scrollContainer}>
+        <ScrollView contentContainerStyle={s.scrollContainer} automaticallyAdjustKeyboardInsets>
           <View style={s.content}>
             <View style={s.formSectionHeader}>
               <Text variant='labelLarge' style={s.labelTitle}>DATA TYPE</Text>
@@ -359,9 +341,30 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                   </Text>}
                 </View>
                 <View style={s.formSection}>
+                  <View style={s.categories}>
+                    {Array.from(categories).map(({ category, baseColor }) => {
+                      const selected = formMeasurement.category === category && formMeasurement.baseColor === baseColor;
+                      return (
+                        <Pressable
+                          key={`${category}-${baseColor}`}
+                          style={[s.category, selected && { backgroundColor: getPalette(baseColor).backdrop }]}
+                          onPress={() => {
+                            const nextMeasurement = { ...formMeasurement, category, baseColor };
+                            handleFormEdit(nextMeasurement);
+                          }}
+                        >
+                          <CategoryBadge
+                            category={category}
+                            size='xlarge'
+                            baseColor={baseColor}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                   <TextInput
                     label='Name'
-                    placeholder='Read, Work out, Study'
+                    placeholder='Cardio, Call a friend, Read, etc.'
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
                     style={s.input}
                     mode='outlined'
@@ -372,17 +375,17 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                       handleFormEdit(nextMeasurement);
                     }}
                     activeOutlineColor={palette.primary || undefined}
-                    />
+                  />
                   <TextInput
-                    label='Variant (optional)'
-                    placeholder='Nonfiction, Cardio, Biology'
+                    label='Category (optional)'
+                    placeholder='Health, Social, Learning, etc.'
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
                     style={s.input}
                     mode='outlined'
-                    error={saveAttempted && getVariantErrors().hasError}
-                    value={formMeasurement.variant || ''}
+                    error={saveAttempted && getCategoryErrors().hasError}
+                    value={formMeasurement.category || ''}
                     onChangeText={(text) => {
-                      const nextMeasurement = { ...formMeasurement, variant: text };
+                      const nextMeasurement = { ...formMeasurement, category: text };
                       handleFormEdit(nextMeasurement);
                     }}
                     activeOutlineColor={palette.primary || undefined}
@@ -419,15 +422,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                               <TouchableRipple
                                 style={s.dropdownButton}
                               >
-                                <>
-                                  <Icon source={getMeasurementTypeIcon(comboLeftMeasurement?.type)} size={16} />
-                                  <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
-                                    {comboLeftMeasurement?.name}
-                                  </Text>
-                                  {comboLeftMeasurement?.variant ? (
-                                    <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboLeftMeasurement?.variant}</Text>
-                                  ) : null}
-                                </>
+                                {comboLeftMeasurement && <MeasurementLabel
+                                  measurement={comboLeftMeasurement}
+                                  size='large'
+                                />}
                               </TouchableRipple>
                             }
                             items={comboMeasurementItems}
@@ -466,15 +464,10 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                               <TouchableRipple
                                 style={s.dropdownButton}
                               >
-                                <>
-                                  <Icon source={getMeasurementTypeIcon(comboRightMeasurement?.type)} size={16} />
-                                  <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1} style={s.measurementName}>
-                                    {comboRightMeasurement?.name}
-                                  </Text>
-                                  {comboRightMeasurement?.variant ? (
-                                    <Text ellipsizeMode='tail'  numberOfLines={1} variant='bodyMedium' style={s.measurementVariant}> : {comboRightMeasurement?.variant}</Text>
-                                  ) : null}
-                                </>
+                                {comboRightMeasurement && <MeasurementLabel
+                                  measurement={comboRightMeasurement}
+                                  size='large'
+                                />}
                               </TouchableRipple>
                             }
                             items={comboMeasurementItems}
@@ -493,7 +486,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         style={s.input}
                         mode='outlined'
                         label='Unit (optional)'
-                        placeholder='minutes, steps, calories, oz'
+                        placeholder='minutes, steps, calories, oz, etc.'
                         placeholderTextColor={theme.colors.onSurfaceDisabled}
                         value={unitString}
                         onChangeText={(text) => {
@@ -513,13 +506,12 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                           label='Daily starting value'
                           value={timeValueString}
                           placeholder="12:00pm"
+                          readOnly={Platform.OS === 'ios'}
                           error={saveAttempted && getInitialErrors().hasError}
                           onFocus={() => {
-                            if (Platform.OS !== 'web') {
-                              Keyboard.dismiss();
-                              setShowTimePicker(true);
-                            }
+                            setShowTimePicker(true);
                           }}
+                          onPress={() => setShowTimePicker(!showTimePicker)}
                           onChangeText={(text) => {
                             if (Platform.OS !== 'web') return;
 
@@ -575,6 +567,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         style={s.input}
                         mode='outlined'
                         label='Daily starting value'
+                        placeholder='0'
                         value={isBool ? 'No' : formMeasurement.initial}
                         error={saveAttempted && getInitialErrors().hasError}
                         onChangeText={(text) => {
@@ -592,11 +585,26 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         keyboardType="numeric"
                       />
                     )}
+                    {Platform.OS === 'ios' && showTimePicker && (
+                      <DateTimePicker
+                        value={new Date(
+                          2000, 0, 1,
+                          parseInt(formMeasurement.initial),
+                          Math.round((parseFloat(formMeasurement.initial) % 1) * 60)
+                        )}
+                        mode="time"
+                        onChange={handleTimeChange}
+                        display="spinner"
+                        minuteInterval={1}
+                        textColor={palette.primary}
+                        accentColor={palette.primary}
+                      />
+                    )}
                     {!isCombo && (
                       <TextInput
                         style={s.input}
                         mode='outlined'
-                        placeholder='15, 1000, 100, 8'
+                        placeholder='15, 1000, 100, 8, etc.'
                         placeholderTextColor={theme.colors.onSurfaceDisabled}
                         label='Increment amount'
                         value={formMeasurement.step}
@@ -686,13 +694,19 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
           </Dialog.Actions>
         </Dialog>
       </Portal>
-      {showTimePicker && (
+      {Platform.OS === 'android' && showTimePicker && (
         <DateTimePicker
-          value={new Date(2000, 0, 1, parseInt(formMeasurement.initial), (parseFloat(formMeasurement.initial) % 1) * 60)}
+          value={new Date(
+            2000, 0, 1,
+            parseInt(formMeasurement.initial),
+            Math.round((parseFloat(formMeasurement.initial) % 1) * 60)
+          )}
           mode="time"
           onChange={handleTimeChange}
           display="spinner"
-          minuteInterval={5}
+          minuteInterval={1}
+          textColor={palette.primary}
+          accentColor={palette.primary}
         />
       )}
     </>
@@ -743,6 +757,16 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   input: {
 
   },
+  categories: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  category: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
   typeSelection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -772,17 +796,18 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     alignItems: 'center',
     gap: 8,
     marginTop: 8,
-    marginBottom: 8,
+    // marginBottom: 8,
   },
   dropdownButton: {
-    backgroundColor: palette.backdrop,
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 11,
     flexDirection: 'row',
     flexWrap: 'nowrap',
     alignItems: 'center',
     borderRadius: 4,
     flexShrink: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
   },
   measurementName: {
     marginLeft: 4,
@@ -794,9 +819,9 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   operatorLabel: {
     width: 16,
     textAlign: 'center',
-    fontSize: 24,
-    lineHeight: 32,
-    marginVertical: -6,
+    fontSize: 20,
+    lineHeight: 30,
+    marginVertical: -3,
   },
   buttons: {
     width: '100%',

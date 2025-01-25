@@ -14,6 +14,7 @@ interface Habit {
 
 interface ComputedHabit extends Habit {
   name: string
+  category: string
   isWeekly: boolean
   daysPerWeek: number
   points: number
@@ -24,6 +25,28 @@ interface ComputedHabit extends Habit {
   baseColor?: BaseColor
 }
 
+type FormHabit = {
+  id: string
+  userId: string
+  updates: HabitUpdate[]
+  
+  name: string
+  category: string
+  isWeekly: boolean
+  points: number
+  daysPerWeek: number
+  archived: boolean
+  conditions: FormHabitCondition[]
+  predicate: string
+  priority: number
+  baseColor?: BaseColor
+};
+
+type FormHabitCondition = {
+  measurementId?: string
+  operator?: HabitOperator
+  target?: string
+}
 
 const emptyComputedHabit = (): ComputedHabit => ({
   id: '',
@@ -31,6 +54,7 @@ const emptyComputedHabit = (): ComputedHabit => ({
   updates: [],
 
   name: '',
+  category: '',
   isWeekly: false,
   daysPerWeek: -1,
   points: -1,
@@ -76,6 +100,7 @@ interface HabitUpdate {
   date: string;
 
   name?: string;
+  category?: string;
   isWeekly?: boolean;
   daysPerWeek?: number;
   points?: number;
@@ -89,6 +114,7 @@ interface HabitUpdate {
 export const emptyHabitUpdate: HabitUpdate = {
   date: '',
   name: undefined,
+  category: undefined,
   isWeekly: undefined,
   daysPerWeek: undefined,
   points: undefined,
@@ -110,6 +136,7 @@ const createInitialHabit = (
   updates: [{
     date: SimpleDate.today().toString(),
     name,
+    category: '',
     isWeekly,
     daysPerWeek,
     points,
@@ -297,6 +324,8 @@ const getHabitCompletion = (
 export {
   type Habit,
   type ComputedHabit,
+  type FormHabit,
+  type FormHabitCondition,
   mergeHabitUpdate,
   computeHabit, 
 

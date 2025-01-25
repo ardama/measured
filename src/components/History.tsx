@@ -18,6 +18,9 @@ import { router } from 'expo-router';
 import { useToday } from '@u/hooks/useToday';
 import { useDispatch } from 'react-redux';
 import { callGenerateSampleData } from '@s/dataReducer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import QuickStartButton from '@c/QuickStartButton';
+import { MeasurementLabel } from '@c/Label';
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -78,6 +81,7 @@ const History = () => {
   const measurements = useMeasurements();
   const habits = useComputedHabits();
   const dispatch = useDispatch();
+  const { top, bottom } = useSafeAreaInsets();
 
   const theme = useTheme();
 
@@ -109,10 +113,9 @@ const History = () => {
   const measurementRecordingDates = useMemo(() => computeAllMeasurementRecordingDates(measurements), [measurements]);
 
   return (
-    <ScrollView style={s.container}>
+    <ScrollView style={[s.container, { paddingTop: top, paddingBottom: bottom }]}>
       <View style={s.cards}>
         {useMemo(() => <MonthSummaryCard />, [])}
-        {!!habits.length && <Divider  horizontalInset />}
         <HabitChartCard measurementRecordingDates={measurementRecordingDates} />
         {measurements.length && !habits.length && (
           <>
@@ -122,31 +125,9 @@ const History = () => {
               </View>
               <Text style={s.noDataText} variant='bodyLarge'>No habits</Text>
             </View>
-            <Button
-              style={s.sampleDataButton}
-              contentStyle={s.sampleDataButtonContent}
-              mode='contained'
-              onPress={() => {
-                dispatch(callGenerateSampleData());
-              }}
-              >
-              <Text variant='labelLarge' style={s.sampleDataButtonText}>
-                Get started with sample data
-              </Text>
-            </Button>
-            <Button
-              style={s.noDataButton}
-              contentStyle={s.noDataButtonContent}
-              mode='outlined'
-              onPress={() => { router.push('/habit/create'); }}
-            >
-              <Text variant='labelLarge' style={s.noDataButtonText}>
-                Create a custom habit
-              </Text>
-            </Button>
+            <QuickStartButton />
           </>
         )}
-        {!!measurements.length && <Divider  horizontalInset />}
         <MeasurementChartCard measurementRecordingDates={measurementRecordingDates} />
         {!measurements.length && (
           <>
@@ -156,28 +137,7 @@ const History = () => {
               </View>
               <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
             </View>
-            <Button
-              style={s.sampleDataButton}
-              contentStyle={s.sampleDataButtonContent}
-              mode='contained'
-              onPress={() => {
-                dispatch(callGenerateSampleData());
-              }}
-              >
-              <Text variant='labelLarge' style={s.sampleDataButtonText}>
-                Get started with sample data
-              </Text>
-            </Button>
-            <Button
-              style={s.noDataButton}
-              contentStyle={s.noDataButtonContent}
-              mode='outlined'
-              onPress={() => { router.push('/measurement/create'); }}
-            >
-              <Text variant='labelLarge' style={s.noDataButtonText}>
-                Create a custom measurement
-              </Text>
-            </Button>
+            <QuickStartButton />
           </>
         )}
       </View>
@@ -188,22 +148,22 @@ const History = () => {
 const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
   },
   cards: {
+    paddingVertical: 16,
     gap: 16,
-
-    // paddingVertical: 16,
   },
   cardContainer: {
-    paddingVertical: 24,
-    paddingHorizontal: 24,
-    // marginHorizontal: 16,
-    // borderRadius: 12,
+    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    marginHorizontal: 16,
+    borderRadius: 12,
 
     flexGrow: 1,
 
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
   },
   cardPartial: {
     minWidth: 200,
@@ -214,6 +174,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
+    marginTop: -6,
   },
   title: {
     flex: 1,
@@ -293,7 +254,7 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     flexShrink: 0,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
   },
   chartSelectionRow: {
     flexDirection: 'row',
@@ -366,10 +327,11 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   },
 });
 
-function ChartDropdown<T>({ label, selectedItem, items, onChange, palette,
+function ChartDropdown<T>({ label, selectedItem, items, onChange, palette, renderSelectedItem,
 }: {
   label: string
   selectedItem: BottomDrawerItem<T> | null
+  renderSelectedItem?: (item: BottomDrawerItem<T>) => JSX.Element
   items: BottomDrawerItem<T>[]
   onChange: (item: { title: string, icon?: string, value: T }) => void
   palette: Palette
@@ -387,7 +349,7 @@ function ChartDropdown<T>({ label, selectedItem, items, onChange, palette,
           <View
             style={styles.dropdownButtonContent}    
           >
-            {selectedItem ? (
+            {selectedItem ? renderSelectedItem ? renderSelectedItem(selectedItem) :(
               <>
                 <Text ellipsizeMode='tail' variant='titleSmall' numberOfLines={1}>
                   {selectedItem.value ? selectedItem.title : `Select ${label.toLocaleLowerCase()}`}
@@ -395,8 +357,8 @@ function ChartDropdown<T>({ label, selectedItem, items, onChange, palette,
               </>
             ) : (
               <>
-                <Text variant='labelMedium'>
-                  Select {label.toLocaleLowerCase()}
+                <Text variant='labelMedium' style={styles.dropdownButtonText}>
+                  -- Select {label} --
                 </Text>
               </>
             )}
@@ -414,7 +376,8 @@ function ChartDropdown<T>({ label, selectedItem, items, onChange, palette,
 
 const createDropdownStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   dropdownButton: {
-    backgroundColor: palette.backdrop,
+    backgroundColor: theme.colors.elevation.level3,
+    // backgroundColor: palette.backdrop,
     borderRadius: 4,
     overflow: 'hidden',
     flexShrink: 1,
@@ -430,6 +393,9 @@ const createDropdownStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.c
     gap: 4,
     height: 42,
     paddingHorizontal: 10,
+  },
+  dropdownButtonText: {
+    color: theme.colors.onSurface,
   },
 });
 
@@ -766,7 +732,7 @@ const HabitChartCard = ({
   else if (visibleBucketData.length > 40) dotSize = 5;
   else if (visibleBucketData.length > 20) dotSize = 6;
 
-  const chartWidth = dimensions.window.width - 48;
+  const chartWidth = dimensions.window.width - 32 - 32;
   const chartPadding = 8;
   const chartHeight = 300;
 
@@ -783,13 +749,13 @@ const HabitChartCard = ({
   const horizontalMax = Math.max(visibleBucketData.length - 1, 1);
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
   
-  const habitChartInputs = [habits, measurements, habitBucketSize.value, habitTrendline.value, habitChartDuration.value, globalPalette.primary, s];
+  const habitChartInputs = [habits, measurements, habitBucketSize.value, habitTrendline.value, habitChartDuration.value, globalPalette, s, chartWidth];
   
   const chartStats = useMemo(() => {
     const total = visibleBucketData.reduce((acc, curr) => acc + curr.y || 0, 0);
     const average = visibleBucketData.length ? total / visibleBucketData.length : 0;
     return (
-      <View style={s.chartStats}>
+      <View style={[s.chartStats, { backgroundColor: globalPalette.backdrop }]}>
         <View style={s.chartStat}>
           <Text variant='bodyMedium'>Average</Text>
           <Points points={average} decimals={1} size='medium' inline />
@@ -1055,14 +1021,17 @@ const MeasurementChartCard = ({
   const [selectedMeasurementDataIndex, setSelectedMeasurementDataIndex] = useState(-1);
   const [measurementChartDuration, setMeasurementChartDuration] = useState(MEASUREMENT_CHART_DURATION_ITEMS[1]);
 
-  const [measurementId, setMeasurementId] = useState(measurements[0]?.id);
+  const [selectedMeasurementId, setSelectedMeasurementId] = useState(measurements[0]?.id);
+  const measurementId = selectedMeasurementId || measurements[0]?.id;
   const selectedMeasurement = measurements.find(({ id }) => id === measurementId) || null;
-  const measurementPalette = useMemo(() => getCombinedPalette(selectedMeasurement?.baseColor), [selectedMeasurement?.baseColor]);
+  const measurementPalette = useMemo(() => getCombinedPalette(selectedMeasurement?.baseColor), [selectedMeasurement?.baseColor, getCombinedPalette]);
   const s = useMemo(() => createStyles(theme), [theme]);
 
-  const measurementItems: BottomDrawerItem<string>[] = useMemo(() => measurements.map(({ id, name: activity, variant, type }) => {
+  const measurementItems: BottomDrawerItem<string>[] = useMemo(() => measurements.map((measurement) => {
+    const { id, name: activity, category, type } = measurement;
     return {
-      title: `${activity}${variant ? ` : ${variant}` : ''}`,
+      title: `${category ? `${category} : ` : ''}${activity}`,
+      renderItem: () => <MeasurementLabel measurement={measurement} size='large' />,
       value: id,
       icon: getMeasurementTypeIcon(type),
     }
@@ -1075,8 +1044,9 @@ const MeasurementChartCard = ({
       palette={measurementPalette}
       selectedItem={selectedMeasurementItem}
       items={measurementItems}
+      renderSelectedItem={selectedMeasurement ? (item) => <MeasurementLabel measurement={selectedMeasurement} size='medium' /> : undefined}
       onChange={(item) => {
-        setMeasurementId(item.value);
+        setSelectedMeasurementId(item.value);
         setSelectedMeasurementDataIndex(-1);
       }}
     />
@@ -1135,7 +1105,7 @@ const MeasurementChartCard = ({
   else if (chartDuration > 40) dotSize = 5;
   else if (chartDuration > 20) dotSize = 6;
 
-  const chartWidth = dimensions.window.width - 48;
+  const chartWidth = dimensions.window.width - 32 - 32;
   const chartPadding = 8;
   const chartHeight = 300;
 
@@ -1153,7 +1123,7 @@ const MeasurementChartCard = ({
   const horizontalMax = Math.max(chartDuration, 1);
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
-  const measurementChartInputs = [id, measurements, chartDuration, measurementTrendline.value, globalPalette.primary, s];
+  const measurementChartInputs = [id, measurements, chartDuration, measurementTrendline.value, globalPalette.primary, s, chartWidth, measurementPalette];
 
   const chartStats = useMemo(() => {
     const recordingCount = selectedVisibleData.length;
@@ -1163,7 +1133,7 @@ const MeasurementChartCard = ({
     const averageString = !!selectedMeasurement ? formatValue(average, isBool ? 'count' : selectedMeasurement.type, selectedMeasurement.unit, true) : '--';
 
     return (
-      <View style={s.chartStats}>
+      <View style={[s.chartStats, { backgroundColor: measurementPalette.backdrop }]}>
         <View style={s.chartStat}>
           <Text variant='bodyMedium'>Average</Text>
           <Text variant='titleMedium' style={{ flexGrow: 1, textAlign: 'right' }}>{averageString}</Text>

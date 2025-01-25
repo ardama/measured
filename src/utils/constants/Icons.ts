@@ -38,8 +38,8 @@ export const Icons = {
   measurementOperatorMultiply: 'close',
   measurementOperatorDivide: 'division',
 
-  recording: 'clipboard-edit-outline',
-  recordingFilled: 'clipboard-edit',
+  recording: 'home-outline',
+  recordingFilled: 'home',
   recorded: 'pencil',
 
   warning: 'alert-circle-outline',
@@ -72,6 +72,7 @@ export const Icons = {
   repeatDaily: 'cached',
   repeatWeekly: 'calendar-sync',
 
+  user: 'account',
   account: 'account-cog-outline',
   accountFilled: 'account-cog',
 

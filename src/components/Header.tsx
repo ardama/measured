@@ -59,8 +59,8 @@ export default function Header({
         ]}
 
       >
-        {showMenuButton ? <Appbar.Action icon={'menu'} style={{ borderRadius: 12 }} onPress={() => {}} /> : null}
-        {showBackButton ? <Appbar.Action icon={Icons.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
+        {showMenuButton ? <Appbar.Action icon={'menu'} style={{ borderRadius: 4 }} onPress={() => {}} /> : null}
+        {showBackButton ? <Appbar.Action icon={Icons.back} style={{ borderRadius: 4 }} onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /> : null}
         <Appbar.Content
           style={{ paddingLeft: 4 }}
           title={titleContent}
@@ -90,6 +90,7 @@ const createStyles = (theme: MD3Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginRight: 8,
   },
   title: {
     // textTransform: 'uppercase',
