@@ -44,8 +44,8 @@ export function Label({ category, name, size, icon, baseColor }: LabelProps) {
   
   return useMemo(() => (
     <View style={styles.container}>
-      {icon && <Icon source={icon} size={iconSize[size]} />}
-      {category && (
+      {!!icon && <Icon source={icon} size={iconSize[size]} />}
+      {!!category && (
         <CategoryBadge
           category={category}
           size={size}

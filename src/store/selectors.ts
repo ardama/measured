@@ -176,12 +176,12 @@ const selectCategories = createSelector(
     [
       ...measurements
         .filter(({ category }) => !!category)
-        .map(({ category, baseColor }) => `${category}::::::${baseColor}`),
+        .map(({ category, baseColor }) => `${category}::::::${baseColor || null}`),
       ...habits
         .filter(({ category }) => !!category)
-        .map(({ category, baseColor }) => `${category}::::::${baseColor}`),
+        .map(({ category, baseColor }) => `${category}::::::${baseColor || null}`),
     ]
-  )].map((str) => str.split('::::::')).map(([category, baseColor]) => ({ category, baseColor: baseColor as BaseColor }))
+  )].map((str) => str.split('::::::')).map(([category, baseColor]) => ({ category, baseColor: baseColor === 'null' ? null : baseColor as BaseColor }))
 );
 export const useCategories = () => useSelector(selectCategories);
 

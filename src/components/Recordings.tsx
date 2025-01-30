@@ -28,6 +28,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QuickStartButton from '@c/QuickStartButton';
 import { HabitLabel, MeasurementLabel } from '@c/Label';
+import { TabView, SceneMap } from 'react-native-tab-view';
+
 
 const Recordings = () => {
   const theme = useTheme();
@@ -68,7 +70,7 @@ const Recordings = () => {
   const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
   const areAllMeasurementsExpanded = displayedExpandedMeasurements.size === displayedMeasurements.length;
 
-  const submitMeasurementOrder = () => {
+  const submitMeasurementOrder = useCallback(() => {
     if (!measurementPriorityOverrides || !measurementPriorityOverrides.length) return;
 
     const updatedMeasurements: Measurement[] = [];
@@ -81,7 +83,7 @@ const Recordings = () => {
 
     if (!updatedMeasurements.length) return;
     dispatch(callUpdateMeasurements(updatedMeasurements));
-  }
+  }, [measurements, measurementPriorityOverrides]);
 
   const toggleMeasurementArchived = (measurement: Measurement, archived: boolean) => {
     const updatedMeasurement = { ...measurement, archived };
@@ -146,7 +148,7 @@ const Recordings = () => {
   const displayedExpandedHabits = intersection(expandedHabits, new Set(displayedHabitIds));
   const areAllHabitsExpanded = displayedExpandedHabits.size === displayedHabits.length;
 
-  const submitHabitOrder = () => {
+  const submitHabitOrder = useCallback(() => {
     if (!habitPriorityOverrides || !habitPriorityOverrides.length) return;
 
     const updatedHabits: ComputedHabit[] = [];
@@ -159,7 +161,7 @@ const Recordings = () => {
 
     if (!updatedHabits.length) return;
     dispatch(callUpdateHabits(updatedHabits));
-  }
+  }, [habits, habitPriorityOverrides]);
 
   const toggleHabitArchived = (habit: ComputedHabit, archived: boolean) => {
     const updatedHabit = { ...habit, archived };
@@ -408,27 +410,27 @@ const Recordings = () => {
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
   
-  const flatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
+  const timelineFlatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
   const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
 
   const handleDateSelection = (date: SimpleDate, updateState: boolean = true) => {
     const firstDate = weeks[0].dates[0];
     const delta = SimpleDate.daysBetween(date, firstDate);
     const weekIndex = Math.floor(delta / 7);
-    flatListRef.current?.scrollToIndex({ index: weekIndex });
+    timelineFlatListRef.current?.scrollToIndex({ index: weekIndex });
     updateState && setSelectedDate(date);
   }
 
   const { window: dimensions } = useDimensions();
   const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(108), []);
-  const timelineWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
+  const pageWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleTimelineScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / timelineWidth);
+    const index = Math.round(offset / pageWidth);
     const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
     setSelectedDate(nextSelectedDate);
-  }, [weeks, selectedDayOfWeek, timelineWidth])
+  }, [weeks, selectedDayOfWeek, pageWidth])
 
   const timelineWeeks = weeks.map((week) => {
     return {
@@ -441,7 +443,7 @@ const Recordings = () => {
         
         return useMemo(() => { 
           return (
-            <Pressable
+            <TouchableRipple
               key={date.toString()}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               onPress={() => handleDateSelection(date)}
@@ -451,7 +453,10 @@ const Recordings = () => {
                 isSelected && styles.timelineDateContainerSelected,
               ]}
             >
-              <>
+              <Pressable
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={() => handleDateSelection(date)}
+              >
                 <View
                   style={[
                     styles.timelineDateContent,
@@ -487,8 +492,8 @@ const Recordings = () => {
                     </Text>
                   </View>
                 </View>
-              </>
-            </Pressable>
+              </Pressable>
+            </TouchableRipple>
           );
         }, [date, isToday, isSelected, styles]);
       })
@@ -498,8 +503,8 @@ const Recordings = () => {
   const timeline = useMemo(() => {
     return (
       <FlatList
-        style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
-        ref={flatListRef}
+        style={{ height: timelineHeight, width: pageWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
+        ref={timelineFlatListRef}
         data={timelineWeeks}
         keyExtractor={({ week }) => week.dates[0].toString()}
         pagingEnabled
@@ -508,22 +513,22 @@ const Recordings = () => {
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={32}
-        onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
+        onScroll={handleTimelineScroll}
         getItemLayout={(_, index) => ({
-          length: timelineWidth,
-          offset: timelineWidth * index,
+          length: pageWidth,
+          offset: pageWidth * index,
           index,
         })}
         renderItem={({ item }) => {
           return (
-            <View style={[styles.timelineContent, { height: timelineHeight, width: timelineWidth }]}>
+            <View style={[styles.timelineContent, { height: timelineHeight, width: pageWidth, paddingTop: 8, paddingBottom: 24 }]}>
               {item.elements}
             </View>
           )
         }}
       />
     );
-  }, [weeks, timelineWidth, timelineHeight, styles, selectedDate]);
+  }, [weeks, pageWidth, timelineHeight, styles, selectedDate]);
 
   const renderTimelineHeader = () => {
     return (
@@ -667,7 +672,7 @@ const Recordings = () => {
   const timelineStatuses = useMemo(() => {
     return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
-        <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
+        <View style={[styles.timelineContent, { width: pageWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
             const isToday = date.toString() === today.toString();
             const isSelected = index === selectedDayOfWeek;
@@ -823,7 +828,7 @@ const Recordings = () => {
         <Text variant='titleLarge' style={{ }}>{selectedDate.toFormattedString(true, false, true)}</Text>
       </>
     );
-  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles]);
+  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles, submitMeasurementOrder, submitHabitOrder]);
 
   const contentHeader = useMemo(() => {
     return (
@@ -921,6 +926,168 @@ const Recordings = () => {
     )
   }, [isReordering, isArchiving, showMeasurements, showHabits, addMenuItems, styles, renderSectionTitle]);
 
+  const measurementTab = (
+    <>
+      {displayedMeasurements.length ? (
+        <View style={styles.recordingView}>
+          {isReorderingMeasurements ? (
+            <DraggableList
+              items={measurementPriorityOverrides || []}
+              onReorder={(nextItems) => {
+                setMeasurementPriorityOverrides(nextItems);
+              }}
+              renderItem={(item, index, isDragging) => {
+                const measurement = measurements.find(({ id }) => id === item);
+                if (!measurement) return null;
+
+                return (
+                    <RecordingMeasurementItem
+                      index={index}
+                      measurement={measurement}
+                      currentDate={selectedDate}
+                      weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                      disabled={isDragging}
+                      reordering
+                    />
+                );
+              }}
+            />
+          ) : (
+            <ScrollView>
+              {displayedMeasurements.map((measurement, index) => {
+                const { id } = measurement;
+                return (
+                  <RecordingMeasurementItem
+                    key={id}
+                    index={index}
+                    measurement={measurement}
+                    currentDate={selectedDate}
+                    weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                    mergedRecordingValues={mergedRecordingsMap}
+                    expanded={displayedExpandedMeasurements.has(id)}
+                    onValueChange={(nextValue: number | null) => {
+                      triggerHaptic('impact', ImpactFeedbackStyle.Light);
+                      updateRecording(nextValue, id, selectedDate.toString());
+                    }}
+                    onPress={() => {
+                      const nextExpandedMeasurements = new Set([...expandedMeasurements]);
+                      nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
+                      setExpandedMeasurements(nextExpandedMeasurements);
+                    }}
+                    onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
+                    archiving={showArchivedMeasurements}
+                    onArchive={toggleMeasurementArchived}
+                  />
+                );
+              })}
+              {measurements.length < 3 && <QuickStartButton />}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.noData}>
+            <View style={styles.noDataIcon}>
+              <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+            </View>
+            <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
+          </View>
+          {!measurements.length && <QuickStartButton />}
+        </>
+      )}
+    </>
+  );
+
+  const habitTab = (
+    <>
+      {displayedHabits.length ? (
+        <View style={styles.recordingView}>
+          {isReorderingHabits ? (
+            <DraggableList
+              items={habitPriorityOverrides || []}
+              onReorder={(nextItems) => {
+                setHabitPriorityOverrides(nextItems);
+              }}
+              renderItem={(item, index, isDragging) => {
+                const habit = habits.find(({ id }) => id === item);
+                if (!habit) return null;
+
+                return (
+                  <RecordingDataHabit
+                    index={index}
+                    habit={habit}
+                    currentDate={selectedDate}
+                    weekDates={selectedWeekDates}
+                    measurements={measurements}
+                    recordingData={mergedRecordingsMap}
+                    disabled={isDragging}
+                    reordering
+                  />
+                );
+              }}
+            />
+          ) : (
+            <ScrollView>
+              {displayedHabits.map((habit, index) => {
+                const { id } = habit;
+                return (
+                  <RecordingDataHabit
+                    key={habit.id}
+                    index={index}
+                    habit={habit}
+                    currentDate={selectedDate}
+                    weekDates={selectedWeekDates}
+                    measurements={measurements}
+                    expanded={expandedHabits.has(id)}
+                    recordingData={mergedRecordingsMap}
+                    onPress={() => {
+                      const nextExpandedHabits = new Set([...expandedHabits]);
+                      nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
+                      setExpandedHabits(nextExpandedHabits);
+                    }}
+                    onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
+                    archiving={showArchivedHabits}
+                    onArchive={toggleHabitArchived}
+                  />
+                );
+              })}
+              {habits.length < 3 && <QuickStartButton />}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.noData}>
+            <View style={styles.noDataIcon}>
+              <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+            </View>
+            <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
+          </View>
+          {!habits.length && <QuickStartButton />}
+        </>
+      )}
+    </>
+  );
+
+  const renderScene = SceneMap({
+    measurements: () => measurementTab,
+    habits: () => habitTab,
+  })
+
+  const tabs = (
+    <TabView
+      renderTabBar={() => null}
+      navigationState={{ index: contentSwitchValue, routes: [
+        { key: 'measurements', title: 'Measurements' },
+        { key: 'habits', title: 'Habits' },
+      ]}}
+      onIndexChange={setContentSwitchValue}
+      renderScene={renderScene}
+      swipeEnabled={!isArchiving && !isReordering}
+      
+    />
+  )
+
   return (
     <>
       <StatusBar
@@ -937,147 +1104,7 @@ const Recordings = () => {
           {contentHeader}
           {measurements.length > 0 && contentSwitch}
         </View>
-          {showMeasurements && 
-            <>
-              {displayedMeasurements.length ? (
-                <View style={styles.recordingView}>
-                  {isReorderingMeasurements ? (
-                    <DraggableList
-                      items={measurementPriorityOverrides || []}
-                      onReorder={(nextItems) => {
-                        setMeasurementPriorityOverrides(nextItems);
-                      }}
-                      renderItem={(item, index, isDragging) => {
-                        const measurement = measurements.find(({ id }) => id === item);
-                        if (!measurement) return null;
-
-                        return (
-                            <RecordingMeasurementItem
-                              index={index}
-                              measurement={measurement}
-                              currentDate={selectedDate}
-                              weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                              disabled={isDragging}
-                              reordering
-                            />
-                        );
-                      }}
-                    />
-                  ) : (
-                    <ScrollView>
-                      {displayedMeasurements.map((measurement, index) => {
-                        const { id } = measurement;
-                        return (
-                          <RecordingMeasurementItem
-                            key={id}
-                            index={index}
-                            measurement={measurement}
-                            currentDate={selectedDate}
-                            weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                            mergedRecordingValues={mergedRecordingsMap}
-                            expanded={displayedExpandedMeasurements.has(id)}
-                            onValueChange={(nextValue: number | null) => {
-                              triggerHaptic('impact', ImpactFeedbackStyle.Light);
-                              updateRecording(nextValue, id, selectedDate.toString());
-                            }}
-                            onPress={() => {
-                              const nextExpandedMeasurements = new Set([...expandedMeasurements]);
-                              nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
-                              setExpandedMeasurements(nextExpandedMeasurements);
-                            }}
-                            onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
-                            archiving={showArchivedMeasurements}
-                            onArchive={toggleMeasurementArchived}
-                          />
-                        );
-                      })}
-                      {measurements.length < 3 && <QuickStartButton />}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : (
-                <>
-                  <View style={styles.noData}>
-                    <View style={styles.noDataIcon}>
-                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                    </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
-                  </View>
-                  {!measurements.length && <QuickStartButton />}
-                </>
-              )}
-            </>
-          }
-          {showHabits && (
-            <>
-              {displayedHabits.length ? (
-                <View style={styles.recordingView}>
-                  {isReorderingHabits ? (
-                    <DraggableList
-                      items={habitPriorityOverrides || []}
-                      onReorder={(nextItems) => {
-                        setHabitPriorityOverrides(nextItems);
-                      }}
-                      renderItem={(item, index, isDragging) => {
-                        const habit = habits.find(({ id }) => id === item);
-                        if (!habit) return null;
-  
-                        return (
-                          <RecordingDataHabit
-                            index={index}
-                            habit={habit}
-                            currentDate={selectedDate}
-                            weekDates={selectedWeekDates}
-                            measurements={measurements}
-                            recordingData={mergedRecordingsMap}
-                            disabled={isDragging}
-                            reordering
-                          />
-                        );
-                      }}
-                    />
-                  ) : (
-                    <ScrollView>
-                      {displayedHabits.map((habit, index) => {
-                        const { id } = habit;
-                        return (
-                          <RecordingDataHabit
-                            key={habit.id}
-                            index={index}
-                            habit={habit}
-                            currentDate={selectedDate}
-                            weekDates={selectedWeekDates}
-                            measurements={measurements}
-                            expanded={expandedHabits.has(id)}
-                            recordingData={mergedRecordingsMap}
-                            onPress={() => {
-                              const nextExpandedHabits = new Set([...expandedHabits]);
-                              nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
-                              setExpandedHabits(nextExpandedHabits);
-                            }}
-                            onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
-                            archiving={showArchivedHabits}
-                            onArchive={toggleHabitArchived}
-                          />
-                        );
-                      })}
-                      {habits.length < 3 && <QuickStartButton />}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : (
-                <>
-                  <View style={styles.noData}>
-                    <View style={styles.noDataIcon}>
-                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                    </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
-                  </View>
-                  {!habits.length && <QuickStartButton />}
-                </>
-              )}
-            </>
-          )}
+          {tabs}
       </View>
     </>
   );
@@ -1131,16 +1158,16 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       // alignItems: 'center',
       overflow: 'hidden',
       flexGrow: 1,
-      borderRadius: 15,
+      borderRadius: 12,
 
       justifyContent: 'center',
       alignSelf: 'stretch',
       alignItems: 'stretch',
       gap: 4,
-
     },
     timelineDateContainerToday: {},
-    timelineDateContainerSelected: {},
+    timelineDateContainerSelected: {
+    },
     timelineDateContent: {
       gap: 4,
     },

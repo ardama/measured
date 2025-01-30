@@ -61,7 +61,7 @@ export const measurementsEqual = (prevMeasurements: Measurement[], nextMeasureme
     if (prev.userId !== next.userId) return false;
     if (prev.type !== next.type) return false;
     if (prev.name !== next.name) return false;
-    if (prev.variant !== next.variant) return false;
+    if (prev.category !== next.category) return false;
     if (prev.unit !== next.unit) return false;
     if (prev.step !== next.step) return false;
     if (prev.initial !== next.initial) return false;
@@ -102,6 +102,7 @@ export const computedHabitsEqual = (prev: ComputedHabit[], next: ComputedHabit[]
     if (prevHabit.id !== nextHabit.id) return false;
     if (prevHabit.userId !== nextHabit.userId) return false;
     if (prevHabit.name !== nextHabit.name) return false;
+    if (prevHabit.category !== nextHabit.category) return false;
     if (prevHabit.isWeekly !== nextHabit.isWeekly) return false;
     if (prevHabit.daysPerWeek !== nextHabit.daysPerWeek) return false;
     if (prevHabit.points !== nextHabit.points) return false;

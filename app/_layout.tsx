@@ -11,7 +11,7 @@ import ThemeProvider from '@c/ThemeProvider';
 import { useAuthState, useDataLoaded, useSettings } from '@s/selectors';
 import LoadingScreen from '@c/Loading';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StatusBar } from 'react-native';
+import { StatusBar, View } from 'react-native';
 import { ImportDialog } from '@c/ImportDialog';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -73,8 +73,12 @@ const RootStack = () => {
   return (
     <>
       {!showLoading && (
-        <>
-          <Stack screenOptions={{ headerShown: false }}>
+        <View style={{ flex: 1, backgroundColor: settings.darkMode ? '#000' : '#fff' }}>
+          <Stack
+            screenOptions={{  
+              headerShown: false,
+            }}
+          >
             <Stack.Screen name="index" />
             <Stack.Screen name="auth" />
             <Stack.Screen name="signout" />
@@ -84,7 +88,7 @@ const RootStack = () => {
             <Stack.Screen name="habit" />
           </Stack>
           <ImportDialog />
-        </>
+        </View>
       )}
       <LoadingScreen visible={showLoading} />
     </>

@@ -242,6 +242,9 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
     }
   }, []);
 
+  const selectedCategoryIndex = categories.findIndex(({ category, baseColor }) => 
+    formMeasurement.category?.trim() === category.trim() && (formMeasurement.baseColor === baseColor || (!formMeasurement.baseColor && !baseColor)));
+
   const dataTypeOptions = useMemo(() => {
     return (
       <View style={s.formSection}>
@@ -341,27 +344,6 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                   </Text>}
                 </View>
                 <View style={s.formSection}>
-                  <View style={s.categories}>
-                    {Array.from(categories).map(({ category, baseColor }) => {
-                      const selected = formMeasurement.category === category && formMeasurement.baseColor === baseColor;
-                      return (
-                        <Pressable
-                          key={`${category}-${baseColor}`}
-                          style={[s.category, selected && { backgroundColor: getPalette(baseColor).backdrop }]}
-                          onPress={() => {
-                            const nextMeasurement = { ...formMeasurement, category, baseColor };
-                            handleFormEdit(nextMeasurement);
-                          }}
-                        >
-                          <CategoryBadge
-                            category={category}
-                            size='xlarge'
-                            baseColor={baseColor}
-                          />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
                   <TextInput
                     label='Name'
                     placeholder='Cardio, Call a friend, Read, etc.'
@@ -376,6 +358,40 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                     }}
                     activeOutlineColor={palette.primary || undefined}
                   />
+                  <View style={s.categories}>
+                    {categories.map(({ category, baseColor }, index) => {
+                      const selected = index === selectedCategoryIndex;
+                      return (
+                        <Pressable
+                          key={`${category}-${baseColor}`}
+                          style={[s.category, selected && { opacity: 1 }]}
+                          onPress={() => {
+                            const nextMeasurement = { ...formMeasurement, category, baseColor };
+                            handleFormEdit(nextMeasurement);
+                          }}
+                          hitSlop={8}
+                        >
+                          <CategoryBadge
+                            category={category}
+                            size='xlarge'
+                            baseColor={baseColor}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                    {selectedCategoryIndex === -1 && formMeasurement.category && (
+                      <Pressable
+                        key={`${formMeasurement.category}-${formMeasurement.baseColor}`}
+                        style={[s.category, { opacity: 1 }]}
+                      >
+                        <CategoryBadge
+                          category={formMeasurement.category}
+                          size='xlarge'
+                          baseColor={formMeasurement.baseColor}
+                        />
+                      </Pressable>
+                    )}
+                  </View>
                   <TextInput
                     label='Category (optional)'
                     placeholder='Health, Social, Learning, etc.'
@@ -760,12 +776,10 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   categories: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: 12,
   },
   category: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    opacity: 0.7,
   },
   typeSelection: {
     flexDirection: 'row',

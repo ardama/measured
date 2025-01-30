@@ -218,6 +218,10 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     }
   };
 
+  const selectedCategoryIndex = categories.findIndex(({ category, baseColor }) => {
+    return formHabit.category?.trim() === category.trim() && (formHabit.baseColor === baseColor || (!formHabit.baseColor && !baseColor));
+  });
+
   return (
     <>
       <Header
@@ -263,27 +267,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               </Text>}
             </View>
             <View style={s.formSection}>
-              <View style={s.categories}>
-                {Array.from(categories).map(({ category, baseColor }) => {
-                  const selected = formHabit.category === category && formHabit.baseColor === baseColor;
-                  return (
-                    <Pressable
-                      key={`${category}-${baseColor}`}
-                      style={[s.category, selected && { backgroundColor: getPalette(baseColor).backdrop }]}
-                      onPress={() => {
-                        const nextHabit = { ...formHabit, category, baseColor };
-                        handleFormEdit(nextHabit);
-                      }}
-                    >
-                      <CategoryBadge
-                        category={category}
-                        size='xlarge'
-                        baseColor={baseColor}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
               <TextInput
                 label='Name'
                 placeholder='Early riser, Staying hydrated, etc.'
@@ -298,6 +281,40 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 }}
                 activeOutlineColor={palette.primary || undefined}
               />
+              <View style={s.categories}>
+                {categories.map(({ category, baseColor }, index) => {
+                  const selected = index === selectedCategoryIndex;
+                  return (
+                    <Pressable
+                      key={`${category}-${baseColor}`}
+                      style={[s.category, selected && { opacity: 1 }]}
+                      onPress={() => {
+                        const nextHabit = { ...formHabit, category, baseColor };
+                        handleFormEdit(nextHabit);
+                      }}
+                      hitSlop={8}
+                    >
+                      <CategoryBadge
+                        category={category}
+                        size='xlarge'
+                        baseColor={baseColor}
+                      />
+                    </Pressable>
+                  );
+                })}
+                {selectedCategoryIndex === -1 && formHabit.category && (
+                  <Pressable
+                    key={`${formHabit.category}-${formHabit.baseColor}`}
+                    style={[s.category, { opacity: 1 }]}
+                  >
+                    <CategoryBadge
+                      category={formHabit.category}
+                      size='xlarge'
+                      baseColor={formHabit.baseColor}
+                    />
+                  </Pressable>
+                )}
+              </View>
               <TextInput
                 label='Category (optional)'
                 placeholder='Sleep, Nutrition, etc.'
@@ -862,12 +879,10 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   categories: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: 12,
   },
   category: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    opacity: 0.7,
   },
   conditionContainer: {
     flexDirection: 'row',
