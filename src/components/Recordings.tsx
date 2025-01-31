@@ -1,14 +1,14 @@
-import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Dialog, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { computeTimeValue, formatTime, formatTimeValue, formatValue, intersection, parseTimeString, range, triggerHaptic } from '@u/helpers';
+import { computeTimeValue, formatTimeValue, formatValue, intersection, parseTimeString, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callGenerateSampleData, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
+import { callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
@@ -28,7 +28,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QuickStartButton from '@c/QuickStartButton';
 import { HabitLabel, MeasurementLabel } from '@c/Label';
-import { TabView, SceneMap } from 'react-native-tab-view';
+import { TabView } from 'react-native-tab-view';
 
 
 const Recordings = () => {
@@ -301,43 +301,43 @@ const Recordings = () => {
 
   const dispatch = useDispatch();
   const updateRecordings = useRef<null | NodeJS.Timeout>(null);
-  const updateRecording = (value: number | null, measurementId: string, date: string) => {
-    const nextTempRecordingsMap = new Map([...tempRecordingsMap.entries()].map(([ id, recordingsMap]) => [
-      id,
-      new Map([...recordingsMap.entries()]),
-    ]));
-
-    const recordingsMap = nextTempRecordingsMap.get(measurementId) || new Map<string, number | null>();
-    recordingsMap.set(date, value);
-    nextTempRecordingsMap.set(measurementId, recordingsMap);
-    setTempRecordingsMap(nextTempRecordingsMap);
-
-    if (updateRecordings.current) clearTimeout(updateRecordings.current);
-    updateRecordings.current = setTimeout(() => {
-      const updatedMeasurements: Measurement[] = [];
-      [...nextTempRecordingsMap.entries()].forEach(([measurementId, recordingsMap]) => {
-        const measurement = measurements.find(({ id }) => id === measurementId);
-        if (!measurement) return;
+  const updateRecording = useCallback((value: number | null, measurement: Measurement, date: string) => {
+    setTempRecordingsMap(prevMap => {
+      const nextTempRecordingsMap = new Map([...prevMap.entries()].map(([ id, recordingsMap]) => [
+        id,
+        new Map([...recordingsMap.entries()]),
+      ]));
   
-        let hasUpdates = false;
-        const nextRecordings = [...measurement.recordings];
-        [...recordingsMap.entries()].forEach(([date, value]) => {
-          const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
-          const recording = nextRecordings[recordingIndex];
-          if (recording?.value !== value) {
-            recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
-            hasUpdates = true;
+      const recordingsMap = nextTempRecordingsMap.get(measurement.id) || new Map<string, number | null>();
+      recordingsMap.set(date, value);
+      nextTempRecordingsMap.set(measurement.id, recordingsMap);
+  
+      if (updateRecordings.current) clearTimeout(updateRecordings.current);
+      updateRecordings.current = setTimeout(() => {
+        const updatedMeasurements: Measurement[] = [];
+        [...nextTempRecordingsMap.entries()].forEach(([_, recordingsMap]) => {
+          let hasUpdates = false;
+          const nextRecordings = [...measurement.recordings];
+          [...recordingsMap.entries()].forEach(([date, value]) => {
+            const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
+            const recording = nextRecordings[recordingIndex];
+            if (recording?.value !== value) {
+              recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
+              hasUpdates = true;
+            }
+          });
+    
+          if (hasUpdates) {
+            updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
           }
         });
-  
-        if (hasUpdates) {
-          updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
-        }
-      });
-  
-      if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
-    }, 3000);
-  }
+    
+        if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
+      }, 3000);
+
+      return nextTempRecordingsMap;
+    });
+  }, [dispatch]);
   
   const clearRecordings = (date = selectedDate) => {
     setTempRecordingsMap(new Map());
@@ -926,8 +926,9 @@ const Recordings = () => {
     )
   }, [isReordering, isArchiving, showMeasurements, showHabits, addMenuItems, styles, renderSectionTitle]);
 
+
   const measurementTab = (
-    <>
+    <Fragment key='measurements'>
       {displayedMeasurements.length ? (
         <View style={styles.recordingView}>
           {isReorderingMeasurements ? (
@@ -965,10 +966,7 @@ const Recordings = () => {
                     weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
                     mergedRecordingValues={mergedRecordingsMap}
                     expanded={displayedExpandedMeasurements.has(id)}
-                    onValueChange={(nextValue: number | null) => {
-                      triggerHaptic('impact', ImpactFeedbackStyle.Light);
-                      updateRecording(nextValue, id, selectedDate.toString());
-                    }}
+                    updateRecording={updateRecording}  // Pass the base function
                     onPress={() => {
                       const nextExpandedMeasurements = new Set([...expandedMeasurements]);
                       nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
@@ -995,11 +993,11 @@ const Recordings = () => {
           {!measurements.length && <QuickStartButton />}
         </>
       )}
-    </>
+    </Fragment>
   );
 
   const habitTab = (
-    <>
+    <Fragment key='habits'>
       {displayedHabits.length ? (
         <View style={styles.recordingView}>
           {isReorderingHabits ? (
@@ -1066,13 +1064,12 @@ const Recordings = () => {
           {!habits.length && <QuickStartButton />}
         </>
       )}
-    </>
+    </Fragment>
   );
 
-  const renderScene = SceneMap({
-    measurements: () => measurementTab,
-    habits: () => habitTab,
-  })
+  const renderScene = ({ route }: { route: { key: string } }) => {
+    return route.key === 'measurements' ? measurementTab : habitTab;
+  }
 
   const tabs = (
     <TabView
@@ -1084,7 +1081,7 @@ const Recordings = () => {
       onIndexChange={setContentSwitchValue}
       renderScene={renderScene}
       swipeEnabled={!isArchiving && !isReordering}
-      
+      initialLayout={{ width: pageWidth }}
     />
   )
 
@@ -1303,7 +1300,6 @@ type RecordingMeasurementItemProps = {
   weekMeasurementValues: (number | null)[],
   mergedRecordingValues?: Map<string, Map<string, number | null>>,
   expanded?: boolean,
-  onValueChange?: (nextValue: number | null) => void,
   onPress?: (id: string) => void,
   onLongPress?: (id: string) => void,
   onPressIn?: (id: string) => void,
@@ -1312,6 +1308,7 @@ type RecordingMeasurementItemProps = {
   reordering?: boolean,
   archiving?: boolean,
   onArchive?: (measurement: Measurement, archived: boolean) => void,
+  updateRecording?: (value: number | null, measurement: Measurement, date: string) => void,
 }
 
 const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
@@ -1322,7 +1319,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     weekMeasurementValues,
     mergedRecordingValues,
     expanded,
-    onValueChange,
     onPress,
     onLongPress,
     onPressIn,
@@ -1330,6 +1326,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     reordering,
     archiving,
     onArchive,
+    updateRecording,
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -1353,7 +1350,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const valueRef = useRef(value);
 
   const [showValueDialog, setShowValueDialog] = useState(false);
-  const [valueDialogError, setValueDialogError] = useState(false);
   const [valueString, setValueString] = useState('');
   const [timeOffsetString, setTimeOffsetString] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -1383,16 +1379,14 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     [theme, measurementPalette, combinedPalette, index]
   );
 
+  const onValueChange = useCallback((nextValue: number | null) => {
+    triggerHaptic('impact', ImpactFeedbackStyle.Light);
+    updateRecording?.(nextValue, measurement, currentDate.toString());
+  }, [measurement, currentDate, updateRecording]);
+
   const renderControlContent = () => {
-    if (reordering) return <Icon source={Icons.drag} size={24} />
-    if (archiving) return (
-      <Icon
-        source={measurement.archived ? Icons.hide : Icons.show}
-        size={24}
-        color={measurement.archived ? theme.colors.onSurfaceDisabled : undefined}
-      />
-    );
-    const leftButton =
+
+    const leftButton = useMemo(() =>
       isCombo ?
         <View style={styles.controlButton} /> :
       isBool ? (
@@ -1424,8 +1418,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           }}
           delayLongPress={300}
         />
-      );
-    const rightButton =
+      ),
+    [isCombo, isBool, onValueChange, value, measurement.initial, measurement.step, styles]);
+
+    const rightButton = useMemo(() =>
       isCombo ?
         <View style={styles.controlButton} /> :
       isBool ? (
@@ -1457,9 +1453,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           }}
           delayLongPress={300}
         />
-      );
+      ),
+    [isCombo, isBool, onValueChange, value, measurement.initial, measurement.step, styles]);
 
-    const valueButton =
+    const valueButton = useMemo(() =>
       value !== null ? (
         <TouchableRipple
           style={styles.value}
@@ -1506,15 +1503,44 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             </Text>
           )}
         </TouchableRipple>
-      )
+      ),
+    [
+      value,
+      isTime,
+      isCombo,
+      isBool,
+      onValueChange,
+      measurement,
+      combinedPalette,
+      theme,
+      styles,
+      setShowValueDialog,
+      setValueString,
+      setTimeOffsetString,
+      formatValue,
+      formatTimeValue
+    ]);
 
-    return (
-      <View style={styles.controls}>
-        {leftButton}
-        {valueButton}
-        {rightButton}
-      </View>
-    );
+    const controlContent = useMemo(() => {
+      if (reordering) return <Icon source={Icons.drag} size={24} />
+      if (archiving) return (
+        <Icon
+          source={measurement.archived ? Icons.hide : Icons.show}
+          size={24}
+          color={measurement.archived ? theme.colors.onSurfaceDisabled : undefined}
+        />
+      );
+
+      return (
+        <View style={styles.controls}>
+          {leftButton}
+          {valueButton}
+          {rightButton}
+        </View>
+      );
+    }, [reordering, archiving, measurement, theme, styles, leftButton, valueButton, rightButton]);
+
+    return controlContent;
   }
 
   const renderExpandedContent = () => {
@@ -2079,18 +2105,18 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
-  const combinedPalette = getCombinedPalette(habit.baseColor);
+  const combinedPalette = useMemo(() => getCombinedPalette(habit.baseColor), [habit.baseColor]);
   const styles = useMemo(() => createHabitStyles(theme, combinedPalette, index), [theme, combinedPalette, index]);
 
   const today = useToday();
   const isFuture = currentDate.after(today);
 
-  const firstWeeklyCompletionIndex = habit.isWeekly ? range(0, 7).map((_, index) => {
+  const firstWeeklyCompletionIndex = useMemo(() => habit.isWeekly ? range(0, 7).map((_, index) => {
     const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1), recordingData);
     return complete;
-  }).findIndex((completion) => completion) : -1;
+  }).findIndex((completion) => completion) : -1, [habit, measurements, weekDates, recordingData]);
 
-  const renderCompletionContent = () => {
+  const completionContent = useMemo(() => {
     const completionCounts: number[] = [];
     const completionCount = weekDates.reduce((count, weekDate, index) => {
       const dates = habit.isWeekly ? weekDates : [weekDate];
@@ -2136,11 +2162,44 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         ))}
       </View>
     )
-  };
+  }, [habit, measurements, weekDates, recordingData, currentDate, firstWeeklyCompletionIndex, combinedPalette, styles]);
 
-  const dates = weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
-  const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, measurements, dates, recordingData);
-  const renderConditionContent = () => {
+  const dates = useMemo(() => weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1), [weekDates, currentDate, habit]);
+  const [complete, conditionCompletions, conditionValues, conditionProgressions] = useMemo(() => getHabitCompletion(habit, measurements, dates, recordingData), [habit, measurements, dates, recordingData]);
+
+  const conditionCompletionContent = useMemo(() => {
+    console.log('conditionCompletionContent');
+    return (
+      !isFuture && !reordering && !archiving && (
+        <>
+          {habit.conditions.length > 1 && (
+            <View style={styles.predicate}>
+              {/* <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} /> */}
+              <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
+            </View>
+          )}
+          {!expanded && habit.conditions.map((condition, index) => {
+            const conditionCompletion = conditionCompletions[index];
+            const conditionProgress = conditionProgressions[index] || 0;
+            const measurement = measurements.find(({ id }) => id === condition.measurementId);
+            const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
+            return (
+              <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
+                <CircularProgress
+                  size={18}
+                  strokeWidth={2}
+                  color={conditionCompletion ? palette.primary : palette.disabled}
+                  progress={conditionProgress}
+                />
+              </View>
+            )
+          })}
+        </>
+      )
+    )
+  }, [habit, measurements, conditionCompletions, conditionProgressions, theme, styles, isFuture, reordering, archiving, expanded]);
+
+  const conditionContent = useMemo(() => {
     return (
       <View style={styles.conditionContent}>
         {habit.conditions.map(({ target, measurementId, operator }, index) => {
@@ -2200,7 +2259,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         })}
       </View>
     )
-  }
+  }, [habit, measurements, conditionCompletions, conditionValues, conditionProgressions, theme, styles]);
 
   const renderExpandedContent = () => {
     const actionContent = (
@@ -2271,40 +2330,15 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
               habit={habit}
               size='large'
             />
-            {renderCompletionContent()}
+            {completionContent}
           </View>
           <View style={styles.dayCompletion}>
-            {!isFuture && !reordering && !archiving && (
-              <>
-                {habit.conditions.length > 1 && (
-                  <View style={styles.predicate}>
-                    {/* <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} /> */}
-                    <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
-                  </View>
-                )}
-                {!expanded && habit.conditions.map((condition, index) => {
-                  const conditionCompletion = conditionCompletions[index];
-                  const conditionProgress = conditionProgressions[index] || 0;
-                  const measurement = measurements.find(({ id }) => id === condition.measurementId);
-                  const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
-                  return (
-                    <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
-                      <CircularProgress
-                        size={18}
-                        strokeWidth={2}
-                        color={conditionCompletion ? palette.primary : palette.disabled}
-                        progress={conditionProgress}
-                      />
-                    </View>
-                  )
-                })}
-              </>
-            )}
+            {conditionCompletionContent}
             {reordering && <Icon source={Icons.drag} size={24} />}
             {archiving && <Icon source={habit.archived ? Icons.hide : Icons.show} size={24} color={habit.archived ? theme.colors.onSurfaceDisabled : undefined}/>}
           </View>
         </View>
-        {expanded && renderConditionContent()}
+        {expanded && conditionContent}
       </View>
       {pointsContent}
     </View>
