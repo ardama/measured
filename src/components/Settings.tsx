@@ -161,6 +161,9 @@ const Settings = () => {
               </React.Fragment>
             )
           })}
+          <Button onPress={() => router.push('/plus')}>
+            <Text>Measured Plus</Text>
+          </Button>
         </ScrollView>
       </View>
       <Portal>
