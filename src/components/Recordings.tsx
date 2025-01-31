@@ -1,14 +1,14 @@
-import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
-import { Button, Dialog, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimpleDate } from '@u/dates';
 import { getHabitCompletion, getHabitPredicateLabel, type ComputedHabit } from '@t/habits';
-import { computeTimeValue, formatTime, formatTimeValue, formatValue, intersection, parseTimeString, range, triggerHaptic } from '@u/helpers';
+import { computeTimeValue, formatTimeValue, formatValue, intersection, parseTimeString, range, triggerHaptic } from '@u/helpers';
 import Points from '@c/Points';
 import { Icons } from '@u/constants/Icons';
-import { callGenerateSampleData, callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
+import { callUpdateHabit, callUpdateHabits, callUpdateMeasurement, callUpdateMeasurements } from '@s/dataReducer';
 import { useDispatch } from 'react-redux';
 import { router } from 'expo-router';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
@@ -28,6 +28,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QuickStartButton from '@c/QuickStartButton';
 import { HabitLabel, MeasurementLabel } from '@c/Label';
+import { TabView } from 'react-native-tab-view';
+
 
 const Recordings = () => {
   const theme = useTheme();
@@ -68,7 +70,7 @@ const Recordings = () => {
   const displayedExpandedMeasurements = intersection(expandedMeasurements, new Set(displayedMeasurementIds));
   const areAllMeasurementsExpanded = displayedExpandedMeasurements.size === displayedMeasurements.length;
 
-  const submitMeasurementOrder = () => {
+  const submitMeasurementOrder = useCallback(() => {
     if (!measurementPriorityOverrides || !measurementPriorityOverrides.length) return;
 
     const updatedMeasurements: Measurement[] = [];
@@ -81,7 +83,7 @@ const Recordings = () => {
 
     if (!updatedMeasurements.length) return;
     dispatch(callUpdateMeasurements(updatedMeasurements));
-  }
+  }, [measurements, measurementPriorityOverrides]);
 
   const toggleMeasurementArchived = (measurement: Measurement, archived: boolean) => {
     const updatedMeasurement = { ...measurement, archived };
@@ -146,7 +148,7 @@ const Recordings = () => {
   const displayedExpandedHabits = intersection(expandedHabits, new Set(displayedHabitIds));
   const areAllHabitsExpanded = displayedExpandedHabits.size === displayedHabits.length;
 
-  const submitHabitOrder = () => {
+  const submitHabitOrder = useCallback(() => {
     if (!habitPriorityOverrides || !habitPriorityOverrides.length) return;
 
     const updatedHabits: ComputedHabit[] = [];
@@ -159,7 +161,7 @@ const Recordings = () => {
 
     if (!updatedHabits.length) return;
     dispatch(callUpdateHabits(updatedHabits));
-  }
+  }, [habits, habitPriorityOverrides]);
 
   const toggleHabitArchived = (habit: ComputedHabit, archived: boolean) => {
     const updatedHabit = { ...habit, archived };
@@ -299,43 +301,43 @@ const Recordings = () => {
 
   const dispatch = useDispatch();
   const updateRecordings = useRef<null | NodeJS.Timeout>(null);
-  const updateRecording = (value: number | null, measurementId: string, date: string) => {
-    const nextTempRecordingsMap = new Map([...tempRecordingsMap.entries()].map(([ id, recordingsMap]) => [
-      id,
-      new Map([...recordingsMap.entries()]),
-    ]));
-
-    const recordingsMap = nextTempRecordingsMap.get(measurementId) || new Map<string, number | null>();
-    recordingsMap.set(date, value);
-    nextTempRecordingsMap.set(measurementId, recordingsMap);
-    setTempRecordingsMap(nextTempRecordingsMap);
-
-    if (updateRecordings.current) clearTimeout(updateRecordings.current);
-    updateRecordings.current = setTimeout(() => {
-      const updatedMeasurements: Measurement[] = [];
-      [...nextTempRecordingsMap.entries()].forEach(([measurementId, recordingsMap]) => {
-        const measurement = measurements.find(({ id }) => id === measurementId);
-        if (!measurement) return;
+  const updateRecording = useCallback((value: number | null, measurement: Measurement, date: string) => {
+    setTempRecordingsMap(prevMap => {
+      const nextTempRecordingsMap = new Map([...prevMap.entries()].map(([ id, recordingsMap]) => [
+        id,
+        new Map([...recordingsMap.entries()]),
+      ]));
   
-        let hasUpdates = false;
-        const nextRecordings = [...measurement.recordings];
-        [...recordingsMap.entries()].forEach(([date, value]) => {
-          const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
-          const recording = nextRecordings[recordingIndex];
-          if (recording?.value !== value) {
-            recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
-            hasUpdates = true;
+      const recordingsMap = nextTempRecordingsMap.get(measurement.id) || new Map<string, number | null>();
+      recordingsMap.set(date, value);
+      nextTempRecordingsMap.set(measurement.id, recordingsMap);
+  
+      if (updateRecordings.current) clearTimeout(updateRecordings.current);
+      updateRecordings.current = setTimeout(() => {
+        const updatedMeasurements: Measurement[] = [];
+        [...nextTempRecordingsMap.entries()].forEach(([_, recordingsMap]) => {
+          let hasUpdates = false;
+          const nextRecordings = [...measurement.recordings];
+          [...recordingsMap.entries()].forEach(([date, value]) => {
+            const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
+            const recording = nextRecordings[recordingIndex];
+            if (recording?.value !== value) {
+              recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
+              hasUpdates = true;
+            }
+          });
+    
+          if (hasUpdates) {
+            updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
           }
         });
-  
-        if (hasUpdates) {
-          updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
-        }
-      });
-  
-      if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
-    }, 3000);
-  }
+    
+        if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
+      }, 3000);
+
+      return nextTempRecordingsMap;
+    });
+  }, [dispatch]);
   
   const clearRecordings = (date = selectedDate) => {
     setTempRecordingsMap(new Map());
@@ -408,27 +410,27 @@ const Recordings = () => {
     longPressNextTimeout.current = setTimeout(() => handleLongPressNext(nextSelectedDate, nextDelay), delay);
   }
   
-  const flatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
+  const timelineFlatListRef = useAnimatedRef<FlatList<{ week: { dates: SimpleDate[] }, elements: JSX.Element[] }>>();
   const weeks = useMemo(() => range(-52, 53).map((i) => ({ dates: SimpleDate.generateWeek(today.getDaysAgo(-7 * i)) })), [today]);
 
   const handleDateSelection = (date: SimpleDate, updateState: boolean = true) => {
     const firstDate = weeks[0].dates[0];
     const delta = SimpleDate.daysBetween(date, firstDate);
     const weekIndex = Math.floor(delta / 7);
-    flatListRef.current?.scrollToIndex({ index: weekIndex });
+    timelineFlatListRef.current?.scrollToIndex({ index: weekIndex });
     updateState && setSelectedDate(date);
   }
 
   const { window: dimensions } = useDimensions();
   const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(108), []);
-  const timelineWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
+  const pageWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleTimelineScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / timelineWidth);
+    const index = Math.round(offset / pageWidth);
     const nextSelectedDate = weeks[index].dates[selectedDayOfWeek];
     setSelectedDate(nextSelectedDate);
-  }, [weeks, selectedDayOfWeek, timelineWidth])
+  }, [weeks, selectedDayOfWeek, pageWidth])
 
   const timelineWeeks = weeks.map((week) => {
     return {
@@ -441,7 +443,7 @@ const Recordings = () => {
         
         return useMemo(() => { 
           return (
-            <Pressable
+            <TouchableRipple
               key={date.toString()}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               onPress={() => handleDateSelection(date)}
@@ -451,7 +453,10 @@ const Recordings = () => {
                 isSelected && styles.timelineDateContainerSelected,
               ]}
             >
-              <>
+              <Pressable
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={() => handleDateSelection(date)}
+              >
                 <View
                   style={[
                     styles.timelineDateContent,
@@ -487,8 +492,8 @@ const Recordings = () => {
                     </Text>
                   </View>
                 </View>
-              </>
-            </Pressable>
+              </Pressable>
+            </TouchableRipple>
           );
         }, [date, isToday, isSelected, styles]);
       })
@@ -498,8 +503,8 @@ const Recordings = () => {
   const timeline = useMemo(() => {
     return (
       <FlatList
-        style={{ height: timelineHeight, width: timelineWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
-        ref={flatListRef}
+        style={{ height: timelineHeight, width: pageWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
+        ref={timelineFlatListRef}
         data={timelineWeeks}
         keyExtractor={({ week }) => week.dates[0].toString()}
         pagingEnabled
@@ -508,22 +513,22 @@ const Recordings = () => {
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={32}
-        onScroll={Platform.select({ web: handleScroll, default: handleScroll })}
+        onScroll={handleTimelineScroll}
         getItemLayout={(_, index) => ({
-          length: timelineWidth,
-          offset: timelineWidth * index,
+          length: pageWidth,
+          offset: pageWidth * index,
           index,
         })}
         renderItem={({ item }) => {
           return (
-            <View style={[styles.timelineContent, { height: timelineHeight, width: timelineWidth }]}>
+            <View style={[styles.timelineContent, { height: timelineHeight, width: pageWidth, paddingTop: 8, paddingBottom: 24 }]}>
               {item.elements}
             </View>
           )
         }}
       />
     );
-  }, [weeks, timelineWidth, timelineHeight, styles, selectedDate]);
+  }, [weeks, pageWidth, timelineHeight, styles, selectedDate]);
 
   const renderTimelineHeader = () => {
     return (
@@ -667,7 +672,7 @@ const Recordings = () => {
   const timelineStatuses = useMemo(() => {
     return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
-        <View style={[styles.timelineContent, { width: timelineWidth, marginLeft: -16 }]}>
+        <View style={[styles.timelineContent, { width: pageWidth, marginLeft: -16 }]}>
           {selectedWeekDates.map((date, index) => {
             const isToday = date.toString() === today.toString();
             const isSelected = index === selectedDayOfWeek;
@@ -823,7 +828,7 @@ const Recordings = () => {
         <Text variant='titleLarge' style={{ }}>{selectedDate.toFormattedString(true, false, true)}</Text>
       </>
     );
-  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles]);
+  }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles, submitMeasurementOrder, submitHabitOrder]);
 
   const contentHeader = useMemo(() => {
     return (
@@ -921,6 +926,165 @@ const Recordings = () => {
     )
   }, [isReordering, isArchiving, showMeasurements, showHabits, addMenuItems, styles, renderSectionTitle]);
 
+
+  const measurementTab = (
+    <Fragment key='measurements'>
+      {displayedMeasurements.length ? (
+        <View style={styles.recordingView}>
+          {isReorderingMeasurements ? (
+            <DraggableList
+              items={measurementPriorityOverrides || []}
+              onReorder={(nextItems) => {
+                setMeasurementPriorityOverrides(nextItems);
+              }}
+              renderItem={(item, index, isDragging) => {
+                const measurement = measurements.find(({ id }) => id === item);
+                if (!measurement) return null;
+
+                return (
+                    <RecordingMeasurementItem
+                      index={index}
+                      measurement={measurement}
+                      currentDate={selectedDate}
+                      weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                      disabled={isDragging}
+                      reordering
+                    />
+                );
+              }}
+            />
+          ) : (
+            <ScrollView>
+              {displayedMeasurements.map((measurement, index) => {
+                const { id } = measurement;
+                return (
+                  <RecordingMeasurementItem
+                    key={id}
+                    index={index}
+                    measurement={measurement}
+                    currentDate={selectedDate}
+                    weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
+                    mergedRecordingValues={mergedRecordingsMap}
+                    expanded={displayedExpandedMeasurements.has(id)}
+                    updateRecording={updateRecording}  // Pass the base function
+                    onPress={() => {
+                      const nextExpandedMeasurements = new Set([...expandedMeasurements]);
+                      nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
+                      setExpandedMeasurements(nextExpandedMeasurements);
+                    }}
+                    onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
+                    archiving={showArchivedMeasurements}
+                    onArchive={toggleMeasurementArchived}
+                  />
+                );
+              })}
+              {measurements.length < 3 && <QuickStartButton />}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.noData}>
+            <View style={styles.noDataIcon}>
+              <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+            </View>
+            <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
+          </View>
+          {!measurements.length && <QuickStartButton />}
+        </>
+      )}
+    </Fragment>
+  );
+
+  const habitTab = (
+    <Fragment key='habits'>
+      {displayedHabits.length ? (
+        <View style={styles.recordingView}>
+          {isReorderingHabits ? (
+            <DraggableList
+              items={habitPriorityOverrides || []}
+              onReorder={(nextItems) => {
+                setHabitPriorityOverrides(nextItems);
+              }}
+              renderItem={(item, index, isDragging) => {
+                const habit = habits.find(({ id }) => id === item);
+                if (!habit) return null;
+
+                return (
+                  <RecordingDataHabit
+                    index={index}
+                    habit={habit}
+                    currentDate={selectedDate}
+                    weekDates={selectedWeekDates}
+                    measurements={measurements}
+                    recordingData={mergedRecordingsMap}
+                    disabled={isDragging}
+                    reordering
+                  />
+                );
+              }}
+            />
+          ) : (
+            <ScrollView>
+              {displayedHabits.map((habit, index) => {
+                const { id } = habit;
+                return (
+                  <RecordingDataHabit
+                    key={habit.id}
+                    index={index}
+                    habit={habit}
+                    currentDate={selectedDate}
+                    weekDates={selectedWeekDates}
+                    measurements={measurements}
+                    expanded={expandedHabits.has(id)}
+                    recordingData={mergedRecordingsMap}
+                    onPress={() => {
+                      const nextExpandedHabits = new Set([...expandedHabits]);
+                      nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
+                      setExpandedHabits(nextExpandedHabits);
+                    }}
+                    onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
+                    archiving={showArchivedHabits}
+                    onArchive={toggleHabitArchived}
+                  />
+                );
+              })}
+              {habits.length < 3 && <QuickStartButton />}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.noData}>
+            <View style={styles.noDataIcon}>
+              <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+            </View>
+            <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
+          </View>
+          {!habits.length && <QuickStartButton />}
+        </>
+      )}
+    </Fragment>
+  );
+
+  const renderScene = ({ route }: { route: { key: string } }) => {
+    return route.key === 'measurements' ? measurementTab : habitTab;
+  }
+
+  const tabs = (
+    <TabView
+      renderTabBar={() => null}
+      navigationState={{ index: contentSwitchValue, routes: [
+        { key: 'measurements', title: 'Measurements' },
+        { key: 'habits', title: 'Habits' },
+      ]}}
+      onIndexChange={setContentSwitchValue}
+      renderScene={renderScene}
+      swipeEnabled={!isArchiving && !isReordering}
+      initialLayout={{ width: pageWidth }}
+    />
+  )
+
   return (
     <>
       <StatusBar
@@ -937,147 +1101,7 @@ const Recordings = () => {
           {contentHeader}
           {measurements.length > 0 && contentSwitch}
         </View>
-          {showMeasurements && 
-            <>
-              {displayedMeasurements.length ? (
-                <View style={styles.recordingView}>
-                  {isReorderingMeasurements ? (
-                    <DraggableList
-                      items={measurementPriorityOverrides || []}
-                      onReorder={(nextItems) => {
-                        setMeasurementPriorityOverrides(nextItems);
-                      }}
-                      renderItem={(item, index, isDragging) => {
-                        const measurement = measurements.find(({ id }) => id === item);
-                        if (!measurement) return null;
-
-                        return (
-                            <RecordingMeasurementItem
-                              index={index}
-                              measurement={measurement}
-                              currentDate={selectedDate}
-                              weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                              disabled={isDragging}
-                              reordering
-                            />
-                        );
-                      }}
-                    />
-                  ) : (
-                    <ScrollView>
-                      {displayedMeasurements.map((measurement, index) => {
-                        const { id } = measurement;
-                        return (
-                          <RecordingMeasurementItem
-                            key={id}
-                            index={index}
-                            measurement={measurement}
-                            currentDate={selectedDate}
-                            weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
-                            mergedRecordingValues={mergedRecordingsMap}
-                            expanded={displayedExpandedMeasurements.has(id)}
-                            onValueChange={(nextValue: number | null) => {
-                              triggerHaptic('impact', ImpactFeedbackStyle.Light);
-                              updateRecording(nextValue, id, selectedDate.toString());
-                            }}
-                            onPress={() => {
-                              const nextExpandedMeasurements = new Set([...expandedMeasurements]);
-                              nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
-                              setExpandedMeasurements(nextExpandedMeasurements);
-                            }}
-                            onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
-                            archiving={showArchivedMeasurements}
-                            onArchive={toggleMeasurementArchived}
-                          />
-                        );
-                      })}
-                      {measurements.length < 3 && <QuickStartButton />}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : (
-                <>
-                  <View style={styles.noData}>
-                    <View style={styles.noDataIcon}>
-                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                    </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No measurements</Text>
-                  </View>
-                  {!measurements.length && <QuickStartButton />}
-                </>
-              )}
-            </>
-          }
-          {showHabits && (
-            <>
-              {displayedHabits.length ? (
-                <View style={styles.recordingView}>
-                  {isReorderingHabits ? (
-                    <DraggableList
-                      items={habitPriorityOverrides || []}
-                      onReorder={(nextItems) => {
-                        setHabitPriorityOverrides(nextItems);
-                      }}
-                      renderItem={(item, index, isDragging) => {
-                        const habit = habits.find(({ id }) => id === item);
-                        if (!habit) return null;
-  
-                        return (
-                          <RecordingDataHabit
-                            index={index}
-                            habit={habit}
-                            currentDate={selectedDate}
-                            weekDates={selectedWeekDates}
-                            measurements={measurements}
-                            recordingData={mergedRecordingsMap}
-                            disabled={isDragging}
-                            reordering
-                          />
-                        );
-                      }}
-                    />
-                  ) : (
-                    <ScrollView>
-                      {displayedHabits.map((habit, index) => {
-                        const { id } = habit;
-                        return (
-                          <RecordingDataHabit
-                            key={habit.id}
-                            index={index}
-                            habit={habit}
-                            currentDate={selectedDate}
-                            weekDates={selectedWeekDates}
-                            measurements={measurements}
-                            expanded={expandedHabits.has(id)}
-                            recordingData={mergedRecordingsMap}
-                            onPress={() => {
-                              const nextExpandedHabits = new Set([...expandedHabits]);
-                              nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
-                              setExpandedHabits(nextExpandedHabits);
-                            }}
-                            onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
-                            archiving={showArchivedHabits}
-                            onArchive={toggleHabitArchived}
-                          />
-                        );
-                      })}
-                      {habits.length < 3 && <QuickStartButton />}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : (
-                <>
-                  <View style={styles.noData}>
-                    <View style={styles.noDataIcon}>
-                      <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-                    </View>
-                    <Text style={styles.noDataText} variant='bodyLarge'>No habits</Text>
-                  </View>
-                  {!habits.length && <QuickStartButton />}
-                </>
-              )}
-            </>
-          )}
+          {tabs}
       </View>
     </>
   );
@@ -1131,16 +1155,16 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
       // alignItems: 'center',
       overflow: 'hidden',
       flexGrow: 1,
-      borderRadius: 15,
+      borderRadius: 12,
 
       justifyContent: 'center',
       alignSelf: 'stretch',
       alignItems: 'stretch',
       gap: 4,
-
     },
     timelineDateContainerToday: {},
-    timelineDateContainerSelected: {},
+    timelineDateContainerSelected: {
+    },
     timelineDateContent: {
       gap: 4,
     },
@@ -1276,7 +1300,6 @@ type RecordingMeasurementItemProps = {
   weekMeasurementValues: (number | null)[],
   mergedRecordingValues?: Map<string, Map<string, number | null>>,
   expanded?: boolean,
-  onValueChange?: (nextValue: number | null) => void,
   onPress?: (id: string) => void,
   onLongPress?: (id: string) => void,
   onPressIn?: (id: string) => void,
@@ -1285,6 +1308,7 @@ type RecordingMeasurementItemProps = {
   reordering?: boolean,
   archiving?: boolean,
   onArchive?: (measurement: Measurement, archived: boolean) => void,
+  updateRecording?: (value: number | null, measurement: Measurement, date: string) => void,
 }
 
 const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
@@ -1295,7 +1319,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     weekMeasurementValues,
     mergedRecordingValues,
     expanded,
-    onValueChange,
     onPress,
     onLongPress,
     onPressIn,
@@ -1303,6 +1326,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     reordering,
     archiving,
     onArchive,
+    updateRecording,
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -1326,7 +1350,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const valueRef = useRef(value);
 
   const [showValueDialog, setShowValueDialog] = useState(false);
-  const [valueDialogError, setValueDialogError] = useState(false);
   const [valueString, setValueString] = useState('');
   const [timeOffsetString, setTimeOffsetString] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -1356,16 +1379,14 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     [theme, measurementPalette, combinedPalette, index]
   );
 
+  const onValueChange = useCallback((nextValue: number | null) => {
+    triggerHaptic('impact', ImpactFeedbackStyle.Light);
+    updateRecording?.(nextValue, measurement, currentDate.toString());
+  }, [measurement, currentDate, updateRecording]);
+
   const renderControlContent = () => {
-    if (reordering) return <Icon source={Icons.drag} size={24} />
-    if (archiving) return (
-      <Icon
-        source={measurement.archived ? Icons.hide : Icons.show}
-        size={24}
-        color={measurement.archived ? theme.colors.onSurfaceDisabled : undefined}
-      />
-    );
-    const leftButton =
+
+    const leftButton = useMemo(() =>
       isCombo ?
         <View style={styles.controlButton} /> :
       isBool ? (
@@ -1397,8 +1418,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           }}
           delayLongPress={300}
         />
-      );
-    const rightButton =
+      ),
+    [isCombo, isBool, onValueChange, value, measurement.initial, measurement.step, styles]);
+
+    const rightButton = useMemo(() =>
       isCombo ?
         <View style={styles.controlButton} /> :
       isBool ? (
@@ -1430,9 +1453,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           }}
           delayLongPress={300}
         />
-      );
+      ),
+    [isCombo, isBool, onValueChange, value, measurement.initial, measurement.step, styles]);
 
-    const valueButton =
+    const valueButton = useMemo(() =>
       value !== null ? (
         <TouchableRipple
           style={styles.value}
@@ -1479,15 +1503,44 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             </Text>
           )}
         </TouchableRipple>
-      )
+      ),
+    [
+      value,
+      isTime,
+      isCombo,
+      isBool,
+      onValueChange,
+      measurement,
+      combinedPalette,
+      theme,
+      styles,
+      setShowValueDialog,
+      setValueString,
+      setTimeOffsetString,
+      formatValue,
+      formatTimeValue
+    ]);
 
-    return (
-      <View style={styles.controls}>
-        {leftButton}
-        {valueButton}
-        {rightButton}
-      </View>
-    );
+    const controlContent = useMemo(() => {
+      if (reordering) return <Icon source={Icons.drag} size={24} />
+      if (archiving) return (
+        <Icon
+          source={measurement.archived ? Icons.hide : Icons.show}
+          size={24}
+          color={measurement.archived ? theme.colors.onSurfaceDisabled : undefined}
+        />
+      );
+
+      return (
+        <View style={styles.controls}>
+          {leftButton}
+          {valueButton}
+          {rightButton}
+        </View>
+      );
+    }, [reordering, archiving, measurement, theme, styles, leftButton, valueButton, rightButton]);
+
+    return controlContent;
   }
 
   const renderExpandedContent = () => {
@@ -2052,18 +2105,18 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
 
   const theme = useTheme();
   const { getCombinedPalette } = usePalettes();
-  const combinedPalette = getCombinedPalette(habit.baseColor);
+  const combinedPalette = useMemo(() => getCombinedPalette(habit.baseColor), [habit.baseColor]);
   const styles = useMemo(() => createHabitStyles(theme, combinedPalette, index), [theme, combinedPalette, index]);
 
   const today = useToday();
   const isFuture = currentDate.after(today);
 
-  const firstWeeklyCompletionIndex = habit.isWeekly ? range(0, 7).map((_, index) => {
+  const firstWeeklyCompletionIndex = useMemo(() => habit.isWeekly ? range(0, 7).map((_, index) => {
     const [complete] = getHabitCompletion(habit, measurements, weekDates.slice(0, index + 1), recordingData);
     return complete;
-  }).findIndex((completion) => completion) : -1;
+  }).findIndex((completion) => completion) : -1, [habit, measurements, weekDates, recordingData]);
 
-  const renderCompletionContent = () => {
+  const completionContent = useMemo(() => {
     const completionCounts: number[] = [];
     const completionCount = weekDates.reduce((count, weekDate, index) => {
       const dates = habit.isWeekly ? weekDates : [weekDate];
@@ -2109,11 +2162,44 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         ))}
       </View>
     )
-  };
+  }, [habit, measurements, weekDates, recordingData, currentDate, firstWeeklyCompletionIndex, combinedPalette, styles]);
 
-  const dates = weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1);
-  const [complete, conditionCompletions, conditionValues, conditionProgressions] = getHabitCompletion(habit, measurements, dates, recordingData);
-  const renderConditionContent = () => {
+  const dates = useMemo(() => weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1), [weekDates, currentDate, habit]);
+  const [complete, conditionCompletions, conditionValues, conditionProgressions] = useMemo(() => getHabitCompletion(habit, measurements, dates, recordingData), [habit, measurements, dates, recordingData]);
+
+  const conditionCompletionContent = useMemo(() => {
+    console.log('conditionCompletionContent');
+    return (
+      !isFuture && !reordering && !archiving && (
+        <>
+          {habit.conditions.length > 1 && (
+            <View style={styles.predicate}>
+              {/* <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} /> */}
+              <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
+            </View>
+          )}
+          {!expanded && habit.conditions.map((condition, index) => {
+            const conditionCompletion = conditionCompletions[index];
+            const conditionProgress = conditionProgressions[index] || 0;
+            const measurement = measurements.find(({ id }) => id === condition.measurementId);
+            const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
+            return (
+              <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
+                <CircularProgress
+                  size={18}
+                  strokeWidth={2}
+                  color={conditionCompletion ? palette.primary : palette.disabled}
+                  progress={conditionProgress}
+                />
+              </View>
+            )
+          })}
+        </>
+      )
+    )
+  }, [habit, measurements, conditionCompletions, conditionProgressions, theme, styles, isFuture, reordering, archiving, expanded]);
+
+  const conditionContent = useMemo(() => {
     return (
       <View style={styles.conditionContent}>
         {habit.conditions.map(({ target, measurementId, operator }, index) => {
@@ -2173,7 +2259,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         })}
       </View>
     )
-  }
+  }, [habit, measurements, conditionCompletions, conditionValues, conditionProgressions, theme, styles]);
 
   const renderExpandedContent = () => {
     const actionContent = (
@@ -2244,40 +2330,15 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
               habit={habit}
               size='large'
             />
-            {renderCompletionContent()}
+            {completionContent}
           </View>
           <View style={styles.dayCompletion}>
-            {!isFuture && !reordering && !archiving && (
-              <>
-                {habit.conditions.length > 1 && (
-                  <View style={styles.predicate}>
-                    {/* <Icon source={getHabitPredicateIcon(habit.predicate)} size={14} color={complete ? combinedPalette.primary : combinedPalette.disabled} /> */}
-                    <Text style={[styles.predicateLabel, complete ? styles.predicateLabelComplete : {}]} variant='bodyLarge'>{getHabitPredicateLabel(habit.predicate)}</Text>
-                  </View>
-                )}
-                {!expanded && habit.conditions.map((condition, index) => {
-                  const conditionCompletion = conditionCompletions[index];
-                  const conditionProgress = conditionProgressions[index] || 0;
-                  const measurement = measurements.find(({ id }) => id === condition.measurementId);
-                  const palette = getCombinedPalette(measurement?.baseColor || habit.baseColor);
-                  return (
-                    <View key={condition.measurementId} style={[styles.dayCompletionIcon, conditionCompletion ? styles.dayCompletionIconComplete : {}]}>
-                      <CircularProgress
-                        size={18}
-                        strokeWidth={2}
-                        color={conditionCompletion ? palette.primary : palette.disabled}
-                        progress={conditionProgress}
-                      />
-                    </View>
-                  )
-                })}
-              </>
-            )}
+            {conditionCompletionContent}
             {reordering && <Icon source={Icons.drag} size={24} />}
             {archiving && <Icon source={habit.archived ? Icons.hide : Icons.show} size={24} color={habit.archived ? theme.colors.onSurfaceDisabled : undefined}/>}
           </View>
         </View>
-        {expanded && renderConditionContent()}
+        {expanded && conditionContent}
       </View>
       {pointsContent}
     </View>
