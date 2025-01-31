@@ -23,6 +23,7 @@
     "@react-navigation/drawer": "^7.0.18",
     "@reduxjs/toolkit": "^2.2.7",
     "@shopify/react-native-skia": "^1.7.6",
+    "babel-plugin-react-compiler": "^19.0.0-beta-e552027-20250112",
     "dotenv": "^16.4.7",
     "expo": "^52.0.12",
     "expo-constants": "~17.0.3",
@@ -38,6 +39,7 @@
     "expo-web-browser": "~14.0.1",
     "firebase": "^10.14.0",
     "react": "18.3.1",
+    "react-compiler-runtime": "^19.0.0-beta-27714ef-20250124",
     "react-dom": "18.3.1",
     "react-native": "0.76.3",
     "react-native-chart-kit": "^6.12.0",
@@ -84,7 +86,8 @@
     "react-devtools": "^6.0.1",
     "react-native-svg-transformer": "^1.5.0",
     "react-test-renderer": "18.2.0",
-    "typescript": "~5.3.3"
+    "typescript": "~5.3.3",
+    "eslint-config-expo": "~8.0.1"
   },
   "private": true
 }
