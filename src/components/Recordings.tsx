@@ -1125,7 +1125,7 @@ const Recordings = () => {
                   transform: [{
                     translateX: position.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0%', '100%']
+                      outputRange: [0, (pageWidth - 16) / 2]
                     })
                   }]
                 }]}
@@ -1653,7 +1653,6 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             style={styles.actionButton}
             hitSlop={6}
             onPress={handleShowValueDialog}
-            disabled={value === null}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon source={Icons.menu} size={14} />

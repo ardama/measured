@@ -81,7 +81,6 @@ const MEASUREMENT_TRENDLINE_ITEMS: BottomDrawerItem<number>[] = [
 const History = () => {  
   const measurements = useMeasurements();
   const habits = useComputedHabits();
-  const dispatch = useDispatch();
   const { top, bottom } = useSafeAreaInsets();
 
   const theme = useTheme();
@@ -585,8 +584,6 @@ const HabitChartCard = ({
 }: {
   measurementRecordingDates: Map<string, SimpleDate[]>
 }) => {
-  console.log('rendering habit chart');
-
   const measurements = useMeasurements();
   const today = useToday();
   const theme = useTheme();

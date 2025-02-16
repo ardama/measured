@@ -14,7 +14,14 @@ const dataStateSlice = createSlice({
       return createDataState();
     },
     setMeasurements: (state: DataState, action: PayloadAction<Measurement[]>) => {
-      state.measurements = [...action.payload].sort((a, b) => a.priority - b.priority);
+      state.measurements = [...action.payload]
+        .map((measurement) => {
+          if (!!measurement.variant) {
+            return { ...measurement, category: measurement.name, name: measurement.variant };
+          }
+          return measurement;
+        })
+        .sort((a, b) => a.priority - b.priority);
       state.dataLoaded |= 1;
     },
     setHabits: (state: DataState, action: PayloadAction<Habit[]>) => {

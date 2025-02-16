@@ -9,6 +9,7 @@ type Measurement = {
   userId: string
   type: MeasurementType
   name: string
+  variant?: string
   category: string
   unit: string
   step: number
