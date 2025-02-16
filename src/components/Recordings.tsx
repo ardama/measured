@@ -1,4 +1,4 @@
-import { FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { Animated, FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
 import { Button, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
@@ -46,7 +46,7 @@ const Recordings = () => {
 
   const today = useToday();
 
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState((new Date()).getHours() >= 3 ? today : today.getDaysAgo(1));
   const selectedDayOfWeek = selectedDate.getDayOfWeek();
   const selectedWeekDates = useMemo(() => SimpleDate.generateWeek(selectedDate), [selectedDate]);
   const isToday = selectedDate.equals(today);
@@ -338,7 +338,28 @@ const Recordings = () => {
       return nextTempRecordingsMap;
     });
   }, [dispatch]);
-  
+
+  const updateNote = useCallback((content: string | null, measurement: Measurement, date: string) => {
+    const nextNotes = [...(measurement.notes || [])];
+    const noteIndex = nextNotes.findIndex((n) => n.date === date);
+    
+    let updateNeeded = false;
+    if (content) {
+      if (noteIndex === -1) {
+        nextNotes.push({ date, content });
+        updateNeeded = true;
+      } else if (nextNotes[noteIndex].content !== content) {
+        nextNotes.splice(noteIndex, 1, { date, content });
+        updateNeeded = true;
+      }
+    } else if (noteIndex !== -1) {
+      nextNotes.splice(noteIndex, 1);
+      updateNeeded = true;
+    }
+
+    if (updateNeeded) dispatch(callUpdateMeasurement({ ...measurement, notes: nextNotes }));
+  }, [dispatch]);
+
   const clearRecordings = (date = selectedDate) => {
     setTempRecordingsMap(new Map());
     if (updateRecordings.current) clearTimeout(updateRecordings.current);
@@ -966,7 +987,8 @@ const Recordings = () => {
                     weekMeasurementValues={selectedWeekMeasurementValues.get(measurement.id) || []}
                     mergedRecordingValues={mergedRecordingsMap}
                     expanded={displayedExpandedMeasurements.has(id)}
-                    updateRecording={updateRecording}  // Pass the base function
+                    updateRecording={updateRecording} 
+                    updateNote={updateNote}
                     onPress={() => {
                       const nextExpandedMeasurements = new Set([...expandedMeasurements]);
                       nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
@@ -1073,7 +1095,77 @@ const Recordings = () => {
 
   const tabs = (
     <TabView
-      renderTabBar={() => null}
+      renderTabBar={({ position, navigationState: { index } }) => {
+        const isDisabled = isReordering || isArchiving;
+
+        let switchColor = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
+        if (isDisabled) switchColor = theme.colors.surfaceDisabled;
+        else if (baseColor) switchColor = globalPalette.backdrop;
+      
+        return (
+          <View style={{
+            marginHorizontal: -4,
+            borderRadius: 0,
+            backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
+            overflow: 'hidden',
+            paddingHorizontal: 12,
+            paddingTop: 8,
+            paddingBottom: 8,
+            alignSelf: 'stretch'
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center'}}>
+              <Animated.View
+                style={[{
+                  position: 'absolute',
+                  height: '100%',
+                  width: '50%',
+                  backgroundColor: switchColor,
+                  borderRadius: 4,
+                  opacity: isDisabled ? 0.5 : 1,
+                  transform: [{
+                    translateX: position.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%']
+                    })
+                  }]
+                }]}
+              />
+              <Pressable
+                style={[
+                  { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+                ]}
+                onPressIn={() => setContentSwitchValue(0)}
+                disabled={isDisabled}
+              >
+                <View>
+                  <Icon source={Icons.measurement} size={14} color={showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
+                </View>
+                <Text variant='labelLarge' style={[
+                  { color: showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
+                ]}>
+                  MEASUREMENTS
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+                ]}
+                onPressIn={() => setContentSwitchValue(1)}
+                disabled={isDisabled}
+              >
+                <View>
+                  <Icon source={Icons.habit} size={14} color={showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
+                </View>
+                <Text variant='labelLarge' style={[
+                  { color: showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
+                ]}>
+                  HABITS
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )
+      }}
       navigationState={{ index: contentSwitchValue, routes: [
         { key: 'measurements', title: 'Measurements' },
         { key: 'habits', title: 'Habits' },
@@ -1099,9 +1191,8 @@ const Recordings = () => {
           {habitProgressBar}
           {timelineStatuses}
           {contentHeader}
-          {measurements.length > 0 && contentSwitch}
         </View>
-          {tabs}
+        {tabs}
       </View>
     </>
   );
@@ -1309,6 +1400,7 @@ type RecordingMeasurementItemProps = {
   archiving?: boolean,
   onArchive?: (measurement: Measurement, archived: boolean) => void,
   updateRecording?: (value: number | null, measurement: Measurement, date: string) => void,
+  updateNote?: (content: string, measurement: Measurement, date: string) => void,
 }
 
 const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.Element | null  => {
@@ -1327,6 +1419,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     archiving,
     onArchive,
     updateRecording,
+    updateNote,
   } = props;
   const theme = useTheme();
   const typeData = getMeasurementTypeData(measurement.type);
@@ -1353,6 +1446,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   const [valueString, setValueString] = useState('');
   const [timeOffsetString, setTimeOffsetString] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [noteString, setNoteString] = useState('');
 
   useEffect(() => {
     valueRef.current = value;
@@ -1379,10 +1473,27 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     [theme, measurementPalette, combinedPalette, index]
   );
 
+  const handleShowValueDialog = useCallback(() => {
+    const startingValue = value === null ? measurement.initial : value;
+    if (isTime) {
+      const valueWithoutOffset = (24 + (startingValue % 24)) % 24;
+      setValueString(formatTimeValue(valueWithoutOffset));
+      setTimeOffsetString(Math.floor(startingValue / 24).toFixed(0));
+    } else {
+      setValueString(startingValue.toString());
+    }
+    setNoteString(measurement.notes?.find(({ date }) => date === currentDate.toString())?.content || '');
+    setShowValueDialog(true);
+  }, [measurement.initial, currentDate, value, setShowValueDialog, setValueString, setTimeOffsetString, setNoteString]);
+
   const onValueChange = useCallback((nextValue: number | null) => {
     triggerHaptic('impact', ImpactFeedbackStyle.Light);
     updateRecording?.(nextValue, measurement, currentDate.toString());
   }, [measurement, currentDate, updateRecording]);
+
+  const onNoteChange = useCallback((nextNote: string) => {
+    updateNote?.(nextNote, measurement, currentDate.toString());
+  }, [measurement, currentDate, updateNote]);
 
   const renderControlContent = () => {
 
@@ -1460,16 +1571,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       value !== null ? (
         <TouchableRipple
           style={styles.value}
-          onLongPress={() => {
-            setShowValueDialog(true);
-            if (isTime) {
-              const valueWithoutOffset = (24 + (value % 24)) % 24;
-              setValueString(formatTimeValue(valueWithoutOffset));
-              setTimeOffsetString(Math.floor(value / 24).toFixed(0));
-            } else {
-              setValueString(value.toString());
-            }
-          }}
+          onLongPress={handleShowValueDialog}
           disabled={isCombo || isBool}
         >
           {isBool ? (
@@ -1485,15 +1587,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           style={[styles.value, styles.defaultValue]}
           onPress={() => onValueChange ? onValueChange(measurement.initial) : null}
           disabled={isCombo}
-          onLongPress={isCombo || isBool ? undefined : () => {
-            setShowValueDialog(true);
-            if (isTime) {
-              const valueWithoutOffset = (24 + (measurement.initial % 24)) % 24;
-              setValueString(formatTimeValue(valueWithoutOffset));
-              setTimeOffsetString(Math.floor(measurement.initial / 24).toFixed(0));
-            } else {
-              setValueString(measurement.initial.toString());
-            }          }}
+          onLongPress={isCombo || isBool ? undefined : handleShowValueDialog}
         >
           {isBool ? (
             <Icon source={measurement.initial ? Icons.complete : Icons.incomplete} color={theme.colors.onSurfaceDisabled} size={14} />
@@ -1554,18 +1648,16 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
 
     const actionContent = (
       <View style={styles.actionContent}>
-        {!isCombo && value !== null && (
+        {!isCombo && (
           <TouchableRipple
             style={styles.actionButton}
             hitSlop={6}
-            onPress={() => {
-              onValueChange ? onValueChange(null) : null;
-            }}
+            onPress={handleShowValueDialog}
             disabled={value === null}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon source={Icons.delete} size={14} />
-              <Text variant="labelLarge">CLEAR</Text>
+              <Icon source={Icons.menu} size={14} />
+              <Text variant="labelLarge">MORE</Text>
             </View>
           </TouchableRipple>
         )}
@@ -1619,6 +1711,15 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     const isSelected = index === currentDate.getDayOfWeek();
     const hasNotStarted = !startDate || startDate > date.toString();
 
+    const hasNote = !!measurement.notes?.find((n) => n.date === date.toString());
+    const hasValue = value !== null;
+    let icon = Icons.subtract;
+    if (hasNote) {
+      icon = Icons.note;
+    } else if (hasValue) {
+      icon = Icons.recorded;
+    }
+
     return useMemo(() => (
       <View
         key={date.toString()}
@@ -1632,13 +1733,13 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             <Icon source={Icons.subtract} size={isSelected ? 16 : 12} color={theme.colors.onSurfaceDisabled} />
           ) : (
           <Icon
-            source={value === null ? Icons.subtract : Icons.recorded}
+            source={icon}
             size={isSelected ? 16 : 12}
             color={combinedPalette.primary}
           />
         )}
       </View>
-    ), [date.toString(), isFuture, hasNotStarted, isSelected, value, combinedPalette.primary, styles]);
+    ), [date.toString(), isFuture, hasNotStarted, isSelected, combinedPalette.primary, styles, icon]);
   });
 
   const content = (
@@ -1669,7 +1770,9 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
   };
 
   const onValueDialogSumbit = () => {
-    if (isTime) {
+    if (!valueString) {
+      onValueChange && onValueChange(null);
+    } else if (isTime) {
       const parsedTime = parseTimeString(valueString) || { hours: 12, offset: 0 };
       const offset = parseInt(timeOffsetString) || 0;
       const nextValue = computeTimeValue(parsedTime.hours, offset);
@@ -1678,7 +1781,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       const nextValue = parseFloat(valueString) || 0;
       onValueChange && onValueChange(nextValue);
     }
+
+    onNoteChange && onNoteChange(noteString);
     setShowValueDialog(false);
+
   }
   const valueDialog = (
     <>
@@ -1751,6 +1857,15 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                         setTimeOffsetString(offset.toString());
                       }}
                     />
+                    <IconButton
+                      icon={Icons.delete}
+                      style={styles.dialogDeleteButton}
+                      size={20}
+                      onPress={() => {
+                        setValueString('');
+                        setTimeOffsetString('');
+                      }}
+                    />
                   </View>
                   {Platform.OS === 'ios' && (
                     <DateTimePicker
@@ -1769,24 +1884,47 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
                   )}
                 </>
               ) : (
-                <TextInput
-                  style={styles.dialogInput}
-                  mode='outlined'
-                  label='Value'
-                  value={valueString}
-                  onChangeText={(text) => {
-                    setValueString(text);
-                  }}
-                  disabled={isBool}
-                  right={
-                    isDuration && valueString ? <TextInput.Affix text={`(${formatValue(parseFloat(valueString), measurement.type)})`} /> :
-                    unitString ? <TextInput.Affix text={unitString} /> :
-                    null
-                  }
-                  activeOutlineColor={combinedPalette.primary || undefined}
-                  keyboardType="numeric"
-                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={styles.dialogInput}
+                    mode='outlined'
+                    label='Value'
+                    value={valueString}
+                    onChangeText={(text) => {
+                      setValueString(text);
+                    }}
+                    disabled={isBool}
+                    right={
+                      isDuration && valueString ? <TextInput.Affix text={`(${formatValue(parseFloat(valueString), measurement.type)})`} /> :
+                      unitString ? <TextInput.Affix text={unitString} /> :
+                      null
+                    }
+                    activeOutlineColor={combinedPalette.primary || undefined}
+                    keyboardType="numeric"
+                  />
+                  <IconButton
+                    icon={Icons.delete}
+                    style={styles.dialogDeleteButton}
+                    size={20}
+                    onPress={() => {
+                      setValueString('');
+                    }}
+                  />
+                </View>
               )}
+              <TextInput
+                style={styles.dialogInput}
+                mode='outlined'
+                label='Daily note'
+                multiline={true}
+                value={noteString}
+                onChangeText={(text) => {
+                  setNoteString(text.slice(0, 100));
+                }}
+                right={
+                  <TextInput.Affix text={`${noteString.length} / 100`} />
+                }
+              />
             </View>
             <View style={styles.dialogButtons}>
               <Button
@@ -2014,6 +2152,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   dialogContent: {
     paddingHorizontal: 24,
     paddingVertical: 16,
+    gap: 8,
   },
   dialogTitle: {
     flexDirection: 'row',
@@ -2036,6 +2175,13 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
   dialogInput: {
     flexGrow: 1,
     flexShrink: 1,
+  },
+  dialogDeleteButton: {
+    margin: 0,
+    marginTop: 6,
+    height: 50,
+    width: 50,
+    borderRadius: 4,
   },
   dialogButtons: {
     width: '100%',
@@ -2168,7 +2314,6 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   const [complete, conditionCompletions, conditionValues, conditionProgressions] = useMemo(() => getHabitCompletion(habit, measurements, dates, recordingData), [habit, measurements, dates, recordingData]);
 
   const conditionCompletionContent = useMemo(() => {
-    console.log('conditionCompletionContent');
     return (
       !isFuture && !reordering && !archiving && (
         <>

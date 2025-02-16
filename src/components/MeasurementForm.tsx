@@ -379,7 +379,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                         </Pressable>
                       );
                     })}
-                    {selectedCategoryIndex === -1 && formMeasurement.category && (
+                    {selectedCategoryIndex === -1 && !!formMeasurement.category && (
                       <Pressable
                         key={`${formMeasurement.category}-${formMeasurement.baseColor}`}
                         style={[s.category, { opacity: 1 }]}

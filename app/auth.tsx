@@ -128,6 +128,8 @@ const LoginScreen = () => {
               left={<TextInput.Icon tabIndex={-1} icon={'at'} rippleColor={'transparent'} />}
               onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
               activeOutlineColor={palette.primary}
+              autoComplete='email'
+              inputMode='email'
             />
             {isReset ? null : <TextInput
               value={password}
@@ -141,6 +143,7 @@ const LoginScreen = () => {
               left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
               onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
               activeOutlineColor={palette.primary}
+              autoComplete={isSignUp ? 'new-password' : 'password'}
             />}
             {isSignUp && (
               <>
@@ -156,6 +159,7 @@ const LoginScreen = () => {
                   left={<TextInput.Icon tabIndex={-1} icon={'lock-outline'} rippleColor={'transparent'} />}
                   onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter') handleSubmit(); }}
                   activeOutlineColor={palette.primary}
+                  autoComplete='new-password'
                 />
               </>
             )}

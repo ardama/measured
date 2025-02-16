@@ -19,6 +19,7 @@ type Measurement = {
   comboRightId?: string
   comboOperator?: MeasurementOperator
   recordings: MeasurementRecording[]
+  notes: MeasurementNote[]
   baseColor?: BaseColor
 }
 
@@ -37,6 +38,7 @@ type FormMeasurement = {
   comboRightId?: string,
   comboOperator?: MeasurementOperator,
   recordings: MeasurementRecording[],
+  notes: MeasurementNote[],
   hue?: number
   baseColor?: BaseColor,
 };
@@ -53,6 +55,7 @@ const createMeasurement = (userId: string, name: string, category: string, type:
   priority,
   archived: false,
   recordings: [],
+  notes: [],
 });
 
 const emptyMeasurement = (): Measurement => ({
@@ -67,6 +70,7 @@ const emptyMeasurement = (): Measurement => ({
   priority: 0,
   archived: false,
   recordings: [],
+  notes: [],
 })
 
 type MeasurementType = '' | 'duration' | 'time' | 'count' | 'bool' | 'combo';
@@ -158,6 +162,7 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
 }
 
 type MeasurementRecording = { date: string, value: number | null };
+type MeasurementNote = { date: string, content: string };
 
 const getMeasurementRecordingValue = (
   measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[],

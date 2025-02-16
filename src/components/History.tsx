@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Divider, Icon, IconButton, Surface, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { Button, Divider, Icon, IconButton, Menu, Surface, Switch, Text, Tooltip, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, Line } from 'react-native-responsive-linechart';
 import { formatNumber, formatValue, movingAverage, range, triggerHaptic } from '@u/helpers';
 import { useComputedHabits, useMeasurements } from '@s/selectors';
@@ -21,6 +21,7 @@ import { callGenerateSampleData } from '@s/dataReducer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QuickStartButton from '@c/QuickStartButton';
 import { MeasurementLabel } from '@c/Label';
+import { createFontStyle } from '@u/styles';
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -253,8 +254,10 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     flexGrow: 0,
     paddingVertical: 4,
     borderRadius: 4,
-    flexShrink: 0,
+    flexShrink: 1,
     backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
+    height: 40,
+    minWidth: 160,
   },
   chartSelectionRow: {
     flexDirection: 'row',
@@ -267,10 +270,11 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   chartSelectionValue: {
     fontSize: 12,
     lineHeight: 16,
+    ...createFontStyle(600),
   },
   chartSelectionLine: {
     position: 'absolute',
-    height: 320,
+    height: 293,
     borderLeftWidth: 2,
   },
   chartDurationButtons: {
@@ -581,6 +585,8 @@ const HabitChartCard = ({
 }: {
   measurementRecordingDates: Map<string, SimpleDate[]>
 }) => {
+  console.log('rendering habit chart');
+
   const measurements = useMeasurements();
   const today = useToday();
   const theme = useTheme();
@@ -689,7 +695,7 @@ const HabitChartCard = ({
         currentBucket = { title: `${currentDate.toFormattedString(true)}`, x: currentBucket ? currentBucket.x + 1 : 0, y: 0};
       } else if (habitBucketSize.value === 'week' && currentDate.getDayOfWeek() === 0) {
         currentBucket && result.push(currentBucket);
-        currentBucket = { title: `${currentDate.toFormattedString(false, false, false, true)} - ${currentDate.getDaysAgo(-6).toFormattedString(false, false, false, true)}`, x: currentBucket ? currentBucket.x + 1 : 0, y: 0};
+        currentBucket = { title: `${currentDate.toFormattedString()} - ${currentDate.getDaysAgo(-6).toFormattedString()}`, x: currentBucket ? currentBucket.x + 1 : 0, y: 0};
       } else if (habitBucketSize.value === 'month' && currentDate.day === 1) {
         currentBucket && result.push(currentBucket);
         currentBucket = { title: `${currentDate.toFormattedMonthYear()}`, x: currentBucket ? currentBucket.x + 1 : 0, y: 0};
@@ -717,8 +723,9 @@ const HabitChartCard = ({
         y: averageValues[index],
       }))
     },
-    [adjustedBuckets]
+    [adjustedBuckets, habitTrendline.value]
   );
+
   
   const visibleBucketData = adjustedBuckets.filter((data) => data.x >= 0);
   const visibleAverageData = averageData.filter((data): data is { x: number, y: number } => data.x >= 0);
@@ -917,20 +924,20 @@ const HabitChartCard = ({
     const selectedDateAverageLabel = `${habitTrendline.title || ''}: `;
 
     const ratio = selectedHabitDataIndex / horizontalMax;
-    const justifyContent = ratio > 0.8 ? 'flex-end' : 'flex-start';
+    const justifyContent = 'center';
     return selectedHabitDataIndex < 0 ? null : (
       <View style={s.chartSelectionContainer}>
         <View
           style={
             [s.chartSelectionLine, 
             {
-              top: 27 - chartPadding,
+              top: 54 - chartPadding,
               left: (selectedHabitDataIndex / horizontalMax) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
               borderColor: globalPalette.primary,
             }
           ]}
         />
-        <View style={{ flexGrow: (selectedHabitDataIndex / horizontalMax) }} />
+        <View style={{ flexGrow: 1 }} />
         <View style={s.chartSelection}>
           <View style={{ ...s.chartSelectionRow, justifyContent }}>
             <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
@@ -947,7 +954,7 @@ const HabitChartCard = ({
             </View>
           ) : null}
         </View>
-        <View style={{ flexGrow: 1 - (selectedHabitDataIndex / horizontalMax) }} />
+        <View style={{ flexGrow: 1 }} />
       </View>
     )
   }, [...habitChartInputs, selectedHabitDataIndex]);
@@ -1091,7 +1098,7 @@ const MeasurementChartCard = ({
         x: x,
         y: averageValues[index],
       }));
-  }, [selectedMeasurementData]);
+  }, [selectedMeasurementData, measurementTrendline.value]);
 
   const filteredAverageData = averageData
     .filter((data): data is { x : number, y : number} => data.y !== null);
@@ -1284,11 +1291,13 @@ const MeasurementChartCard = ({
     )
   }, measurementChartInputs);
 
+  const [noteVisible, setNoteVisible] = useState(false);
   const chartSelection = useMemo(() => {
     const selectedDateDayOffset = selectedMeasurementDataIndex === -1 ? 0 : selectedMeasurementData[selectedMeasurementDataIndex].x;
     const selectedDate = today.toDate();
     selectedDate.setDate(selectedDate.getDate() - chartDuration + selectedDateDayOffset);
-    const selectedDateString = `${SimpleDate.fromDate(selectedDate).toFormattedString(true)}: `;
+    const selectedSimpleDate = SimpleDate.fromDate(selectedDate);
+    const selectedDateString = `${selectedSimpleDate.toFormattedString(true)}: `;
 
     const selectedDateValue = selectedMeasurementDataIndex === -1 ? null : selectedMeasurementData[selectedMeasurementDataIndex].y;
     const selectedDateValueString = formatValue(selectedDateValue, type, unit, true);
@@ -1297,44 +1306,66 @@ const MeasurementChartCard = ({
     const selectedDateAverageString = formatValue(selectedDateAverage, type, unit, true);
     const selectedDateAverageLabel = `${measurementTrendline.title || ''}: `;
 
+    const note = selectedMeasurement?.notes?.find(({ date }) => date === selectedSimpleDate.toString());
+
     const ratio = selectedDateDayOffset / horizontalMax;
-    const justifyContent = ratio > 0.8 ? 'flex-end' : 'flex-start';
+    const justifyContent = 'center';
     return selectedMeasurementDataIndex < 0 ? null : (
       <View style={s.chartSelectionContainer}>
         <View
-          style={[s.chartSelectionLine,
+          style={[
+            s.chartSelectionLine,
             {
-              top: 27 - chartPadding,
-              left: (selectedDateDayOffset / horizontalMax) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
+              top: 54 - chartPadding,
+              left: ratio * (chartWidth - 2 * chartPadding) + chartPadding - 1,
               borderColor: measurementPalette.primary || theme.colors.onSurface,
             }
           ]}
         />
-        <View style={{ flexGrow: (selectedDateDayOffset / horizontalMax) }} />
-        <View style={s.chartSelection}>
-          <View style={{ ...s.chartSelectionRow, justifyContent }}>
-            <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-              {selectedDateString}
-            </Text>
-            <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
-              {selectedDateValueString}
-            </Text>
-          </View>
-          {selectedDateAverageString ? (
-            <View style={{ ...s.chartSelectionRow, justifyContent }}>
-              <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-                {selectedDateAverageLabel}
-              </Text>
-              <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
-                {selectedDateAverageString}
-              </Text>
-            </View>
+        <View style={{ flexGrow: 1, flexBasis: 0, minWidth: 48 }}>
+          {!!note ? (
+            <IconButton
+              style={{ margin: 0, borderRadius: 4}}
+              icon={Icons.note}
+              size={18}
+              containerColor={noteVisible ? measurementPalette.backdrop : undefined}
+              onPress={() => setNoteVisible(!noteVisible)}
+              hitSlop={8}
+            />
           ) : null}
         </View>
-        <View style={{ flexGrow: 1 - (selectedDateDayOffset / horizontalMax) }} />
+        <View style={s.chartSelection}>
+          {note && noteVisible ? (
+            <ScrollView>
+              <Text variant='bodySmall'>"{note?.content}"</Text>
+            </ScrollView>
+          ) : (
+            <>
+              <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                  {selectedDateString}
+                </Text>
+                <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
+                  {selectedDateValueString}
+                </Text>
+              </View>
+              {selectedDateAverageString ? (
+                <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                  <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                    {selectedDateAverageLabel}
+                  </Text>
+                  <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
+                    {selectedDateAverageString}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          )}
+        </View>
+        <View style={{ flexGrow: 1, minWidth: note && noteVisible ? 0 : 48 }} />
       </View>
     )
-  }, [...measurementChartInputs, selectedMeasurementDataIndex]);
+  }, [...measurementChartInputs, selectedMeasurementDataIndex, noteVisible]);
 
   const chartDurationButtons = useMemo(() => {
     return (

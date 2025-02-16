@@ -42,6 +42,9 @@ export const Icons = {
   recordingFilled: 'home',
   recorded: 'pencil',
 
+  note: 'tooltip',
+
+
   warning: 'alert-circle-outline',
 
   move: 'priority-low',
@@ -78,7 +81,7 @@ export const Icons = {
 
   settings: 'menu',
   // settings: 'tune',
-  menu: 'dots-vertical',
+  menu: 'menu',
   back: 'chevron-left',
 
   add: 'plus',

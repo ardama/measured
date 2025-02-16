@@ -205,10 +205,7 @@ export class SimpleDate {
   }
 
   static today() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    now.setMinutes(now.getMinutes() - offset);
-    return SimpleDate.fromDate(now);
+    return SimpleDate.fromDate(new Date());
   }
 
   static getDaysInMonth(month: number, year: number) {

@@ -53,7 +53,7 @@ export const formatNumber = (num: number, decimals: number = 2): string => {
 
 export const formatTime = (hours: number): string => {
   // Calculate the total minutes
-  const totalMinutes = hours * 60;
+  const totalMinutes = Math.round(hours * 60);
 
   // Compute the total days and adjusted minutes
   const totalDays = Math.floor(totalMinutes / 1440); // 1440 minutes in a day

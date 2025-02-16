@@ -302,7 +302,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     </Pressable>
                   );
                 })}
-                {selectedCategoryIndex === -1 && formHabit.category && (
+                {selectedCategoryIndex === -1 && !!formHabit.category && (
                   <Pressable
                     key={`${formHabit.category}-${formHabit.baseColor}`}
                     style={[s.category, { opacity: 1 }]}
