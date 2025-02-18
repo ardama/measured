@@ -258,6 +258,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
    margin: 0,
    height: 40,
    width: 40,
+   borderRadius: 4,
   },
   searchbarContainer: {
     marginBottom: 12,
@@ -303,7 +304,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     backgroundColor: theme.colors.elevation.level3,
   },
   itemDisabled: {
-    
+    opacity: 0.5,
   },
   itemContent: {
     flexDirection: 'row',
@@ -328,13 +329,11 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
   itemSelectedTitle: {
   },
   itemDisabledTitle: {
-    color: theme.colors.onSurfaceDisabled,
   },
   itemSubtitle: {
   },
   itemSelectedSubtitle: {
   },
   itemDisabledSubtitle: {
-    color: theme.colors.onSurfaceDisabled,
   },
 });

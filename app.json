@@ -2,7 +2,7 @@
   "expo": {
     "name": "Measured",
     "slug": "habits",
-    "version": "1.2.16",
+    "version": "1.2.17",
     "orientation": "portrait",
     "icon": "./src/assets/images/icon_yellow_solid_192x192.png",
     "scheme": "myapp",
@@ -48,7 +48,7 @@
       }
     },
     "owner": "aricdama",
-    "runtimeVersion": "1.2.16",
+    "runtimeVersion": "1.2.17",
     "updates": {
       "url": "https://u.expo.dev/59b85aeb-57ff-472f-a532-c09ffaf6d5fd"
     }

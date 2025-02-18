@@ -24,10 +24,28 @@ index abf6932..89c5c53 100644
  export declare type ChartHandle = {
      setViewportOrigin: (origin: XYValue) => void;
 diff --git a/node_modules/react-native-responsive-linechart/lib/Chart.js b/node_modules/react-native-responsive-linechart/lib/Chart.js
-index 9b08b87..a60c269 100644
+index 9b08b87..65f4cf6 100644
 --- a/node_modules/react-native-responsive-linechart/lib/Chart.js
 +++ b/node_modules/react-native-responsive-linechart/lib/Chart.js
-@@ -143,7 +143,7 @@ var Chart = React.memo(React.forwardRef(function (props, ref) {
+@@ -109,7 +109,7 @@ var Chart = React.memo(React.forwardRef(function (props, ref) {
+         return true;
+     };
+     var _onTouchGestureEvent = react_native_1.Animated.event([{ nativeEvent: {} }], {
+-        useNativeDriver: true,
++        useNativeDriver: react_native_1.Platform.OS !== 'ios',
+         listener: function (evt) {
+             // Necessary to debounce function, see https://medium.com/trabe/react-syntheticevent-reuse-889cd52981b6
+             if (evt.nativeEvent.state === react_native_gesture_handler_1.State.ACTIVE) {
+@@ -118,7 +118,7 @@ var Chart = React.memo(React.forwardRef(function (props, ref) {
+         },
+     });
+     var _onPanGestureEvent = react_native_1.Animated.event([{ nativeEvent: {} }], {
+-        useNativeDriver: true,
++        useNativeDriver: react_native_1.Platform.OS !== 'ios',
+         listener: handlePanEvent,
+     });
+     var childComponents = React.Children.toArray(children);
+@@ -143,12 +143,11 @@ var Chart = React.memo(React.forwardRef(function (props, ref) {
                                  lastTouch: lastTouch,
                              } },
                              React.createElement(react_native_svg_1.default, { width: dimensions.width, height: dimensions.height },
@@ -35,7 +53,13 @@ index 9b08b87..a60c269 100644
 +                                React.createElement(react_native_svg_1.G, { translate: [padding.left, padding.top] },
                                      otherComponents,
                                      React.createElement(react_native_svg_1.Defs, null,
-                                         React.createElement(react_native_svg_1.Mask, { id: "Mask", x: 0, y: 0, width: dataDimensions.width, height: dataDimensions.height },
+-                                        React.createElement(react_native_svg_1.Mask, { id: "Mask", x: 0, y: 0, width: dataDimensions.width, height: dataDimensions.height },
+                                             React.createElement(react_native_svg_1.Rect, { x: "0", y: "0", width: dataDimensions.width, height: dataDimensions.height, fill: "#ffffff" }))),
+-                                    lineAndAreaComponents)))))))))));
++                                    lineAndAreaComponents))))))))));
+ }), react_1.default);
+ exports.Chart = Chart;
+ var computeDefaultProps = function (props) {
 diff --git a/node_modules/react-native-responsive-linechart/lib/Line.js b/node_modules/react-native-responsive-linechart/lib/Line.js
 index 60483ec..83bbad9 100644
 --- a/node_modules/react-native-responsive-linechart/lib/Line.js

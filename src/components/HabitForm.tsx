@@ -36,6 +36,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     conditions: habit.conditions.length ? habit.conditions.map((condition) => ({
       ...condition,
       target: condition.target?.toString(),
+      minTarget: condition.minTarget?.toString(),
+      maxTarget: condition.maxTarget?.toString(),
     })) : [{}],
   });
 
@@ -47,6 +49,10 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const formMeasurements = formMeasurementIds.map((id) => measurements.find((measurement) => measurement.id === id));
   
   if (formHabit === null) return;
+  
+  const isPartialReward = formHabit.rewardType === 'partial';
+  const isExtraReward = formHabit.rewardType === 'extra';
+  const isStandardReward = formHabit.rewardType === 'standard';
 
   const handleFormEdit = (nextHabit: FormHabit) => {
     setFormHabit(nextHabit);
@@ -80,10 +86,13 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
       category: formHabit.category.trim(),
       daysPerWeek: formHabit.daysPerWeek || 7,
       points: formHabit.points || 1,
+      maximumPoints: formHabit.maximumPoints || 0,
       conditions: formHabit.conditions.map((condition) => ({
         measurementId: condition.measurementId || '',
         operator: condition.operator || '>=',
         target: parseFloat(condition.target || '0') || 0,
+        minTarget: parseFloat(condition.minTarget || '0') || 0,
+        maxTarget: parseFloat(condition.maxTarget || '0') || 0,
       })),
     };
 
@@ -114,7 +123,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const getConditionErrors = () => {
     if (!formHabit.conditions || !formHabit.conditions.length) return EmptyError;
     if (formHabit.conditions.find(({ measurementId, operator, target }) => {
-      if (!measurementId || !operator || !target) return true;
+      if (!measurementId || (isStandardReward && !operator) || !target) return true;
       return isNaN(parseFloat(target));
     })) return EmptyError;
 
@@ -131,6 +140,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     title: `${measurement.name}${measurement.category ? ` : ${measurement.category}` : ''}`,
     renderItem: () => <MeasurementLabel measurement={measurement} size='large' />,
     icon: getMeasurementTypeIcon(measurement.type),
+    disabled: measurement.type === 'bool' && !isStandardReward,
   }));
 
   const daysPerWeekItems: BottomDrawerItem<number>[] = [1, 2, 3, 4, 5, 6, 7].map((num) => ({
@@ -138,9 +148,16 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     title: `${num} day${num === 1 ? '' : 's'} / week`,
   }));
 
-  const pointsItems: BottomDrawerItem<number>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
+  const pointsItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
     value: num,
     title: `${num} point${num === 1 ? '' : 's'}`,
+    disabled: isExtraReward && (num >= (formHabit.maximumPoints || 9)),
+  }));
+
+  const extraPointsItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
+    value: num,
+    title: `${num} point${num === 1 ? '' : 's'}`,
+    disabled: formHabit.points >= num,
   }));
 
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -183,37 +200,75 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   };
 
   const [activeTimeConditionIndex, setActiveTimeConditionIndex] = useState<number>(-1);
-  const [timeOffsetStrings, setTimeOffsetStrings] = useState<string[]>(() => {
-    const initialOffsets: string[] = [];
+  const [isMinTargetTime, setIsMinTargetTime] = useState(false);
+  const [isMaxTargetTime, setIsMaxTargetTime] = useState(false);
+  const [timeOffsetStrings, setTimeOffsetStrings] = useState<string[][]>(() => {
+    const initialOffsets: string[][] = [];
     formHabit.conditions.forEach((condition, index) => {
+      initialOffsets[index] = [];
       if (condition.target) {
         const { offset } = parseTimeValue(parseFloat(condition.target));
-        initialOffsets[index] = offset.toString();
+        initialOffsets[index][0] = offset.toString();
+      }
+      if (condition.minTarget) {
+        const { offset } = parseTimeValue(parseFloat(condition.minTarget));
+        initialOffsets[index][1] = offset.toString();
+      }
+      if (condition.maxTarget) {
+        const { offset } = parseTimeValue(parseFloat(condition.maxTarget));
+        initialOffsets[index][2] = offset.toString();
       }
     });
     return initialOffsets;
   });
-  const [timeTargetStrings, setTimeTargetStrings] = useState<string[]>(() => {
-    const initialConditionTargetStrings: string[] = [];
+  const [timeTargetStrings, setTimeTargetStrings] = useState<string[][]>(() => {
+    const initialConditionTargetStrings: string[][] = [];
     formHabit.conditions.forEach((condition, index) => {
+      initialConditionTargetStrings[index] = [];
       if (condition.target) {
         const { hours } = parseTimeValue(parseFloat(condition.target));
-        initialConditionTargetStrings[index] = formatTimeValue(hours);
+        initialConditionTargetStrings[index][0] = formatTimeValue(hours);
+      }
+      if (condition.minTarget) {
+        const { hours } = parseTimeValue(parseFloat(condition.minTarget));
+        initialConditionTargetStrings[index][1] = formatTimeValue(hours);
+      }
+      if (condition.maxTarget) {
+        const { hours } = parseTimeValue(parseFloat(condition.maxTarget));
+        initialConditionTargetStrings[index][2] = formatTimeValue(hours);
       }
     });
     return initialConditionTargetStrings;
   });
 
   const handleTimeChange = (_: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setActiveTimeConditionIndex(-1);
+    if (Platform.OS === 'android') {
+      setActiveTimeConditionIndex(-1);
+      setIsMinTargetTime(false);
+      setIsMaxTargetTime(false);
+    }
     if (selectedDate && activeTimeConditionIndex >= 0) {
       const hours = selectedDate.getHours() + selectedDate.getMinutes() / 60;
-      const offset = parseInt(timeOffsetStrings[activeTimeConditionIndex] || '0') || 0;
+      const offsetString = isMinTargetTime ? timeOffsetStrings[activeTimeConditionIndex][1]
+        : isMaxTargetTime ? timeOffsetStrings[activeTimeConditionIndex][2]
+        : timeOffsetStrings[activeTimeConditionIndex][0];
+      const offset = parseInt(offsetString || '0') || 0;
+      
       const nextHabit = { ...formHabit };
-      nextHabit.conditions[activeTimeConditionIndex].target = computeTimeValue(hours, offset).toString();
+      if (isMinTargetTime) {
+        nextHabit.conditions[activeTimeConditionIndex].minTarget = computeTimeValue(hours, offset).toString();
+      } else if (isMaxTargetTime) {
+        nextHabit.conditions[activeTimeConditionIndex].maxTarget = computeTimeValue(hours, offset).toString();
+      } else {
+        nextHabit.conditions[activeTimeConditionIndex].target = computeTimeValue(hours, offset).toString();
+      }
       handleFormEdit(nextHabit);
+
+      const conditionTimeTargetStrings = timeTargetStrings[activeTimeConditionIndex] || [];
+      conditionTimeTargetStrings[isMinTargetTime ? 1 : isMaxTargetTime ? 2 : 0] = formatTimeValue(hours);
+      
       const nextTimeTargetStrings = [...timeTargetStrings];
-      nextTimeTargetStrings[activeTimeConditionIndex] = formatTimeValue(hours);
+      nextTimeTargetStrings[activeTimeConditionIndex] = conditionTimeTargetStrings;
       setTimeTargetStrings(nextTimeTargetStrings);
     }
   };
@@ -221,6 +276,26 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const selectedCategoryIndex = categories.findIndex(({ category, baseColor }) => {
     return formHabit.category?.trim() === category.trim() && (formHabit.baseColor === baseColor || (!formHabit.baseColor && !baseColor));
   });
+
+  console.log(isMinTargetTime, isMaxTargetTime, activeTimeConditionIndex);
+  const renderDateTimePicker = (index?: number) => {
+    const condition = index !== undefined ? formHabit.conditions[index] : formHabit.conditions[activeTimeConditionIndex];
+    const target = isMinTargetTime ? condition.minTarget : isMaxTargetTime ? condition.maxTarget : condition.target;
+    return (
+      <DateTimePicker
+        value={new Date(
+          2000, 0, 1,
+          parseInt(target || '12'),
+          Math.round((parseFloat(target || '12') % 1) * 60)
+        )}
+        mode="time"
+        onChange={handleTimeChange}
+        display="spinner"
+        minuteInterval={1}
+        textColor={palette.primary}
+      />
+    )
+  };
 
   return (
     <>
@@ -394,6 +469,60 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   palette={palette}
                 />
               )}
+            </View>
+            <Divider style={s.formSectionDivider} />
+            <View style={s.formSectionHeader}>
+              <Text variant='labelLarge' style={s.labelTitle}>REWARD</Text>
+              {isNew && <Text variant='bodyMedium' style={s.labelSubtitle}>
+                {`How valuable is this completing this habit?`}
+              </Text>}
+            </View>
+            <View style={s.formSection}>
+              <OptionButton
+                selected={isStandardReward}
+                onPress={() => {
+                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'standard' };
+                  handleFormEdit(nextHabit);
+                }}
+                icon={Icons.repeatDaily}
+                title='ALL OR NOTHING'
+                subtitle='Hit the target to earn all the points.'
+                palette={palette}                
+              />
+              <OptionButton
+                selected={isPartialReward}
+                onPress={() => {
+                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'partial' };
+                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
+                  const measurementId = nextHabit.conditions[0]?.measurementId;
+                  if (measurementId) {
+                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
+                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
+                  }
+                  handleFormEdit(nextHabit);
+                }}
+                icon={Icons.repeatWeekly}
+                title='PARTIAL CREDIT'
+                subtitle='Get near the target to earn some of the points.'
+                palette={palette}
+              />
+              <OptionButton
+                selected={isExtraReward}
+                onPress={() => {
+                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'extra', points: Math.min(8, formHabit.points) };
+                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
+                  const measurementId = nextHabit.conditions[0]?.measurementId;
+                  if (measurementId) {
+                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
+                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
+                  }
+                  handleFormEdit(nextHabit);
+                }}
+                icon={Icons.repeatWeekly}
+                title='EXTRA CREDIT'
+                subtitle='Do better than the target to earn extra points.'
+                palette={palette}
+              />
               <View style={s.formRow}>
                 <BottomDrawer
                   title='Reward'
@@ -421,6 +550,35 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 />
                 <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
               </View>
+              {isExtraReward && (
+                <View style={s.formRow}>
+                  <BottomDrawer
+                    title='Maximum reward'
+                    anchor={(toggleVisibility) => (
+                      <Pressable style={s.input} onPress={toggleVisibility}>
+                        <TextInput
+                          label={'Maximum reward'}
+                          mode='outlined'
+                          onPress={toggleVisibility}
+                          readOnly
+                          value={`${formHabit.maximumPoints}`}
+                          right={<TextInput.Affix text="points" />}
+                        activeOutlineColor={palette.primary || undefined}
+                        />
+                      </Pressable>
+                    )}
+                    items={extraPointsItems}
+                    selectedItem={extraPointsItems.find(({ value }) => value === formHabit.maximumPoints) || null}
+                    onSelect={(item) => {
+                      const nextHabit: FormHabit = { ...formHabit, maximumPoints: item.value };
+                      handleFormEdit(nextHabit);
+                    }}
+                    showSearchbar={false}
+                    palette={palette}
+                  />
+                  <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
+                </View>
+              )}
             </View>
             <Divider style={s.formSectionDivider} />
             <View style={s.formSectionHeader}>
@@ -452,6 +610,385 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 const rawValue = parseFloat(condition.target || suggestedTarget.toString());
 
                 const showTargetAffix = !isNaN(rawValue) && (isTime || isDuration);
+
+                const targetInput = isTime ? (
+                  <>
+                    <TextInput
+                      mode='outlined'
+                      style={[s.targetInput, { minWidth: 100 }]}
+                      contentStyle={s.targetInputContent}
+                      label='Target value'
+                      placeholder={formatTimeValue(suggestedTarget)}
+                      placeholderTextColor={theme.colors.onSurfaceDisabled}
+                      dense
+                      readOnly={Platform.OS === 'ios'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      value={timeTargetStrings[index][0] || ''}
+                      onFocus={() => {
+                        setActiveTimeConditionIndex(index);
+                        setIsMinTargetTime(false);
+                        setIsMaxTargetTime(false);
+                      }}
+                      onPress={() => {
+                        if (activeTimeConditionIndex === index && !isMinTargetTime && !isMaxTargetTime) {
+                          setActiveTimeConditionIndex(-1);
+                          setIsMinTargetTime(false);
+                          setIsMaxTargetTime(false);
+                        } else {
+                          setActiveTimeConditionIndex(index);
+                          setIsMinTargetTime(false);
+                          setIsMaxTargetTime(false);
+                        }
+                      }}
+                      onChangeText={(text) => {
+                        if (Platform.OS !== 'web') return;
+
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][0] = text;
+                        setTimeTargetStrings(nextTimeTargetStrings);
+
+                        const parsedTime = parseTimeString(text);
+                        const offset = parseInt(timeOffsetStrings[index][0] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].target = nextTarget;
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        setActiveTimeConditionIndex(-1);
+                        setIsMinTargetTime(false);
+                        setIsMaxTargetTime(false);
+                        if (Platform.OS !== 'web') {
+                          return;
+                        }
+
+                        const parsedTime = parseTimeString(timeTargetStrings[index][0] || '');
+                        const offset = parseInt(timeOffsetStrings[index][0] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].target = nextTarget;
+                        handleFormEdit(nextHabit);
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][0] = parsedTime ? formatTimeValue(parsedTime.hours) : '';
+                        setTimeTargetStrings(nextTimeTargetStrings);
+                      }}
+                      activeOutlineColor={palette.primary || undefined}
+                      showSoftInputOnFocus={Platform.OS === 'web'}
+                    />
+                    <TextInput
+                      style={[s.targetInput, { minWidth: 100, width: 100 }]}
+                      mode='outlined'
+                      label='Offset'
+                      value={timeOffsetStrings[index][0] || '0'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      activeOutlineColor={palette.primary || undefined}
+                      keyboardType="numeric"
+                      right={
+                        <TextInput.Affix text={`days`} />
+                      }
+                      onChangeText={(text) => {
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][0] = text;
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+                        
+                        const offset = parseInt(text) || 0;
+                        const { hours } = parseTimeValue(parseFloat(condition.target || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].target = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        const offset = parseInt(timeOffsetStrings[index][0] || '0') || 0;
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][0] = offset.toString();
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+
+                        const { hours } = parseTimeValue(parseFloat(condition.target || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].target = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <TextInput
+                    mode='outlined'
+                    style={s.targetInput}
+                    contentStyle={s.targetInputContent}
+                    label='Target value'
+                    placeholder={suggestedTarget.toString()}
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    dense
+                    error={saveAttempted && getConditionErrors().hasError}
+                    value={isBool ? 'Yes' : condition.target || ''}
+                    onChangeText={(text) => {
+                      const nextHabit = { ...formHabit };
+                      nextHabit.conditions[index].target = text;
+                      handleFormEdit(nextHabit);
+                    }}
+                    right={(
+                      <TextInput.Affix
+                        text={showTargetAffix ? `(${formatValue(rawValue, conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
+                      />
+                    )}
+                    keyboardType="numeric"
+                    disabled={isBool}
+                    activeOutlineColor={palette.primary || undefined}
+                  />
+                );
+                
+                const minTargetInput = !isPartialReward ? null : isTime ? (
+                  <>
+                    <TextInput
+                      mode='outlined'
+                      style={[s.targetInput, { minWidth: 100 }]}
+                      contentStyle={s.targetInputContent}
+                      label='Target value'
+                      placeholder={formatTimeValue(suggestedTarget)}
+                      placeholderTextColor={theme.colors.onSurfaceDisabled}
+                      dense
+                      readOnly={Platform.OS === 'ios'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      value={timeTargetStrings[index][1] || ''}
+                      onFocus={() => {
+                        setActiveTimeConditionIndex(index);
+                        setIsMinTargetTime(true);
+                        setIsMaxTargetTime(false);
+                      }}
+                      onPress={() => {
+                        if (activeTimeConditionIndex === index && isMinTargetTime) {
+                          setActiveTimeConditionIndex(-1);
+                          setIsMinTargetTime(false);
+                          setIsMaxTargetTime(false);
+                        } else {
+                          setActiveTimeConditionIndex(index);
+                          setIsMinTargetTime(true);
+                          setIsMaxTargetTime(false);
+                        }
+                      }}
+                      onChangeText={(text) => {
+                        if (Platform.OS !== 'web') return;
+
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][1] = text;
+                        setTimeTargetStrings(nextTimeTargetStrings);
+
+                        const parsedTime = parseTimeString(text);
+                        const offset = parseInt(timeOffsetStrings[index][1] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].minTarget = nextTarget;
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        setActiveTimeConditionIndex(-1);
+                        setIsMinTargetTime(false);
+                        setIsMaxTargetTime(false);
+                        if (Platform.OS !== 'web') {
+                          return;
+                        }
+
+                        const parsedTime = parseTimeString(timeTargetStrings[index][1] || '');
+                        const offset = parseInt(timeOffsetStrings[index][1] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].minTarget = nextTarget;
+                        handleFormEdit(nextHabit);
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][1] = parsedTime ? formatTimeValue(parsedTime.hours) : '';
+                        setTimeTargetStrings(nextTimeTargetStrings);
+                      }}
+                      activeOutlineColor={palette.primary || undefined}
+                      showSoftInputOnFocus={Platform.OS === 'web'}
+                    />
+                    <TextInput
+                      style={[s.targetInput, { minWidth: 100, width: 100 }]}
+                      mode='outlined'
+                      label='Offset'
+                      value={timeOffsetStrings[index][1] || '0'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      activeOutlineColor={palette.primary || undefined}
+                      keyboardType="numeric"
+                      right={
+                        <TextInput.Affix text={`days`} />
+                      }
+                      onChangeText={(text) => {
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][1] = text;
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+                        
+                        const offset = parseInt(text) || 0;
+                        const { hours } = parseTimeValue(parseFloat(condition.minTarget || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].minTarget = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        const offset = parseInt(timeOffsetStrings[index][1] || '0') || 0;
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][1] = offset.toString();
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+
+                        const { hours } = parseTimeValue(parseFloat(condition.minTarget || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].minTarget = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <TextInput
+                    mode='outlined'
+                    style={s.targetInput}
+                    contentStyle={s.targetInputContent}
+                    label='Target value'
+                    placeholder={suggestedTarget.toString()}
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    dense
+                    error={saveAttempted && getConditionErrors().hasError}
+                    value={isBool ? 'Yes' : condition.minTarget || ''}
+                    onChangeText={(text) => {
+                      const nextHabit = { ...formHabit };
+                      nextHabit.conditions[index].minTarget = text;
+                      handleFormEdit(nextHabit);
+                    }}
+                    right={(
+                      <TextInput.Affix
+                        text={showTargetAffix ? `(${formatValue(rawValue, conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
+                      />
+                    )}
+                    keyboardType="numeric"
+                    disabled={isBool}
+                    activeOutlineColor={palette.primary || undefined}
+                  />
+                );
+
+                const maxTargetInput = !isExtraReward ? null : isTime ? (
+                  <>
+                    <TextInput
+                      mode='outlined'
+                      style={[s.targetInput, { minWidth: 100 }]}
+                      contentStyle={s.targetInputContent}
+                      label='Target value'
+                      placeholder={formatTimeValue(suggestedTarget)}
+                      placeholderTextColor={theme.colors.onSurfaceDisabled}
+                      dense
+                      readOnly={Platform.OS === 'ios'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      value={timeTargetStrings[index][2] || ''}
+                      onFocus={() => {
+                        setActiveTimeConditionIndex(index);
+                        setIsMinTargetTime(false);
+                        setIsMaxTargetTime(true);
+                      }}
+                      onPress={() => {
+                        if (activeTimeConditionIndex === index && isMaxTargetTime) {
+                          setActiveTimeConditionIndex(-1);
+                          setIsMinTargetTime(false);
+                          setIsMaxTargetTime(false);
+                        } else {
+                          setActiveTimeConditionIndex(index);
+                          setIsMinTargetTime(false);
+                          setIsMaxTargetTime(true);
+                        }
+                      }}
+                      onChangeText={(text) => {
+                        if (Platform.OS !== 'web') return;
+
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][2] = text;
+                        setTimeTargetStrings(nextTimeTargetStrings);
+
+                        const parsedTime = parseTimeString(text);
+                        const offset = parseInt(timeOffsetStrings[index][2] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].maxTarget = nextTarget;
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        setActiveTimeConditionIndex(-1);
+                        setIsMinTargetTime(false);
+                        setIsMaxTargetTime(false);
+                        if (Platform.OS !== 'web') {
+                          return;
+                        }
+
+                        const parsedTime = parseTimeString(timeTargetStrings[index][2] || '');
+                        const offset = parseInt(timeOffsetStrings[index][2] || '0') || 0;
+                        const nextHabit = { ...formHabit };
+                        const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
+                        nextHabit.conditions[index].maxTarget = nextTarget;
+                        handleFormEdit(nextHabit);
+                        const nextTimeTargetStrings = [...timeTargetStrings];
+                        nextTimeTargetStrings[index][2] = parsedTime ? formatTimeValue(parsedTime.hours) : '';
+                        setTimeTargetStrings(nextTimeTargetStrings);
+                      }}
+                      activeOutlineColor={palette.primary || undefined}
+                      showSoftInputOnFocus={Platform.OS === 'web'}
+                    />
+                    <TextInput
+                      style={[s.targetInput, { minWidth: 100, width: 100 }]}
+                      mode='outlined'
+                      label='Offset'
+                      value={timeOffsetStrings[index][2] || '0'}
+                      error={saveAttempted && getConditionErrors().hasError}
+                      activeOutlineColor={palette.primary || undefined}
+                      keyboardType="numeric"
+                      right={
+                        <TextInput.Affix text={`days`} />
+                      }
+                      onChangeText={(text) => {
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][2] = text;
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+                        
+                        const offset = parseInt(text) || 0;
+                        const { hours } = parseTimeValue(parseFloat(condition.maxTarget || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].maxTarget = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                      onBlur={() => {
+                        const offset = parseInt(timeOffsetStrings[index][2] || '0') || 0;
+                        const nextTimeOffsetStrings = [...timeOffsetStrings];
+                        nextTimeOffsetStrings[index][2] = offset.toString();
+                        setTimeOffsetStrings(nextTimeOffsetStrings);
+
+                        const { hours } = parseTimeValue(parseFloat(condition.maxTarget || '12'));
+                        const nextHabit = { ...formHabit };
+                        nextHabit.conditions[index].maxTarget = computeTimeValue(hours, offset).toString();
+                        handleFormEdit(nextHabit);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <TextInput
+                    mode='outlined'
+                    style={s.targetInput}
+                    contentStyle={s.targetInputContent}
+                    label='Target value'
+                    placeholder={suggestedTarget.toString()}
+                    placeholderTextColor={theme.colors.onSurfaceDisabled}
+                    dense
+                    error={saveAttempted && getConditionErrors().hasError}
+                    value={isBool ? 'Yes' : condition.maxTarget || ''}
+                    onChangeText={(text) => {
+                      const nextHabit = { ...formHabit };
+                      nextHabit.conditions[index].maxTarget = text;
+                      handleFormEdit(nextHabit);
+                    }}
+                    right={(
+                      <TextInput.Affix
+                        text={showTargetAffix ? `(${formatValue(rawValue, conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
+                      />
+                    )}
+                    keyboardType="numeric"
+                    disabled={isBool}
+                    activeOutlineColor={palette.primary || undefined}
+                  />
+                );
+                
 
                 return (
                   <Fragment key={index}>
@@ -497,8 +1034,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                           }}
                           palette={palette}
                         />
-                        <View style={{ flexDirection: 'row', gap: 8, flexGrow: 1, flexShrink: 1 }}>
-                          {!!condition.measurementId && <BottomDrawer<string>
+                        {!!condition.measurementId && isStandardReward && <View style={{ flexDirection: 'row', gap: 8, flexGrow: 1, flexShrink: 1 }}>
+                          <BottomDrawer<string>
                             title='Operator'
                             anchor={
                               <Pressable style={{
@@ -528,140 +1065,44 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                               handleFormEdit(nextHabit);
                             }}
                             palette={palette}
-                          />}
-                          {!!condition.measurementId && !!condition.operator && 
-                            <>
-                              {isTime ? (
-                                <>
-                                  <TextInput
-                                    mode='outlined'
-                                    style={[s.targetInput, { minWidth: 100 }]}
-                                    contentStyle={s.targetInputContent}
-                                    label='Target value'
-                                    placeholder={formatTimeValue(suggestedTarget)}
-                                    placeholderTextColor={theme.colors.onSurfaceDisabled}
-                                    dense
-                                    readOnly={Platform.OS === 'ios'}
-                                    error={saveAttempted && getConditionErrors().hasError}
-                                    value={timeTargetStrings[index] || ''}
-                                    onFocus={() => {
-                                      setActiveTimeConditionIndex(index);
-                                    }}
-                                    onPress={() => {
-                                      if (activeTimeConditionIndex === index) setActiveTimeConditionIndex(-1);
-                                      else setActiveTimeConditionIndex(index);
-                                    }}
-                                    onChangeText={(text) => {
-                                      if (Platform.OS !== 'web') return;
-
-                                      const nextTimeTargetStrings = [...timeTargetStrings];
-                                      nextTimeTargetStrings[index] = text;
-                                      setTimeTargetStrings(nextTimeTargetStrings);
-
-                                      const parsedTime = parseTimeString(text);
-                                      const offset = parseInt(timeOffsetStrings[index] || '0') || 0;
-                                      const nextHabit = { ...formHabit };
-                                      const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
-                                      nextHabit.conditions[index].target = nextTarget;
-                                      handleFormEdit(nextHabit);
-                                    }}
-                                    onBlur={() => {
-                                      setActiveTimeConditionIndex(-1);
-                                      if (Platform.OS !== 'web') {
-                                        return;
-                                      }
-
-                                      const parsedTime = parseTimeString(timeTargetStrings[index] || '');
-                                      const offset = parseInt(timeOffsetStrings[index] || '0') || 0;
-                                      const nextHabit = { ...formHabit };
-                                      const nextTarget = parsedTime ? computeTimeValue(parsedTime.hours, offset).toString() : '';
-                                      nextHabit.conditions[index].target = nextTarget;
-                                      handleFormEdit(nextHabit);
-                                      const nextTimeTargetStrings = [...timeTargetStrings];
-                                      nextTimeTargetStrings[index] = parsedTime ? formatTimeValue(parsedTime.hours) : '';
-                                      setTimeTargetStrings(nextTimeTargetStrings);
-                                    }}
-                                    activeOutlineColor={palette.primary || undefined}
-                                    showSoftInputOnFocus={Platform.OS === 'web'}
-                                  />
-                                  <TextInput
-                                    style={[s.targetInput, { minWidth: 100, width: 100 }]}
-                                    mode='outlined'
-                                    label='Offset'
-                                    value={timeOffsetStrings[index] || '0'}
-                                    error={saveAttempted && getConditionErrors().hasError}
-                                    activeOutlineColor={palette.primary || undefined}
-                                    keyboardType="numeric"
-                                    right={
-                                      <TextInput.Affix text={`days`} />
-                                    }
-                                    onChangeText={(text) => {
-                                      const nextTimeOffsetStrings = [...timeOffsetStrings];
-                                      nextTimeOffsetStrings[index] = text;
-                                      setTimeOffsetStrings(nextTimeOffsetStrings);
-                                      
-                                      const offset = parseInt(text) || 0;
-                                      const { hours } = parseTimeValue(parseFloat(condition.target || '12'));
-                                      const nextHabit = { ...formHabit };
-                                      nextHabit.conditions[index].target = computeTimeValue(hours, offset).toString();
-                                      handleFormEdit(nextHabit);
-                                    }}
-                                    onBlur={() => {
-                                      const offset = parseInt(timeOffsetStrings[index] || '0') || 0;
-                                      const nextTimeOffsetStrings = [...timeOffsetStrings];
-                                      nextTimeOffsetStrings[index] = offset.toString();
-                                      setTimeOffsetStrings(nextTimeOffsetStrings);
-
-                                      const { hours } = parseTimeValue(parseFloat(condition.target || '12'));
-                                      const nextHabit = { ...formHabit };
-                                      nextHabit.conditions[index].target = computeTimeValue(hours, offset).toString();
-                                      handleFormEdit(nextHabit);
-                                    }}
-                                  />
-                                </>
-                              ) : (
-                                <TextInput
-                                  mode='outlined'
-                                  style={s.targetInput}
-                                  contentStyle={s.targetInputContent}
-                                  label='Target value'
-                                  placeholder={suggestedTarget.toString()}
-                                  placeholderTextColor={theme.colors.onSurfaceDisabled}
-                                  dense
-                                  error={saveAttempted && getConditionErrors().hasError}
-                                  value={isBool ? 'Yes' : condition.target || ''}
-                                  onChangeText={(text) => {
-                                    const nextHabit = { ...formHabit };
-                                    nextHabit.conditions[index].target = text;
-                                    handleFormEdit(nextHabit);
-                                  }}
-                                  right={(
-                                    <TextInput.Affix
-                                      text={showTargetAffix ? `(${formatValue(rawValue, conditionMeasurement.type)})` : (conditionMeasurement.unit || '')}
-                                    />
-                                  )}
-                                  keyboardType="numeric"
-                                  disabled={isBool}
-                                  activeOutlineColor={palette.primary || undefined}
-                                />
-                              )}
-                            </>
-                          }
-                        </View>
-                        {Platform.OS === 'ios' && activeTimeConditionIndex === index && (
+                          />
+                          {!!condition.operator && targetInput}
+                        </View>}
+                        {!!condition.measurementId && !isStandardReward && (
+                          <>
+                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
+                              <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
+                                {isExtraReward ? 'BASE REWARD' : 'FULL REWARD'}
+                              </Text>
+                              <Text style={{ flexShrink: 0 }} variant='titleMedium'>
+                                @
+                              </Text>
+                              {targetInput}
+                            </View>
+                            {Platform.OS === 'ios' && activeTimeConditionIndex === index && !isMaxTargetTime && !isMinTargetTime && (
+                              <View style={{ width: '100%', flexShrink: 0, marginVertical: -8 }}>
+                                {renderDateTimePicker(index)}
+                              </View>
+                            )}
+                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
+                              <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
+                                {isExtraReward ? 'MAXIMUM REWARD' : 'MINIMUM REWARD'}
+                              </Text>
+                              <Text style={{ flexShrink: 0 }} variant='titleMedium'>
+                                @
+                              </Text>
+                              {isExtraReward ? maxTargetInput : minTargetInput}
+                            </View>
+                            {Platform.OS === 'ios' && activeTimeConditionIndex === index && (isMaxTargetTime || isMinTargetTime) && (
+                              <View style={{ width: '100%', flexShrink: 0, marginVertical: -8 }}>
+                                {renderDateTimePicker(index)}
+                              </View>
+                            )}
+                          </>
+                        )}
+                        {!!condition.measurementId && !!condition.operator && Platform.OS === 'ios' && activeTimeConditionIndex === index && isStandardReward && (
                           <View style={{ width: '100%', flexShrink: 0, marginVertical: -8 }}>
-                            <DateTimePicker
-                              value={new Date(
-                                2000, 0, 1,
-                                parseInt(condition.target || '12'),
-                                Math.round((parseFloat(condition.target || '12') % 1) * 60),
-                              )}
-                              mode="time"
-                              onChange={handleTimeChange}
-                              display="spinner"
-                              minuteInterval={1}
-                              textColor={palette.primary}
-                            />
+                            {renderDateTimePicker(index)}
                           </View>
                         )}
                       </View>
@@ -688,29 +1129,31 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   </Fragment>
                 )
               })}
-              <Button
-                style={s.addConditionButton}
-                labelStyle={s.addConditionButtonLabel}
-                mode='text'
-                onPress={() => {
-                  const nextHabit = { ...formHabit };
+              {isStandardReward && (
+                <Button
+                  style={s.addConditionButton}
+                  labelStyle={s.addConditionButtonLabel}
+                  mode='text'
+                  onPress={() => {
+                    const nextHabit = { ...formHabit };
 
-                  nextHabit.conditions.push({});
-                  setTimeTargetStrings([...timeTargetStrings, '']);
-                  setTimeOffsetStrings([...timeOffsetStrings, '0']);
-                  handleFormEdit(nextHabit);
-                }}
-                textColor={theme.colors.onSurface}
-                buttonColor={palette.backdrop}
-                compact
-              >
-                <View style={s.addConditionButtonContent}>
-                  <Icon source={Icons.add} size={14} color={theme.colors.onSurface} />
-                  <Text variant='labelLarge'>
-                    ADD TARGET
-                  </Text>
-                </View>
-              </Button>
+                    nextHabit.conditions.push({});
+                    setTimeTargetStrings([...timeTargetStrings, ['', '']]);
+                    setTimeOffsetStrings([...timeOffsetStrings, ['0', '0']]);
+                    handleFormEdit(nextHabit);
+                  }}
+                  textColor={theme.colors.onSurface}
+                  buttonColor={palette.backdrop}
+                  compact
+                >
+                  <View style={s.addConditionButtonContent}>
+                    <Icon source={Icons.add} size={14} color={theme.colors.onSurface} />
+                    <Text variant='labelLarge'>
+                      ADD TARGET
+                    </Text>
+                  </View>
+                </Button>
+              )}
             </View>
             {formHabit.conditions.length > 1 && (
               <>
@@ -775,20 +1218,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
           </Button>
         </View>
       </View>
-      {Platform.OS === 'android' && activeTimeConditionIndex >= 0 && (
-        <DateTimePicker
-          value={new Date(
-            2000, 0, 1,
-            parseInt(formHabit.conditions[activeTimeConditionIndex].target || '12'),
-            Math.round((parseFloat(formHabit.conditions[activeTimeConditionIndex].target || '12') % 1) * 60)
-          )}
-          mode="time"
-          onChange={handleTimeChange}
-          display="spinner"
-          minuteInterval={1}
-          textColor={palette.primary}
-        />
-      )}
+      {Platform.OS === 'android' && activeTimeConditionIndex >= 0 && renderDateTimePicker()}
       <Portal>
         <Dialog
           visible={isDialogVisible}

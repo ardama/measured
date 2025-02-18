@@ -17,6 +17,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 1,
     archived: false,
     recordings: [],
+    notes: [],
   },
   {
     id: generateId(Collections.Measurements),
@@ -30,6 +31,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 2,
     archived: false,
     recordings: [],
+    notes: [],
     baseColor: 'red'
   },
   {
@@ -44,6 +46,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 3,
     archived: false,
     recordings: [],
+    notes: [],
     baseColor: 'blue'
   },
   {
@@ -58,6 +61,7 @@ export const sampleMeasurements: Measurement[] = [
     priority: 4,
     archived: false,
     recordings: [],
+    notes: [],
     baseColor: 'green'
   }
 ];
@@ -68,30 +72,32 @@ export const sampleHabits: ComputedHabit[] = [
     id: generateId(Collections.Habits),
     userId: '',
     updates: [
-        {
-            date: SimpleDate.today().toString(),
-            name: '',
-            isWeekly: false,
-            daysPerWeek: 7,
-            points: 1,
-            archived: false,
-            conditions: [],
-            predicate: 'AND',
-            priority: 1
-        }
+      {
+        date: SimpleDate.today().toString(),
+        name: '',
+        isWeekly: false,
+        daysPerWeek: 7,
+        points: 1,
+        archived: false,
+        conditions: [],
+        predicate: 'AND',
+        priority: 1
+      }
     ],
     name: 'Early riser',
     category: 'Sleep',
     isWeekly: false,
     daysPerWeek: 7,
     points: 1,
+    rewardType: 'standard',
+    maximumPoints: 0,
     archived: false,
     conditions: [
-        {
-            measurementId: sampleMeasurements[0].id,
-            operator: '<=',
-            target: 7.5
-        }
+      {
+        measurementId: sampleMeasurements[0].id,
+        operator: '<=',
+        target: 7.5
+      }
     ],
     predicate: 'AND',
     priority: 1
@@ -100,30 +106,32 @@ export const sampleHabits: ComputedHabit[] = [
     id: generateId(Collections.Habits),
     userId: '',
     updates: [
-        {
-            date: SimpleDate.today().toString(),
-            name: '',
-            isWeekly: false,
-            daysPerWeek: 7,
-            points: 1,
-            archived: false,
-            conditions: [],
-            predicate: 'AND',
-            priority: 1
-        }
+      {
+        date: SimpleDate.today().toString(),
+        name: '',
+        isWeekly: false,
+        daysPerWeek: 7,
+        points: 1,
+        archived: false,
+        conditions: [],
+        predicate: 'AND',
+        priority: 1
+      }
     ],
     name: 'Limit scrolling',
     category: '',
     isWeekly: false,
     daysPerWeek: 5,
     points: 3,
+    rewardType: 'standard',
+    maximumPoints: 0,
     archived: false,
     conditions: [
-        {
-            measurementId: sampleMeasurements[1].id,
-            operator: '<=',
-            target: 30
-        }
+      {
+        measurementId: sampleMeasurements[1].id,
+        operator: '<=',
+        target: 30
+      }
     ],
     predicate: 'AND',
     priority: 2,
@@ -133,17 +141,17 @@ export const sampleHabits: ComputedHabit[] = [
     id: generateId(Collections.Habits),
     userId: '',
     updates: [
-        {
-            date: SimpleDate.today().toString(),
-            name: '',
-            isWeekly: false,
-            daysPerWeek: 7,
-            points: 1,
-            archived: false,
-            conditions: [],
-            predicate: 'AND',
-            priority: 1
-        }
+      {
+        date: SimpleDate.today().toString(),
+        name: '',
+        isWeekly: false,
+        daysPerWeek: 7,
+        points: 1,
+        archived: false,
+        conditions: [],
+        predicate: 'AND',
+        priority: 1
+      }
     ],
     name: 'Stay healthy',
     category: 'Nutrition',
@@ -151,18 +159,20 @@ export const sampleHabits: ComputedHabit[] = [
     isWeekly: false,
     daysPerWeek: 7,
     points: 2,
+    rewardType: 'standard',
+    maximumPoints: 0,
     archived: false,
     conditions: [
-        {
-            measurementId: sampleMeasurements[2].id,
-            operator: '>=',
-            target: 64
-        },
-        {
-          measurementId: sampleMeasurements[3].id,
-          operator: '==',
-          target: 1
-        }
+      {
+        measurementId: sampleMeasurements[2].id,
+        operator: '>=',
+        target: 64
+      },
+      {
+        measurementId: sampleMeasurements[3].id,
+        operator: '==',
+        target: 1
+      }
     ],
     predicate: 'AND',
     priority: 3,

@@ -16,8 +16,8 @@ const dataStateSlice = createSlice({
     setMeasurements: (state: DataState, action: PayloadAction<Measurement[]>) => {
       state.measurements = [...action.payload]
         .map((measurement) => {
-          if (!!measurement.variant) {
-            return { ...measurement, category: measurement.name, name: measurement.variant };
+          if (!measurement.category && !!measurement.variant) {
+            return { ...measurement, category: measurement.name, name: measurement.variant, variant: undefined };
           }
           return measurement;
         })

@@ -92,10 +92,16 @@ export const useComputedHabits = (date: SimpleDate = SimpleDate.today()) => {
 };
 
 const selectHabitCount = createSelector(
-  selectComputedHabits,
+  selectComputedHabits(),
   (habits) => habits.length
 );
 export const useHabitCount = (): number => useSelector(selectHabitCount);
+
+const selectHasNonStandardRewardHabit = createSelector(
+  selectComputedHabits(),
+  (habits) => habits.some((habit) => habit.rewardType !== 'standard')
+);
+export const useHasNonStandardRewardHabit = () => useSelector(selectHasNonStandardRewardHabit);
 
 const selectHabitById = (id: string) => 
   createSelector(

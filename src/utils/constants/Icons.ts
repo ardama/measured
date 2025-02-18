@@ -43,6 +43,7 @@ export const Icons = {
   recorded: 'pencil',
 
   note: 'tooltip',
+  noteOutline: 'tooltip-outline',
 
 
   warning: 'alert-circle-outline',

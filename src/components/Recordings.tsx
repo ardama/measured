@@ -1,5 +1,5 @@
 import { Animated, FlatList, Keyboard, PixelRatio, Platform, ScrollView, StatusBar, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
-import { useComputedHabits, useHabitStatus, useMeasurements, useMeasurementStatus } from '@s/selectors';
+import { useComputedHabits, useHabitStatus, useHasNonStandardRewardHabit, useMeasurements, useMeasurementStatus } from '@s/selectors';
 import { getMeasurementRecordingValue, getMeasurementStartDate, getMeasurementTypeData, type Measurement } from '@t/measurements';
 import { Button, Icon, IconButton, Modal, Portal, Text, TextInput, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,6 +40,7 @@ const Recordings = () => {
   const measurements = useMeasurements();
 
   const habits = useComputedHabits();
+  const hasNonStandardRewardHabit = useHasNonStandardRewardHabit();
   const activeHabits = useMemo(() => habits.filter((h) => !h.archived), [habits]);
   const dailyHabits = useMemo(() => activeHabits.filter((h) => !h.isWeekly), [activeHabits]);
   const weeklyHabits = useMemo(() => activeHabits.filter((h) => h.isWeekly), [activeHabits]);
@@ -255,9 +256,9 @@ const Recordings = () => {
   ];
   const selectedWeekDailyHabitPointTotals = useMemo(() => selectedWeekDates.map((date, index) => {
     return date.after(today) ? 0 : dailyHabits.reduce((previous: number, habit: ComputedHabit) => {
-      const [complete, _, __] = getHabitCompletion(habit, measurements, [date], mergedRecordingsMap);  
+      const [complete, points, _, __] = getHabitCompletion(habit, measurements, [date], mergedRecordingsMap);  
       selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
-      return previous + (complete ? habit.points : 0);
+      return previous + points;
     }, 0);
   }), [selectedWeekDates, today, dailyHabits, measurements, mergedRecordingsMap]);
   
@@ -266,10 +267,14 @@ const Recordings = () => {
     weeklyHabits.forEach((habit) => {
       selectedWeekDates.filter((date) => !date.after(today)).find((_, index) => {
         const dates = selectedWeekDates.slice(0, index + 1);
-        const [complete] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
+        const [complete, points] = getHabitCompletion(habit, measurements, dates, mergedRecordingsMap);
         selectedWeekHabitCompletionMaps[index].set(habit.id, complete);
 
-        if (complete) totals[index] += habit.points;
+        totals[index] += points;
+        if (index) {
+          const [_, previousPoints] = getHabitCompletion(habit, measurements, selectedWeekDates.slice(0, index), mergedRecordingsMap);
+          totals[index] -= previousPoints;
+        }
         return complete;
       });
     });
@@ -740,6 +745,7 @@ const Recordings = () => {
                       points={total}
                       size='medium'
                       inline
+                      decimals={hasNonStandardRewardHabit ? 1 : 0}
                       color={color}
                     />}
                   </>
@@ -782,10 +788,18 @@ const Recordings = () => {
           tickWidth={3}
           tickColor={theme.colors.onSurfaceDisabled}
         />
-        <View style={{ position: 'absolute', width: '100%', top: 16, left: 0, overflow: 'visible' }}>
+        <View style={{ position: 'absolute', width: '100%', top: 16, left: 20, overflow: 'visible' }}>
           <View style={{ alignSelf: 'center' }}>
             <View style={styles.weekPointsContainer}>
-              <Points inline size={'x-large'} style={{ width: 48 }} points={selectedWeekPointTotal} textColor={theme.colors.onSurface} iconColor={theme.colors.onSurface} />
+              <Points
+                inline
+                size={'x-large'}
+                style={{ width: 48 }}
+                points={selectedWeekPointTotal}
+                textColor={theme.colors.onSurface}
+                iconColor={theme.colors.onSurface}
+                decimals={hasNonStandardRewardHabit ? 1 : 0}
+              />
               <Text variant='bodyMedium' style={styles.weekPointsDivider}>/</Text>
               <Text variant='bodyLarge' style={{ textAlign: 'right' }}>{perWeekPointTarget}</Text>
             </View>
@@ -994,7 +1008,10 @@ const Recordings = () => {
                       nextExpandedMeasurements.has(id) ? nextExpandedMeasurements.delete(id) : nextExpandedMeasurements.add(id);
                       setExpandedMeasurements(nextExpandedMeasurements);
                     }}
-                    onLongPress={(measurementId) => router.push(`/measurement/${measurementId}`)}
+                    onLongPress={(measurementId) => {
+                      triggerHaptic('selection');
+                      router.push(`/measurement/${measurementId}`);
+                    }}
                     archiving={showArchivedMeasurements}
                     onArchive={toggleMeasurementArchived}
                   />
@@ -1065,7 +1082,10 @@ const Recordings = () => {
                       nextExpandedHabits.has(id) ? nextExpandedHabits.delete(id) : nextExpandedHabits.add(id);
                       setExpandedHabits(nextExpandedHabits);
                     }}
-                    onLongPress={(habitId) => router.push(`/habit/${habitId}`)}
+                    onLongPress={(habitId) => {
+                      triggerHaptic('selection');
+                      router.push(`/habit/${habitId}`);
+                    }}
                     archiving={showArchivedHabits}
                     onArchive={toggleHabitArchived}
                   />
@@ -1571,7 +1591,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       value !== null ? (
         <TouchableRipple
           style={styles.value}
-          onLongPress={handleShowValueDialog}
+          onLongPress={() => {
+            triggerHaptic('selection');
+            handleShowValueDialog();
+          }}
           disabled={isCombo || isBool}
         >
           {isBool ? (
@@ -1678,21 +1701,13 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
     const aggregateContent = (
       <View style={styles.aggregateContent}>
         {isTime ? null : (<View style={styles.aggregateMetric}>
-          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
-            Total:
+          <Text variant='bodyMedium' ellipsizeMode='tail' style={styles.aggregateMetricLabel}>
+            This week:
           </Text>
           <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
             {count ? totalString : '--'}
           </Text>
         </View>)}
-        <View style={styles.aggregateMetric}>
-          <Text variant='bodyMedium' style={styles.aggregateMetricLabel}>
-            Average:
-          </Text>
-          <Text variant='bodyMedium' style={styles.aggregateMetricValue}>
-            {count ? averageString : '--'}
-          </Text>
-        </View>
       </View>
     );
 
@@ -2100,7 +2115,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     borderRadius: 100,
   },
   aggregateContent: {
-    // flexGrow: 1,
+    flexShrink: 1,
     flexDirection: 'row',
     // justifyContent: 'flex-end',
     gap: 16,
@@ -2112,6 +2127,7 @@ const createMeasurementStyles = (theme: MD3Theme, measurementPalette: Palette, c
     gap: 4,
   },
   aggregateMetricLabel: {
+    flexShrink: 1,
     color: theme.colors.onSurfaceVariant,
   },
   aggregateMetricValue: {
@@ -2309,8 +2325,21 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
     )
   }, [habit, measurements, weekDates, recordingData, currentDate, firstWeeklyCompletionIndex, combinedPalette, styles]);
 
-  const dates = useMemo(() => weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1), [weekDates, currentDate, habit]);
-  const [complete, conditionCompletions, conditionValues, conditionProgressions] = useMemo(() => getHabitCompletion(habit, measurements, dates, recordingData), [habit, measurements, dates, recordingData]);
+  const dates = useMemo(
+    () => weekDates.slice(habit.isWeekly ? 0 : currentDate.getDayOfWeek(), currentDate.getDayOfWeek() + 1),
+    [weekDates, currentDate, habit],
+  );
+  const [complete, points, conditionCompletions, conditionValues, conditionProgressions] = useMemo(
+    () => getHabitCompletion(habit, measurements, dates, recordingData),
+    [habit, measurements, dates, recordingData],
+  );
+  const [previousComplete, previousPoints] = useMemo(
+    () => {
+      if (!habit.isWeekly || dates.length === 1) return [false, 0];
+      return getHabitCompletion(habit, measurements, dates.slice(0, -1), recordingData);
+    },
+    [habit, measurements, dates, recordingData],
+  );
 
   const conditionCompletionContent = useMemo(() => {
     return (
@@ -2432,29 +2461,34 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   const expandedContent = useMemo(() => expanded && renderExpandedContent(), [styles, expanded]);
 
   const renderPointsContent = () => {
+    const earnedPoints = points - previousPoints;
+    const remainingPoints = habit.points - points;
+    const partialPoints = (earnedPoints && earnedPoints !== habit.points) || (remainingPoints && remainingPoints !== habit.points);
     return (
       <View style={{
         marginLeft: 12,
+        marginRight: -12,
         paddingVertical: 8,
-        width: 52,
+        width: 64,
         justifyContent: 'flex-start',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         borderColor: theme.colors.surfaceDisabled,
         borderLeftWidth: 1,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
           <Text
             variant='titleSmall'
-            style={{ marginTop: -6, color: complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
+            style={{ marginTop: -6, color: earnedPoints ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
           >
             +
           </Text>
           <Points
             style={[styles.dayCompletionPoints]}
             size='large'
-            points={habit.points}
-            inline
-            color={complete ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
+            points={earnedPoints || remainingPoints}
+            decimals={partialPoints ? 1 : 0}
+            color={earnedPoints ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
+            hideIcon={!!partialPoints}
           />
         </View>
       </View>
@@ -2462,7 +2496,7 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
   }
   const pointsContent = useMemo(
     () => !reordering && !archiving && renderPointsContent(),
-    [habit.points, complete, combinedPalette, theme, reordering, archiving, styles],
+    [habit, complete, combinedPalette, theme, reordering, archiving, styles, points, previousPoints],
   );
 
   const content = (

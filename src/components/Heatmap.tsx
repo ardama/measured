@@ -21,7 +21,7 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
   cellValues = cellValues.concat(...data);
 
   const maxValue = target || Math.max(...cellValues.map((v) => v || 0));
-  const bucketMinimums = [1.0, 0.85, 0.75, 0.6, 0.4, 0.0].map((v) => v * maxValue);
+  const bucketMinimums = [1.0, 0.85, 0.75, 0.6, 0.4, 0.0001, 0.0].map((v) => v * maxValue);
 
   return (
     <View style={[styles.container, style]}>
@@ -35,12 +35,13 @@ const Heatmap = (props: HeatmapProps): JSX.Element => {
               let overlayOpacity = 0;
               const backgroundColor = cell === 0 ? theme.colors.elevation.level3 : globalPalette.primary;
               if (cell === 0) overlayOpacity = 0;
-              else if (bucketIndex === 5) overlayOpacity = 1.0;
-              else if (bucketIndex === 4) overlayOpacity = 0.70;
-              else if (bucketIndex === 3) overlayOpacity = 0.55;
-              else if (bucketIndex === 2) overlayOpacity = 0.40;
-              else if (bucketIndex === 1) overlayOpacity = 0.25;
-              else if (bucketIndex === 0) overlayOpacity = 0.1;
+              else if (bucketIndex === 6) overlayOpacity = 1.0;
+              else if (bucketIndex === 5) overlayOpacity = 0.75;
+              else if (bucketIndex === 4) overlayOpacity = 0.60;
+              else if (bucketIndex === 3) overlayOpacity = 0.45;
+              else if (bucketIndex === 2) overlayOpacity = 0.30;
+              else if (bucketIndex === 1) overlayOpacity = 0.15;
+              else if (bucketIndex === 0) overlayOpacity = 0.0;
               
               const overlayColor = settings.darkMode ? `rgba(27, 33, 34, ${overlayOpacity})` : `rgba(247, 247, 247, ${overlayOpacity})`;
                           

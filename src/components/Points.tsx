@@ -15,9 +15,10 @@ type PointsProps = {
   style?: StyleProp<ViewStyle>
   decimals?: number
   inline?: boolean
+  hideIcon?: boolean
 }
 
-const Points = ({ points, size = 'medium', disabled = false, color, textColor, iconColor, style, decimals = 0, inline = false }: PointsProps) : JSX.Element => {
+const Points = ({ points, size = 'medium', disabled = false, color, textColor, iconColor, style, decimals = 0, inline = false, hideIcon = false }: PointsProps) : JSX.Element => {
   const theme = useTheme();
   const styles = createStyles(theme, size, inline);
 
@@ -33,16 +34,30 @@ const Points = ({ points, size = 'medium', disabled = false, color, textColor, i
   else if (size === 'large') textVariant = 'titleLarge';
   else if (size === 'x-large') textVariant = 'headlineMedium';
 
+  let decimalTextVariant = 'titleSmall';
+  if (size === 'x-small') decimalTextVariant = 'labelSmall';
+  else if (size === 'small') decimalTextVariant = 'labelMedium';
+  else if (size === 'large') decimalTextVariant = 'titleMedium';
+  else if (size === 'x-large') decimalTextVariant = 'titleLarge';
+
   const textColorValue = disabled ? theme.colors.onSurfaceDisabled : textColor ? textColor : color ? color : theme.colors.onSurface;
   const iconColorValue = disabled ? theme.colors.onSurfaceDisabled : iconColor ? iconColor : color ? color : theme.colors.onSurface;
 
-  const pointsString = (points === undefined || points === null || isNaN(points)) ? '--' : points.toFixed(decimals);
+  const pointsStringFull = (points === undefined || points === null || isNaN(points)) ? '--' : points.toFixed(decimals);
+  const [pointsString, decimalsString] = pointsStringFull.split('.');
   return (
     <View style={[styles.container, style]}>
-      <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>{pointsString}</Text>
-      <View style={styles.icon}>
-        <Icon source={Icons.points} size={iconSize} color={iconColorValue} />
+      <View style={styles.label}>
+        <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>
+          {`${pointsString}`}
+        </Text>
+        {decimalsString && <Text variant={decimalTextVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>.{decimalsString}</Text>}
       </View>
+      {!hideIcon && (
+        <View style={styles.icon}>
+          <Icon source={Icons.points} size={iconSize} color={iconColorValue} />
+        </View>
+      )}
     </View>
   )
 }
@@ -50,15 +65,20 @@ const Points = ({ points, size = 'medium', disabled = false, color, textColor, i
 const createStyles = (theme: MD3Theme, size: PointsSize, inline: boolean) => StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     justifyContent: 'flex-end',
     // gap: size === 'x-small' ? 1 : size === 'small' ? 1 : size === 'medium' ? 2 : 0,
-    minWidth: inline ? 0 : size === 'x-small' ? 24 : size === 'small' ? 28 : size === 'medium' ? 30 : 36,
+    // minWidth: inline ? 0 : size === 'x-small' ? 24 : size === 'small' ? 28 : size === 'medium' ? 30 : 36,
     marginRight: !inline ? 0 : size === 'x-small' ? 0 : size === 'small' ? -2 : size === 'medium' ? -3 : -4,
   },
+  label: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginRight: size === 'x-small' ? -0.5 : size === 'small' ? -0.75 : size === 'medium' ? -1 : size === 'large' ? -1.5 : -2,
+  },
   value: {
-    ...createFontStyle(500, false, 'rubik'),
-    // fontSize: size === 'x-small' ? 12 : size === 'small' ? 14 : size === 'medium' ? 16 : size === 'large' ? 20 : 28,
+    ...createFontStyle(500),
+    letterSpacing: size === 'x-small' ? -0.25 : size === 'small' ? -0.5 : size === 'medium' ? -.5 : size === 'large' ? -.5 : -1.25,
   },
   icon: {
     // height: size === 'x-small' ? 12 : size === 'small' ? 14 : size === 'medium' ? 16 : size === 'large' ? 20 : 28,

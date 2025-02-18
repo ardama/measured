@@ -18,6 +18,8 @@ interface ComputedHabit extends Habit {
   isWeekly: boolean
   daysPerWeek: number
   points: number
+  rewardType: HabitRewardType
+  maximumPoints: number
   archived: boolean
   conditions: HabitCondition[]
   predicate: HabitPredicate
@@ -34,6 +36,8 @@ type FormHabit = {
   category: string
   isWeekly: boolean
   points: number
+  rewardType: HabitRewardType
+  maximumPoints: number
   daysPerWeek: number
   archived: boolean
   conditions: FormHabitCondition[]
@@ -46,6 +50,8 @@ type FormHabitCondition = {
   measurementId?: string
   operator?: HabitOperator
   target?: string
+  minTarget?: string
+  maxTarget?: string
 }
 
 const emptyComputedHabit = (): ComputedHabit => ({
@@ -58,6 +64,8 @@ const emptyComputedHabit = (): ComputedHabit => ({
   isWeekly: false,
   daysPerWeek: -1,
   points: -1,
+  maximumPoints: 0,
+  rewardType: 'standard',
   archived: false,
   conditions: [],
   predicate: '',
@@ -104,6 +112,8 @@ interface HabitUpdate {
   isWeekly?: boolean;
   daysPerWeek?: number;
   points?: number;
+  rewardType?: HabitRewardType;
+  maximumPoints?: number;
   archived?: boolean;
   conditions?: HabitCondition[]
   predicate?: HabitPredicate;
@@ -118,6 +128,8 @@ export const emptyHabitUpdate: HabitUpdate = {
   isWeekly: undefined,
   daysPerWeek: undefined,
   points: undefined,
+  rewardType: undefined,
+  maximumPoints: undefined,
   archived: undefined,
   conditions: undefined,
   predicate: undefined,
@@ -140,6 +152,8 @@ const createInitialHabit = (
     isWeekly,
     daysPerWeek,
     points,
+    rewardType: 'standard',
+    maximumPoints: 0,
     archived: false,
     conditions,
     predicate: 'AND',
@@ -167,6 +181,8 @@ const constructHabitUpdate = (current: ComputedHabit, previous: ComputedHabit = 
           if (currentCondition.measurementId !== previousCondition.measurementId) return true;
           if (currentCondition.operator !== previousCondition.operator) return true;
           if (currentCondition.target !== previousCondition.target) return true;
+          if (currentCondition.minTarget !== previousCondition.minTarget) return true;
+          if (currentCondition.maxTarget !== previousCondition.maxTarget) return true;
         });
 
         if (!diff) delete update.conditions;
@@ -191,8 +207,11 @@ interface HabitCondition {
   measurementId: string,
   operator: HabitOperator,
   target: number,
+  minTarget?: number,
+  maxTarget?: number,
 }
 
+type HabitRewardType = 'standard' | 'partial' | 'extra';
 type HabitOperator = '>=' | '<=' |'>' | '<' | '==' | '!=';
 const habitOperators: HabitOperator[] = [
   '>=',
@@ -243,11 +262,12 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 const getHabitCompletion = (
   habit: ComputedHabit | null, measurements: Measurement[], dates: SimpleDate[],
   recordingData?: Map<string, Map<string, number | null>>,
-): [boolean, boolean[], (number | null)[], (number | null)[]] => {
+): [boolean, number, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: (number | null)[] = [];
   let conditionProgressions: number[] = [];
-  if (!habit || !habit.conditions.length) return [false, conditionCompletions, conditionValues, conditionProgressions];
+  let points: number = 0;
+  if (!habit || !habit.conditions.length) return [false, points, conditionCompletions, conditionValues, conditionProgressions];
 
   habit.conditions.forEach((condition) => {
     let conditionComplete = false;
@@ -274,7 +294,14 @@ const getHabitCompletion = (
 
     conditionValue = measurementValues.reduce((acc, curr) => acc + curr, 0);
     
-    switch (condition.operator) {
+    let operator = condition.operator;
+    if (habit.rewardType === 'partial' && condition.minTarget !== undefined) {
+      operator = condition.target > condition.minTarget ? '>=' : '<=';
+    } else if (habit.rewardType === 'extra' && condition.maxTarget !== undefined) {
+      operator = condition.maxTarget > condition.target ? '>=' : '<=';
+    }
+
+    switch (operator) {
       case '>':
         conditionProgress = Math.min(conditionValue / condition.target, 1.0) || 0;
         conditionComplete = conditionValue > condition.target;
@@ -316,9 +343,29 @@ const getHabitCompletion = (
     conditionValues.push(conditionValue);
   });
 
-  const complete = habit.predicate === 'OR' ? !!conditionCompletions.find((c) => c) : conditionCompletions.findIndex((c) => !c) === -1;
 
-  return [complete, conditionCompletions, conditionValues, conditionProgressions];
+
+  const complete = habit.predicate === 'OR' ? !!conditionCompletions.find((c) => c) : conditionCompletions.findIndex((c) => !c) === -1;
+  points = complete ? habit.points : 0;
+  if (habit.rewardType === 'partial') {
+    const condition = habit.conditions[0];
+    const conditionValue = conditionValues[0];
+
+    const partialPointWindow = condition.target - (condition.minTarget || 0);
+    const partialPointValue = (conditionValue || 0) - (condition.minTarget || 0);
+    const partialPointProgress = partialPointValue / partialPointWindow;
+    points = Math.max(0, Math.min(partialPointProgress * habit.points, habit.points));
+  } else if (habit.rewardType === 'extra') {
+    const condition = habit.conditions[0];
+    const conditionValue = conditionValues[0];
+
+    const extraPointWindow = (condition.maxTarget || 0) - condition.target;
+    const extraPointValue = (conditionValue || 0) - (condition.target || 0);
+    const extraPointProgress = extraPointValue / extraPointWindow;
+    points += Math.max(0, Math.min(extraPointProgress * (habit.maximumPoints - habit.points), habit.maximumPoints - habit.points));
+  }
+  
+  return [complete, points, conditionCompletions, conditionValues, conditionProgressions];
 }
 
 export {

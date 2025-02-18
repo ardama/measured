@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Divider, Icon, IconButton, Menu, Surface, Switch, Text, Tooltip, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
+import { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Button, Icon, IconButton, Surface, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, Line } from 'react-native-responsive-linechart';
 import { formatNumber, formatValue, movingAverage, range, triggerHaptic } from '@u/helpers';
-import { useComputedHabits, useMeasurements } from '@s/selectors';
+import { useComputedHabits, useHasNonStandardRewardHabit, useMeasurements } from '@s/selectors';
 import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
@@ -14,14 +14,12 @@ import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
 import type { Palette } from '@u/colors';
 import { usePalettes } from '@u/hooks/usePalettes';
-import { router } from 'expo-router';
 import { useToday } from '@u/hooks/useToday';
-import { useDispatch } from 'react-redux';
-import { callGenerateSampleData } from '@s/dataReducer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QuickStartButton from '@c/QuickStartButton';
 import { MeasurementLabel } from '@c/Label';
 import { createFontStyle } from '@u/styles';
+import { ScrollView } from 'react-native-gesture-handler';
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -421,6 +419,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
   const [useRelativeHabits, setUseRelativeHabits] = useState(false);
 
   const habits = useComputedHabits();
+  const hasNonStandardRewardHabit = useHasNonStandardRewardHabit();
   const measurements = useMeasurements();
   const filteredHabits = habits.filter(({ isWeekly }) => includeWeeklyHabits || !isWeekly);
   const dailyPointTarget = filteredHabits.reduce((previous: number, current: ComputedHabit) => {
@@ -434,13 +433,13 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
 
     const weekDates = SimpleDate.generateWeek(monthDate).slice(0, monthDate.getDayOfWeek() + 1);
     return filteredHabits.reduce((datePoints, habit) => {
-      const [complete] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, habit.isWeekly ? weekDates : [monthDate]);
-      if (!complete) return datePoints;
-      if (!habit.isWeekly || monthDate.getDayOfWeek() === 0) return datePoints + habit.points;
+      const [_, points] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, habit.isWeekly ? weekDates : [monthDate]);
+      if (!points) return datePoints;
+      if (!habit.isWeekly || monthDate.getDayOfWeek() === 0) return datePoints + points;
 
       const previousDateWeekDates = weekDates.slice(0, -1);
-      const [completePreviousDate] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, previousDateWeekDates);
-      return datePoints + (completePreviousDate ? 0 : habit.points);
+      const [__, pointsPreviousDate] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, previousDateWeekDates);
+      return datePoints + (points - pointsPreviousDate);
     }, 0);
   });
   const monthTotalPoints = monthDatePoints.reduce((sum, curr) => sum + curr, 0);
@@ -505,7 +504,7 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
       <View style={cardStyles.subheader}>
         <View style={styles.pointsPerDay}>
           <Text style={styles.pointsPerDayLabel} variant='bodyLarge'>Total </Text>
-          <Points points={monthTotalPoints} size='large' decimals={0} color={globalPalette.primary} inline />
+          <Points points={monthTotalPoints} size='large' decimals={hasNonStandardRewardHabit ? 1 : 0} color={globalPalette.primary} inline />
         </View>
         <View style={styles.pointsPerDay}>
           <Text style={styles.pointsPerDayLabel} variant='bodyLarge'>Average </Text>
@@ -627,14 +626,15 @@ const HabitChartCard = ({
   }, today), [measurements, today.toString()]);
 
   const habits = useComputedHabits();
+  const hasNonStandardRewardHabit = useHasNonStandardRewardHabit();
   const computeHabitPointData = useCallback((
     startDate: SimpleDate,
     endDate: SimpleDate = today,
     useRelative: boolean = false,
     includeWeekly: boolean = true,
   ): Map<string, number> => {
-    const completions = new Map<string, Map<string, boolean>>();
-    const points = new Map<string, number>();
+    const datePoints = new Map<string, Map<string, number>>();
+    const pointTotals = new Map<string, number>();
 
     let currentDate: SimpleDate = startDate.getDaysAgo(startDate.getDayOfWeek());
     let previousDate: SimpleDate | undefined;
@@ -642,31 +642,31 @@ const HabitChartCard = ({
     const filteredHabits = includeWeekly ? habits : habits.filter(({ isWeekly }) => !isWeekly);
 
     while (currentDate.toString() <= endDate.toString()) {
-      let datePoints = 0;
+      let datePointTotal = 0;
 
-      const dateCompletions = new Map<string, boolean>();
+      const currentDatePoints = new Map<string, number>();
       const isFirstDayOfWeek = currentDate.getDayOfWeek() === 0;
-      const previousCompletions = !isFirstDayOfWeek && previousDate && completions.get(previousDate.toString());
+      const previousDatePoints = !isFirstDayOfWeek && previousDate && datePoints.get(previousDate.toString());
       
       const currentWeekDates = SimpleDate.generateWeek(currentDate).slice(0, currentDate.getDayOfWeek() + 1);
       filteredHabits.forEach((habit) => {
-        const [dateHabitCompletion] = getHabitCompletion(computeHabit(habit, useRelative ? currentDate : today), measurements, habit.isWeekly ? currentWeekDates : [currentDate]);
-        dateCompletions.set(habit.id, dateHabitCompletion);
+        const [_, dateHabitPoints] = getHabitCompletion(computeHabit(habit, useRelative ? currentDate : today), measurements, habit.isWeekly ? currentWeekDates : [currentDate]);
+        currentDatePoints.set(habit.id, dateHabitPoints);
         
-        if (!dateHabitCompletion) return;
-
-        if (!habit.isWeekly) datePoints += habit.points;
-        else if (!previousCompletions || !previousCompletions.get(habit.id)) datePoints += habit.points;
+        if (!dateHabitPoints) return;
+        datePointTotal += dateHabitPoints;
+        
+        if (habit.isWeekly && previousDatePoints) datePointTotal -= (previousDatePoints.get(habit.id) || 0);
       });
 
-      completions.set(currentDate.toString(), dateCompletions);
-      points.set(currentDate.toString(), datePoints);
+      datePoints.set(currentDate.toString(), currentDatePoints);
+      pointTotals.set(currentDate.toString(), datePointTotal);
       
       previousDate = currentDate;
       currentDate = currentDate.getDaysAgo(-1);
     }
 
-    return points;
+    return pointTotals;
   }, [habits, measurements]);
   
   const habitPoints = useMemo(() => {
@@ -766,7 +766,7 @@ const HabitChartCard = ({
         </View>
         <View style={s.chartStat}>
           <Text variant='bodyMedium'>Total</Text>
-          <Points points={total} size='medium' inline />
+          <Points points={total} decimals={hasNonStandardRewardHabit ? 1 : 0} size='medium' inline />
         </View>
         <View style={s.chartStat}>
           <Text variant='bodyMedium'>{habitBucketSize.title}s</Text>
@@ -836,9 +836,14 @@ const HabitChartCard = ({
           }
         }}
         hideTooltipOnDragEnd
-        onTooltipSelect={(_, index) => {
-          triggerHaptic('selection');
-          setSelectedHabitDataIndex(index);
+        onTooltipSelect={(value, index) => {
+          if (value.x < horizontalMin) return;
+          setSelectedHabitDataIndex((prev) => {
+            if (prev !== index) {
+              triggerHaptic('selection');
+            }
+            return index;
+          });
         }}
         onTooltipSelectEnd={() => {
           setSelectedHabitDataIndex(-1);
@@ -940,7 +945,7 @@ const HabitChartCard = ({
             <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
               {selectedBucketString}
             </Text>
-            <Points points={selectedDateValue} size='x-small' inline />
+            <Points points={selectedDateValue} decimals={hasNonStandardRewardHabit ? 1 : 0} size='x-small' inline />
           </View>
           {selectedDateAverage !== null ? (
             <View style={{ ...s.chartSelectionRow, justifyContent }}>
@@ -1127,7 +1132,7 @@ const MeasurementChartCard = ({
   const horizontalMax = Math.max(chartDuration, 1);
   const horizontalOffset = (horizontalMax - horizontalMin) * (chartPadding / chartWidth);
 
-  const measurementChartInputs = [id, measurements, chartDuration, measurementTrendline.value, globalPalette.primary, s, chartWidth, measurementPalette];
+  const measurementChartInputs = [id, measurements, measurementChartDuration.value, measurementTrendline.value, globalPalette.primary, s, chartWidth, measurementPalette];
 
   const chartStats = useMemo(() => {
     const recordingCount = selectedVisibleData.length;
@@ -1193,9 +1198,14 @@ const MeasurementChartCard = ({
           }
         }}
         hideTooltipOnDragEnd
-        onTooltipSelect={(_, index) => {
-          triggerHaptic('selection');
-          setSelectedMeasurementDataIndex(index);
+        onTooltipSelect={(value, index) => {
+          if (value.x < horizontalMin) return;
+          setSelectedMeasurementDataIndex((prev) => {
+            if (prev !== index) {
+              triggerHaptic('selection');
+            }
+            return index;
+          });
         }}
         onTooltipSelectEnd={() => {
           setSelectedMeasurementDataIndex(-1);
@@ -1320,16 +1330,15 @@ const MeasurementChartCard = ({
           ]}
         />
         <View style={{ flexGrow: 1, flexBasis: 0, minWidth: 48 }}>
-          {!!note ? (
-            <IconButton
-              style={{ margin: 0, borderRadius: 4}}
-              icon={Icons.note}
-              size={18}
-              containerColor={noteVisible ? measurementPalette.backdrop : undefined}
-              onPress={() => setNoteVisible(!noteVisible)}
-              hitSlop={8}
-            />
-          ) : null}
+          <IconButton
+            style={{ margin: 0, borderRadius: 4}}
+            icon={noteVisible ? Icons.note : Icons.noteOutline}
+            size={18}
+            iconColor={measurementPalette.primary}
+            containerColor={theme.colors.elevation.level3}
+            onPress={() => setNoteVisible(!noteVisible)}
+            hitSlop={8}
+          />
         </View>
         <View style={s.chartSelection}>
           {note && noteVisible ? (
