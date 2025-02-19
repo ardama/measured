@@ -87,6 +87,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
       daysPerWeek: formHabit.daysPerWeek || 7,
       points: formHabit.points || 1,
       maximumPoints: formHabit.maximumPoints || 0,
+      minimumPoints: formHabit.minimumPoints || 0,
       conditions: formHabit.conditions.map((condition) => ({
         measurementId: condition.measurementId || '',
         operator: condition.operator || '>=',
@@ -151,13 +152,23 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   const pointsItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
     value: num,
     title: `${num} point${num === 1 ? '' : 's'}`,
-    disabled: isExtraReward && (num >= (formHabit.maximumPoints || 9)),
+    disabled: (
+      isExtraReward && (num >= (formHabit.maximumPoints || 9))
+    ) || (
+      isPartialReward && (num <= (formHabit.minimumPoints || 0))
+    ),
   }));
 
   const extraPointsItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
     value: num,
     title: `${num} point${num === 1 ? '' : 's'}`,
     disabled: formHabit.points >= num,
+  }));
+
+  const partialPointsItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => ({
+    value: num,
+    title: `${num} point${num === 1 ? '' : 's'}`,
+    disabled: formHabit.points <= num,
   }));
 
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -422,7 +433,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               </Text>}
             </View>
             <View style={s.formSection}>
-              {(isNew || !formHabit.isWeekly) && <OptionButton
+              <OptionButton
                 selected={!formHabit.isWeekly}
                 onPress={isNew ?() => {
                   const nextHabit = { ...formHabit, isWeekly: false };
@@ -431,9 +442,11 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 icon={Icons.repeatDaily}
                 title='DAILY'
                 subtitle='Social media time today, hours slept today, etc.'
-                palette={palette}                
-              />}
-              {(isNew || formHabit.isWeekly) && <OptionButton
+                palette={palette}
+                isRadio
+                disabled={!isNew && formHabit.isWeekly}
+              />
+              <OptionButton
                 selected={formHabit.isWeekly}
                 onPress={isNew ? () => {
                   const nextHabit = { ...formHabit, isWeekly: true };
@@ -443,7 +456,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 title='WEEKLY'
                 subtitle='Miles ran this week, friends visited this week, etc.'
                 palette={palette}
-              />}
+                isRadio
+                disabled={!isNew && !formHabit.isWeekly}
+              />
               {!formHabit.isWeekly && (
                 <BottomDrawer
                   title='Frequency target'
@@ -484,15 +499,17 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   const nextHabit: FormHabit = { ...formHabit, rewardType: 'standard' };
                   handleFormEdit(nextHabit);
                 }}
-                icon={Icons.repeatDaily}
+                icon={Icons.fullCredit}
                 title='ALL OR NOTHING'
                 subtitle='Hit the target to earn all the points.'
-                palette={palette}                
+                palette={palette}
+                isRadio
               />
               <OptionButton
                 selected={isPartialReward}
                 onPress={() => {
-                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'partial' };
+                  const minimumPoints = Math.max(0, formHabit.points - 1);
+                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'partial', minimumPoints, points: Math.min(9, minimumPoints + 1) };
                   nextHabit.conditions = nextHabit.conditions.slice(0, 1);
                   const measurementId = nextHabit.conditions[0]?.measurementId;
                   if (measurementId) {
@@ -501,15 +518,17 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   }
                   handleFormEdit(nextHabit);
                 }}
-                icon={Icons.repeatWeekly}
+                icon={Icons.partialCredit}
                 title='PARTIAL CREDIT'
                 subtitle='Get near the target to earn some of the points.'
                 palette={palette}
+                isRadio
               />
               <OptionButton
                 selected={isExtraReward}
                 onPress={() => {
-                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'extra', points: Math.min(8, formHabit.points) };
+                  const maximumPoints = Math.min(9, formHabit.points + 1);
+                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'extra', maximumPoints, points: Math.max(0, maximumPoints - 1) };
                   nextHabit.conditions = nextHabit.conditions.slice(0, 1);
                   const measurementId = nextHabit.conditions[0]?.measurementId;
                   if (measurementId) {
@@ -518,10 +537,12 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   }
                   handleFormEdit(nextHabit);
                 }}
-                icon={Icons.repeatWeekly}
+                icon={Icons.extraCredit}
+                iconStyle={{ transform: [{ rotate: '180deg' }] }}
                 title='EXTRA CREDIT'
                 subtitle='Do better than the target to earn extra points.'
                 palette={palette}
+                isRadio
               />
               <View style={s.formRow}>
                 <BottomDrawer
@@ -529,13 +550,13 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   anchor={(toggleVisibility) => (
                     <Pressable style={s.input} onPress={toggleVisibility}>
                       <TextInput
-                        label={'Reward'}
+                        label={isStandardReward ? 'Base reward' : 'Base reward'}
                         mode='outlined'
                         onPress={toggleVisibility}
                         readOnly
                         value={`${formHabit.points}`}
                         right={<TextInput.Affix text="points" />}
-                      activeOutlineColor={palette.primary || undefined}
+                        activeOutlineColor={palette.primary || undefined}
                       />
                     </Pressable>
                   )}
@@ -550,27 +571,31 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 />
                 <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
               </View>
-              {isExtraReward && (
+              {!isStandardReward && (
                 <View style={s.formRow}>
                   <BottomDrawer
-                    title='Maximum reward'
+                    title={isPartialReward ? 'Minimum reward' : 'Maximum reward'}
                     anchor={(toggleVisibility) => (
                       <Pressable style={s.input} onPress={toggleVisibility}>
                         <TextInput
-                          label={'Maximum reward'}
+                          label={isPartialReward ? 'Minimum reward' : 'Maximum reward'}
                           mode='outlined'
                           onPress={toggleVisibility}
                           readOnly
-                          value={`${formHabit.maximumPoints}`}
+                          value={isPartialReward ? `${formHabit.minimumPoints}` : `${formHabit.maximumPoints}`}
                           right={<TextInput.Affix text="points" />}
-                        activeOutlineColor={palette.primary || undefined}
+                          activeOutlineColor={palette.primary || undefined}
                         />
                       </Pressable>
                     )}
-                    items={extraPointsItems}
-                    selectedItem={extraPointsItems.find(({ value }) => value === formHabit.maximumPoints) || null}
+                    items={isPartialReward ? partialPointsItems : extraPointsItems}
+                    selectedItem={
+                      isPartialReward ? partialPointsItems.find(({ value }) => value === formHabit.minimumPoints)
+                      : extraPointsItems.find(({ value }) => value === formHabit.maximumPoints) || null}
                     onSelect={(item) => {
-                      const nextHabit: FormHabit = { ...formHabit, maximumPoints: item.value };
+                      const nextHabit: FormHabit = {...formHabit };
+                      if (isPartialReward) nextHabit.minimumPoints = item.value;
+                      else nextHabit.maximumPoints = item.value;
                       handleFormEdit(nextHabit);
                     }}
                     showSearchbar={false}
@@ -1072,7 +1097,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                           <>
                             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
                               <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
-                                {isExtraReward ? 'BASE REWARD' : 'FULL REWARD'}
+                                {isExtraReward ? 'BASE REWARD' : 'BASE REWARD'}
                               </Text>
                               <Text style={{ flexShrink: 0 }} variant='titleMedium'>
                                 @
@@ -1175,6 +1200,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     title='ALL'
                     subtitle='Every target must be hit.'
                     palette={palette}
+                    isRadio
                   />
                   <OptionButton
                     selected={formHabit.predicate === 'OR'}
@@ -1186,6 +1212,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     title='ANY'
                     subtitle='One or more targets must be hit.'
                     palette={palette}
+                    isRadio
                   />
                 </View>
               </>

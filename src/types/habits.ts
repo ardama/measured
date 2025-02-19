@@ -20,6 +20,7 @@ interface ComputedHabit extends Habit {
   points: number
   rewardType: HabitRewardType
   maximumPoints: number
+  minimumPoints: number
   archived: boolean
   conditions: HabitCondition[]
   predicate: HabitPredicate
@@ -38,6 +39,7 @@ type FormHabit = {
   points: number
   rewardType: HabitRewardType
   maximumPoints: number
+  minimumPoints: number
   daysPerWeek: number
   archived: boolean
   conditions: FormHabitCondition[]
@@ -65,6 +67,7 @@ const emptyComputedHabit = (): ComputedHabit => ({
   daysPerWeek: -1,
   points: -1,
   maximumPoints: 0,
+  minimumPoints: 0,
   rewardType: 'standard',
   archived: false,
   conditions: [],
@@ -114,6 +117,7 @@ interface HabitUpdate {
   points?: number;
   rewardType?: HabitRewardType;
   maximumPoints?: number;
+  minimumPoints?: number;
   archived?: boolean;
   conditions?: HabitCondition[]
   predicate?: HabitPredicate;
@@ -130,6 +134,7 @@ export const emptyHabitUpdate: HabitUpdate = {
   points: undefined,
   rewardType: undefined,
   maximumPoints: undefined,
+  minimumPoints: undefined,
   archived: undefined,
   conditions: undefined,
   predicate: undefined,
@@ -154,6 +159,7 @@ const createInitialHabit = (
     points,
     rewardType: 'standard',
     maximumPoints: 0,
+    minimumPoints: 0,
     archived: false,
     conditions,
     predicate: 'AND',
@@ -354,7 +360,8 @@ const getHabitCompletion = (
     const partialPointWindow = condition.target - (condition.minTarget || 0);
     const partialPointValue = (conditionValue || 0) - (condition.minTarget || 0);
     const partialPointProgress = partialPointValue / partialPointWindow;
-    points = Math.max(0, Math.min(partialPointProgress * habit.points, habit.points));
+    const partialPoints = Math.min(partialPointProgress * (habit.points - habit.minimumPoints), habit.points - habit.minimumPoints);
+    if (partialPoints >= 0) points = partialPoints + habit.minimumPoints;
   } else if (habit.rewardType === 'extra') {
     const condition = habit.conditions[0];
     const conditionValue = conditionValues[0];
@@ -362,7 +369,8 @@ const getHabitCompletion = (
     const extraPointWindow = (condition.maxTarget || 0) - condition.target;
     const extraPointValue = (conditionValue || 0) - (condition.target || 0);
     const extraPointProgress = extraPointValue / extraPointWindow;
-    points += Math.max(0, Math.min(extraPointProgress * (habit.maximumPoints - habit.points), habit.maximumPoints - habit.points));
+    const extraPoints = Math.max(0, Math.min(extraPointProgress * (habit.maximumPoints - habit.points), habit.maximumPoints - habit.points));
+    if (complete) points += extraPoints;
   }
   
   return [complete, points, conditionCompletions, conditionValues, conditionProgressions];

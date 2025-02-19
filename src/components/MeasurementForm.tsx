@@ -251,8 +251,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
         {measurementTypes.map((type) => {
           const typeData = getMeasurementTypeData(type);
           const selected = type === formMeasurement.type;
-          if (!isNew && !selected) return null;
-          const disabled = type === 'combo' && !measurements.length;
+          const disabled = (!isNew && !selected) || (type === 'combo' && !measurements.length);
 
           return (
             <OptionButton
@@ -283,6 +282,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
               title={typeData.label.toUpperCase()}
               subtitle={typeData.examples}
               palette={palette}
+              isRadio
             />
           );
         })}

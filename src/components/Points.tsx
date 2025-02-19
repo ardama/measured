@@ -34,11 +34,11 @@ const Points = ({ points, size = 'medium', disabled = false, color, textColor, i
   else if (size === 'large') textVariant = 'titleLarge';
   else if (size === 'x-large') textVariant = 'headlineMedium';
 
-  let decimalTextVariant = 'titleSmall';
-  if (size === 'x-small') decimalTextVariant = 'labelSmall';
-  else if (size === 'small') decimalTextVariant = 'labelMedium';
-  else if (size === 'large') decimalTextVariant = 'titleMedium';
-  else if (size === 'x-large') decimalTextVariant = 'titleLarge';
+  let decimalTextVariant = '';
+  // if (size === 'x-small') decimalTextVariant = 'labelSmall';
+  // else if (size === 'small') decimalTextVariant = 'labelMedium';
+  if (size === 'large') decimalTextVariant = 'titleMedium';
+  if (size === 'x-large') decimalTextVariant = 'titleLarge';
 
   const textColorValue = disabled ? theme.colors.onSurfaceDisabled : textColor ? textColor : color ? color : theme.colors.onSurface;
   const iconColorValue = disabled ? theme.colors.onSurfaceDisabled : iconColor ? iconColor : color ? color : theme.colors.onSurface;
@@ -51,7 +51,7 @@ const Points = ({ points, size = 'medium', disabled = false, color, textColor, i
         <Text variant={textVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>
           {`${pointsString}`}
         </Text>
-        {decimalsString && <Text variant={decimalTextVariant as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>.{decimalsString}</Text>}
+        {decimalsString && <Text variant={(decimalTextVariant || textVariant) as VariantProp<string>} style={{ ...styles.value, color: textColorValue }}>.{decimalsString}</Text>}
       </View>
       {!hideIcon && (
         <View style={styles.icon}>
@@ -69,7 +69,7 @@ const createStyles = (theme: MD3Theme, size: PointsSize, inline: boolean) => Sty
     justifyContent: 'flex-end',
     // gap: size === 'x-small' ? 1 : size === 'small' ? 1 : size === 'medium' ? 2 : 0,
     // minWidth: inline ? 0 : size === 'x-small' ? 24 : size === 'small' ? 28 : size === 'medium' ? 30 : 36,
-    marginRight: !inline ? 0 : size === 'x-small' ? 0 : size === 'small' ? -2 : size === 'medium' ? -3 : -4,
+    // marginRight: !inline ? 0 : size === 'x-small' ? 0 : size === 'small' ? -2 : size === 'medium' ? -3 : -4,
   },
   label: {
     flexDirection: 'row',
@@ -78,9 +78,9 @@ const createStyles = (theme: MD3Theme, size: PointsSize, inline: boolean) => Sty
   },
   value: {
     ...createFontStyle(500),
-    letterSpacing: size === 'x-small' ? -0.25 : size === 'small' ? -0.5 : size === 'medium' ? -.5 : size === 'large' ? -.5 : -1.25,
   },
   icon: {
+    marginRight: size === 'x-small' ? 0 : size === 'small' ? -2 : size === 'medium' ? -3 : -4,
     // height: size === 'x-small' ? 12 : size === 'small' ? 14 : size === 'medium' ? 16 : size === 'large' ? 20 : 28,
   },
 });

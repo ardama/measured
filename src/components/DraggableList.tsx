@@ -147,6 +147,10 @@ const DraggableList = ({
       return y >= layout.y && y < (layout.y + layout.height);
     });
 
+    if (index === -1) {
+      return y < 0 ? 0 : itemLayouts.current.length - 1;
+    }
+
     return index;
   }
 

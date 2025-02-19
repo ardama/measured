@@ -1,4 +1,5 @@
 import type { Palette } from '@u/colors';
+import { Icons } from '@u/constants/Icons';
 import { usePalettes } from '@u/hooks/usePalettes';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { Icon, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
@@ -19,6 +20,9 @@ type OptionButtonProps = {
   title?: string,
   subtitle?: string,
 
+  isCheckbox?: boolean,
+  isRadio?: boolean,
+
   onPress?: () => void,
 }
 const OptionButton = ({
@@ -33,7 +37,10 @@ const OptionButton = ({
   icon,
   iconSize,
   iconStyle,
-  
+
+  isCheckbox,
+  isRadio,
+
   title,
   subtitle,
 
@@ -43,30 +50,76 @@ const OptionButton = ({
   const { globalPalette } = usePalettes();
   const s = createStyles(theme, palette || globalPalette);
 
-  const content = children && children.length ? children : (
+  const titleElement = !!title && (
+    <Text
+      variant='titleMedium'
+      style={[
+        s.title,
+        disabled ? s.titleDisabled : {},
+      ]}
+    >
+      {title}
+    </Text>
+  );
+
+  const subtitleElement = !!subtitle && (
+    <Text
+      variant='bodyMedium'
+      style={[
+        s.subtitle,
+        disabled ? s.subtitleDisabled : {},
+      ]}
+    >
+      {subtitle}
+    </Text>
+  );
+
+  const iconElement = !!icon && (
+    <View
+      style={[
+        iconStyle
+      ]}
+    >
+      <Icon
+        source={icon}
+        size={iconSize || 26}
+        color={disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
+      />
+    </View>
+  );
+
+  const controlElement = (isCheckbox || isRadio) && (
+    <View
+      style={[
+      ]}>
+        <Icon
+          source={
+            isCheckbox ? selected ? Icons.checkboxSelected : Icons.checkbox :
+            isRadio ? selected ? Icons.radioSelected : Icons.radio :
+            undefined
+          }
+          size={22}
+          color={disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
+        />
+    </View>
+  );
+
+  const content = children && children.length ? (
     <>
-      {!!title && (
-        <Text
-          variant='titleMedium'
-          style={[
-            s.title,
-            disabled ? s.titleDisabled : {},
-          ]}
-        >
-          {title}
-        </Text>
-      )}
-      {!!subtitle && (
-        <Text
-          variant='bodyMedium'
-          style={[
-            s.subtitle,
-            disabled ? s.subtitleDisabled : {},
-          ]}
-        >
-          {subtitle}
-        </Text>
-      )}
+      {controlElement}
+      {iconElement}
+      {children}
+    </>
+  ) : (
+    <>
+      {controlElement}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexGrow: 1, flexShrink: 1, justifyContent: 'space-between' }}>
+        <View style={{ flexShrink: 1 }}>
+          {titleElement}
+          {subtitleElement}
+        </View>
+        {iconElement}
+      </View>
     </>
   )
 
@@ -91,20 +144,7 @@ const OptionButton = ({
           selected && s.contentSelected,
           contentStyle
         ]}>
-          {!!icon && (
-            <View
-              style={[
-                iconStyle
-              ]}
-            >
-              <Icon
-                source={icon}
-                size={iconSize || 22}
-                color={disabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
-              />
-            </View>
-          )}
-          {!!icon ? <View style={{ flexShrink: 1 }}>{content}</View> : content}
+          {content}
         </View>
       </TouchableRipple>
     </View>
@@ -127,21 +167,17 @@ const createStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.create({
     
   },
   containerDisabled: {
-    backgroundColor: undefined,
+    opacity: 0.8,
   },
   content: {
     borderRadius: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    gap: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   contentSelected: {
-    // borderColor: palette.primary,
-
   },
   title: {
     

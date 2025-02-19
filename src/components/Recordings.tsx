@@ -338,11 +338,11 @@ const Recordings = () => {
         });
     
         if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
-      }, 3000);
+      }, 750);
 
       return nextTempRecordingsMap;
     });
-  }, [dispatch]);
+  }, [dispatch, updateRecordings, setTempRecordingsMap]);
 
   const updateNote = useCallback((content: string | null, measurement: Measurement, date: string) => {
     const nextNotes = [...(measurement.notes || [])];
@@ -448,7 +448,7 @@ const Recordings = () => {
   }
 
   const { window: dimensions } = useDimensions();
-  const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(108), []);
+  const timelineHeight = useMemo(() => PixelRatio.roundToNearestPixel(96), []);
   const pageWidth = useMemo(() => PixelRatio.roundToNearestPixel(dimensions.width), [dimensions.width]);
 
   const handleTimelineScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -490,7 +490,7 @@ const Recordings = () => {
                     isSelected && styles.timelineDateContentSelected,
                   ]}
                 >
-                  <Text
+                  {/* <Text
                     style={[
                       styles.timelineDateDayOfWeek,
                       isToday && styles.timelineDateDayOfWeekToday,
@@ -499,7 +499,7 @@ const Recordings = () => {
                     variant='labelLarge'
                   >
                     {date.getDayOfWeekLabel()}
-                  </Text>
+                  </Text> */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', 'justifyContent': 'center'}}>
                     {isToday && <View
                       style={[
@@ -528,31 +528,51 @@ const Recordings = () => {
 
   const timeline = useMemo(() => {
     return (
-      <FlatList
-        style={{ height: timelineHeight, width: pageWidth, flexShrink: 0, flexGrow: 0, marginBottom: -24 }}
-        ref={timelineFlatListRef}
-        data={timelineWeeks}
-        keyExtractor={({ week }) => week.dates[0].toString()}
-        pagingEnabled
-        initialScrollIndex={52}
-        horizontal
-        showsVerticalScrollIndicator={false}
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={32}
-        onScroll={handleTimelineScroll}
-        getItemLayout={(_, index) => ({
-          length: pageWidth,
-          offset: pageWidth * index,
-          index,
-        })}
-        renderItem={({ item }) => {
-          return (
-            <View style={[styles.timelineContent, { height: timelineHeight, width: pageWidth, paddingTop: 8, paddingBottom: 24 }]}>
-              {item.elements}
-            </View>
-          )
-        }}
-      />
+      <View style={{ position: 'relative', width: pageWidth, height: timelineHeight, marginBottom: -24 }}>
+        <View style={[styles.timelineContent, { height: 60, width: pageWidth, paddingBottom: 8, marginBottom: -60 }]}>
+          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, index) => {
+            const isSelected = index === selectedDayOfWeek;
+            return (
+              <View key={day} style={[styles.timelineDateContainer, { alignItems: 'center' }]}>
+                <Text
+                  style={[
+                    styles.timelineDateDayOfWeek,
+                    isSelected && styles.timelineDateDayOfWeekSelected,
+                  ]}
+                  variant='labelLarge'
+                >
+                  {day}
+                </Text>
+              </View>
+            )
+          })}
+        </View>
+        <FlatList
+          style={{ height: timelineHeight, width: pageWidth, flexShrink: 0, flexGrow: 0 }}
+          ref={timelineFlatListRef}
+          data={timelineWeeks}
+          keyExtractor={({ week }) => week.dates[0].toString()}
+          pagingEnabled
+          initialScrollIndex={52}
+          horizontal
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={32}
+          onScroll={handleTimelineScroll}
+          getItemLayout={(_, index) => ({
+            length: pageWidth,
+            offset: pageWidth * index,
+            index,
+          })}
+          renderItem={({ item }) => {
+            return (
+              <View style={[styles.timelineContent, { height: timelineHeight, width: pageWidth, paddingTop: 8, paddingBottom: 24 }]}>
+                {item.elements}
+              </View>
+            )
+          }}
+        />
+      </View>
     );
   }, [weeks, pageWidth, timelineHeight, styles, selectedDate]);
 
@@ -746,6 +766,7 @@ const Recordings = () => {
                       size='medium'
                       inline
                       decimals={hasNonStandardRewardHabit ? 1 : 0}
+                      hideIcon={hasNonStandardRewardHabit}
                       color={color}
                     />}
                   </>
@@ -788,7 +809,7 @@ const Recordings = () => {
           tickWidth={3}
           tickColor={theme.colors.onSurfaceDisabled}
         />
-        <View style={{ position: 'absolute', width: '100%', top: 16, left: 20, overflow: 'visible' }}>
+        <View style={{ position: 'absolute', width: '100%', left: 20,top: 16, overflow: 'visible' }}>
           <View style={{ alignSelf: 'center' }}>
             <View style={styles.weekPointsContainer}>
               <Points
@@ -827,7 +848,7 @@ const Recordings = () => {
 
     if (isReordering || isArchiving) {
       return (
-        <View style={{ width: '100%', alignItems: 'flex-end', flexDirection: 'row'}}>
+        <View style={{ width: '100%', alignItems: 'flex-end', flexDirection: 'row' }}>
           <TouchableRipple
             onPress={() => {
               if (showMeasurements) {
@@ -857,11 +878,19 @@ const Recordings = () => {
       );
     }
 
+    const todayIndicatorStyles: ViewStyle = {
+      width: 6,
+      height: 6,
+      borderRadius: 100,
+      backgroundColor: theme.colors.primary,
+      marginLeft: -14,
+      flexShrink: 0,
+    };
     return (
-      <>
-        {isToday && <Text variant='bodyMedium' style={{ }}>TODAY</Text>}
+      <View style={{ flexDirection: 'row', flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 8, paddingLeft: isToday ? 0 : 48 + 4 }}>
+        {isToday && <View style={todayIndicatorStyles} />}
         <Text variant='titleLarge' style={{ }}>{selectedDate.toFormattedString(true, false, true)}</Text>
-      </>
+      </View>
     );
   }, [showMeasurements, showHabits, isReordering, isArchiving, isToday, selectedDate, styles, submitMeasurementOrder, submitHabitOrder]);
 
@@ -884,9 +913,20 @@ const Recordings = () => {
             }, 0);
           }}
         />}
-        <View style={{ flexDirection: 'row', flexGrow: 1, justifyContent: 'center', alignItems: 'baseline', gap: 8 }}>
-          {renderSectionTitle()}
-        </View>
+        {renderSectionTitle()}
+        {!isToday && (
+          <View>
+            <IconButton
+              style={styles.sectionHeaderButton}
+              onPress={() => {
+                timelineFlatListRef.current?.scrollToOffset({ offset: 52 * pageWidth, animated: Platform.OS !== 'web' });
+                setSelectedDate(today);
+              }}
+              icon={Icons.today}
+              size={20}
+            />
+          </View>
+        )}
         {!isReordering && !isArchiving && <BottomDrawer
           title={showMeasurements ? 'Measurements' : 'Habits'}
           anchor={
@@ -1121,18 +1161,66 @@ const Recordings = () => {
         let switchColor = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
         if (isDisabled) switchColor = theme.colors.surfaceDisabled;
         else if (baseColor) switchColor = globalPalette.backdrop;
+
+        const measurementCount = measurementCounts[selectedDayOfWeek];
+        const measurementCompletion = measurementCompletions[selectedDayOfWeek];
+        
+        const measurementColor = contentSwitchValue === 0 ? theme.colors.onSurface : theme.colors.onSurfaceDisabled;
+        const habitColor = contentSwitchValue === 1 ? theme.colors.onSurface : theme.colors.onSurfaceDisabled;
+        const daily = selectedWeekDailyHabitPointTotals[selectedDayOfWeek] || 0;
+        const weekly = selectedWeekWeeklyHabitPointTotals[selectedDayOfWeek] || 0;
+        const total = daily + weekly;
       
         return (
           <View style={{
-            marginHorizontal: -4,
-            borderRadius: 0,
             backgroundColor: theme.dark ? theme.colors.surface : theme.colors.elevation.level3,
-            overflow: 'hidden',
-            paddingHorizontal: 12,
+            paddingHorizontal: 8,
             paddingTop: 8,
             paddingBottom: 8,
-            alignSelf: 'stretch'
+            alignSelf: 'stretch',
+            position: 'relative',
           }}>
+            {/* <View style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 64,
+              height: 56,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                <CircularProgress
+                  size={20}
+                  strokeWidth={2}
+                  progress={measurementCompletion / measurementCount}
+                  color={measurementColor}
+                  trackColor={theme.colors.surfaceDisabled}
+                  icon={Icons.measurement}
+                  iconColor={measurementCompletion === measurementCount ? measurementColor : theme.colors.surfaceDisabled}
+                />
+              </View>
+              
+            </View>
+            <View style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: 64,
+              height: 56,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Points
+                style={styles.dailyPointTotal}
+                points={total}
+                size='medium'
+                inline
+                decimals={hasNonStandardRewardHabit ? 1 : 0}
+                // hideIcon={hasNonStandardRewardHabit}
+                color={habitColor}
+              />
+            </View> */}
             <View style={{ flexDirection: 'row', alignItems: 'center'}}>
               <Animated.View
                 style={[{
@@ -1145,7 +1233,7 @@ const Recordings = () => {
                   transform: [{
                     translateX: position.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, (pageWidth - 16) / 2]
+                      outputRange: [0, (pageWidth / 2) - 8]
                     })
                   }]
                 }]}
@@ -1203,13 +1291,13 @@ const Recordings = () => {
         backgroundColor={theme.colors.surface} barStyle={theme.dark ? 'light-content' : 'dark-content'}
       />
       <View
-        style={[styles.container, { paddingTop: top, paddingBottom: bottom }]}
+        style={[styles.container, { marginTop: top }]}
       >
         <View style={{ backgroundColor: theme.colors.surface }}>
           {timeline}
-          {/* {renderTimelineHeader()} */}
           {habitProgressBar}
-          {timelineStatuses}
+          {/* {renderTimelineHeader()} */}
+          {/* {timelineStatuses} */}
           {contentHeader}
         </View>
         {tabs}
@@ -1277,6 +1365,7 @@ const createStyles = (theme: MD3Theme, palette: Palette) => {
     timelineDateContainerSelected: {
     },
     timelineDateContent: {
+      paddingTop: 20,
       gap: 4,
     },
     timelineDateContentToday: {},
@@ -1610,7 +1699,10 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           style={[styles.value, styles.defaultValue]}
           onPress={() => onValueChange ? onValueChange(measurement.initial) : null}
           disabled={isCombo}
-          onLongPress={isCombo || isBool ? undefined : handleShowValueDialog}
+          onLongPress={isCombo || isBool ? undefined : () => {
+            triggerHaptic('selection');
+            handleShowValueDialog();
+          }}
         >
           {isBool ? (
             <Icon source={measurement.initial ? Icons.complete : Icons.incomplete} color={theme.colors.onSurfaceDisabled} size={14} />
@@ -2475,20 +2567,22 @@ const RecordingDataHabit = (props : RecordingDataHabitProps) : JSX.Element | nul
         borderColor: theme.colors.surfaceDisabled,
         borderLeftWidth: 1,
       }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-          <Text
-            variant='titleSmall'
-            style={{ marginTop: -6, color: earnedPoints ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
-          >
-            +
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 3 }}>
+          {!!earnedPoints && (
+            <Text
+              variant='titleSmall'
+              style={{ marginTop: -6, marginLeft: -10, color: earnedPoints ? combinedPalette.primary : theme.colors.onSurfaceDisabled }}
+            >
+              +
+            </Text>
+          )}
           <Points
             style={[styles.dayCompletionPoints]}
             size='large'
             points={earnedPoints || remainingPoints}
             decimals={partialPoints ? 1 : 0}
             color={earnedPoints ? combinedPalette.primary : theme.colors.onSurfaceDisabled}
-            hideIcon={!!partialPoints}
+            hideIcon={!!earnedPoints && !!partialPoints}
           />
         </View>
       </View>

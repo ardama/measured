@@ -72,9 +72,14 @@ export const Icons = {
   collapse: 'format-vertical-align-center',
   expand: 'arrow-expand-vertical',
 
+  today: 'calendar-today',
 
   repeatDaily: 'cached',
   repeatWeekly: 'calendar-sync',
+
+  fullCredit: 'circle',
+  partialCredit: 'circle-half-full',
+  extraCredit: 'circle-multiple',
 
   user: 'account',
   account: 'account-cog-outline',
@@ -99,4 +104,8 @@ export const Icons = {
   logout: 'logout',
   login: 'account-plus',
 
+  checkbox: 'checkbox-blank-outline',
+  checkboxSelected: 'checkbox-outline',
+  radio: 'radiobox-blank',
+  radioSelected: 'radiobox-marked',
 }

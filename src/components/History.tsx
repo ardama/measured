@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Icon, IconButton, Surface, Switch, Text, TouchableRipple, useTheme, type MD3Theme } from 'react-native-paper';
 import { Area, Chart, Line } from 'react-native-responsive-linechart';
@@ -20,6 +20,8 @@ import QuickStartButton from '@c/QuickStartButton';
 import { MeasurementLabel } from '@c/Label';
 import { createFontStyle } from '@u/styles';
 import { ScrollView } from 'react-native-gesture-handler';
+import LoadingIcon from '@c/LoadingIcon';
+
 
 type BucketSize = 'day' | 'week' | 'month';
 
@@ -79,9 +81,10 @@ const MEASUREMENT_TRENDLINE_ITEMS: BottomDrawerItem<number>[] = [
 const History = () => {  
   const measurements = useMeasurements();
   const habits = useComputedHabits();
-  const { top, bottom } = useSafeAreaInsets();
+  const { top } = useSafeAreaInsets();
 
   const theme = useTheme();
+  const { globalPalette } = usePalettes();
 
   const s = createStyles(theme);
 
@@ -110,36 +113,83 @@ const History = () => {
   }
   const measurementRecordingDates = useMemo(() => computeAllMeasurementRecordingDates(measurements), [measurements]);
 
-  return (
-    <ScrollView style={[s.container, { paddingTop: top, paddingBottom: bottom }]}>
-      <View style={s.cards}>
-        {useMemo(() => <MonthSummaryCard />, [])}
-        <HabitChartCard measurementRecordingDates={measurementRecordingDates} />
-        {measurements.length && !habits.length && (
-          <>
-            <View style={s.noData}>
-              <View style={s.noDataIcon}>
-                <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-              </View>
-              <Text style={s.noDataText} variant='bodyLarge'>No habits</Text>
-            </View>
-            <QuickStartButton />
-          </>
-        )}
-        <MeasurementChartCard measurementRecordingDates={measurementRecordingDates} />
-        {!measurements.length && (
-          <>
-            <View style={s.noData}>
-              <View style={s.noDataIcon}>
-                <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
-              </View>
-              <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
-            </View>
-            <QuickStartButton />
-          </>
-        )}
+  const [showMonthSummaryCard, setShowMonthSummaryCard] = useState(false);
+  const [showHabitChartCard, setShowHabitChartCard] = useState(false);
+  const [showMeasurementChartCard, setShowMeasurementChartCard] = useState(false);
+  useEffect(() => {
+    setTimeout(() => {
+      setShowMonthSummaryCard(true);
+    }, 0);
+  }, []);
+  useEffect(() => {
+    showMeasurementChartCard && setTimeout(() => {
+      setShowHabitChartCard(true);
+    }, 0);
+  }, [showMeasurementChartCard]);
+  useEffect(() => {
+    showMonthSummaryCard && setTimeout(() => {
+      setShowMeasurementChartCard(true);
+    }, 0);
+  }, [showMonthSummaryCard]);
+
+  const loadingCard = ((height: number) => {
+    return (
+      <View style={[s.cardContainer, { height, justifyContent: 'center', alignItems: 'center' }]}>
+        <LoadingIcon size={36} color={globalPalette.primary} />
       </View>
-    </ScrollView>
+    );
+  });
+
+  const monthSummaryLoadingCard = loadingCard(226);
+  const habitChartLoadingCard = loadingCard(560);
+  const measurementChartLoadingCard = loadingCard(560);
+
+  const monthSummaryCard = useMemo(
+    () => showMonthSummaryCard ? <MonthSummaryCard /> : monthSummaryLoadingCard,
+    [showMonthSummaryCard],
+  );
+  const habitChartCard = useMemo(
+    () => showHabitChartCard ? <HabitChartCard measurementRecordingDates={measurementRecordingDates} /> : habitChartLoadingCard,
+    [showHabitChartCard, measurementRecordingDates],
+  );
+  const measurementChartCard = useMemo(
+    () => showMeasurementChartCard ? <MeasurementChartCard measurementRecordingDates={measurementRecordingDates} /> : measurementChartLoadingCard,
+    [showMeasurementChartCard, measurementRecordingDates],
+  );
+
+  return (
+    <>
+      {<ScrollView style={[s.container, { marginTop: top }]}>
+        <View style={s.cards}>
+          {monthSummaryCard}
+          {habitChartCard}
+          {measurements.length && !habits.length && (
+            <>
+              <View style={s.noData}>
+                <View style={s.noDataIcon}>
+                  <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                </View>
+                <Text style={s.noDataText} variant='bodyLarge'>No habits</Text>
+              </View>
+              <QuickStartButton />
+            </>
+          )}
+          {measurementChartCard}
+          {!measurements.length && (
+            <>
+              <View style={s.noData}>
+                <View style={s.noDataIcon}>
+                  <Icon source={Icons.warning} size={16} color={theme.colors.outline} />
+                </View>
+                <Text style={s.noDataText} variant='bodyLarge'>No measurements</Text>
+              </View>
+              <QuickStartButton />
+            </>
+          )}
+        </View>
+      </ScrollView>}
+      {/* <LoadingScreen visible={isFirstRender}/> */}
+    </>
   );
 }
 
@@ -153,11 +203,11 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     gap: 16,
   },
   cardContainer: {
-    paddingTop: 24,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    marginHorizontal: 16,
-    borderRadius: 12,
+    paddingTop: 20,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    marginHorizontal: 8,
+    borderRadius: 16,
 
     flexGrow: 1,
 
@@ -192,19 +242,17 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
   chartControls: {
     flexGrow: 1,
     flexShrink: 1,
-    width: '50%',
+    width: '45%',
     gap: 8,
-    maxWidth: 360,
   },
   chartStats: {
     flexGrow: 1,
     flexShrink: 1,
-    width: '50%',
+    width: '55%',
     backgroundColor: theme.colors.elevation.level3,
     borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    maxWidth: 360,
     alignSelf: 'stretch',
     justifyContent: 'space-around',
   },
@@ -240,25 +288,29 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     opacity: 0.3,
   },
   chartSelectionContainer: {
-    top: 6,
-    position: 'absolute',
-    width: '100%',
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    flexGrow: 1,
+    flexShrink: 1,
+    height: 32,
+    marginVertical: 12,
   },
   chartSelection: {
-    flexGrow: 0,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     borderRadius: 4,
     flexShrink: 1,
+    height: '100%',
+    flexGrow: 1,
+    gap: 8,
     backgroundColor: theme.dark ? theme.colors.elevation.level1 : theme.colors.surface,
-    height: 40,
-    minWidth: 160,
   },
   chartSelectionRow: {
     flexDirection: 'row',
     gap: 4,
+    justifyContent: 'flex-end',
   },
   chartSelectionLabel: {
     fontSize: 12,
@@ -268,6 +320,11 @@ const createStyles = (theme: MD3Theme, palette?: Palette) => StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     ...createFontStyle(600),
+  },
+  chartSelectionNote: {
+    flexShrink: 1,
+    flexGrow: 1,
+    height: '100%',
   },
   chartSelectionLine: {
     position: 'absolute',
@@ -736,7 +793,7 @@ const HabitChartCard = ({
   else if (visibleBucketData.length > 40) dotSize = 5;
   else if (visibleBucketData.length > 20) dotSize = 6;
 
-  const chartWidth = dimensions.window.width - 32 - 32;
+  const chartWidth = dimensions.window.width - 16 - 24 - 16;
   const chartPadding = 8;
   const chartHeight = 300;
 
@@ -780,7 +837,6 @@ const HabitChartCard = ({
     return visibleBucketData.length > 1 ? (
       <Area
         data={visibleBucketData}
-        smoothing='cubic-spline'
         theme={{
           gradient: {
             from: {
@@ -837,7 +893,7 @@ const HabitChartCard = ({
         }}
         hideTooltipOnDragEnd
         onTooltipSelect={(value, index) => {
-          if (value.x < horizontalMin) return;
+          if (value.x < horizontalMin - 1) return;
           setSelectedHabitDataIndex((prev) => {
             if (prev !== index) {
               triggerHaptic('selection');
@@ -927,36 +983,40 @@ const HabitChartCard = ({
 
     const ratio = selectedHabitDataIndex / horizontalMax;
     const justifyContent = 'center';
-    return selectedHabitDataIndex < 0 ? null : (
+    return (
       <View style={s.chartSelectionContainer}>
-        <View
-          style={
-            [s.chartSelectionLine, 
-            {
-              top: 54 - chartPadding,
-              left: (selectedHabitDataIndex / horizontalMax) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
-              borderColor: globalPalette.primary,
-            }
-          ]}
-        />
-        <View style={{ flexGrow: 1 }} />
-        <View style={s.chartSelection}>
-          <View style={{ ...s.chartSelectionRow, justifyContent }}>
-            <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-              {selectedBucketString}
-            </Text>
-            <Points points={selectedDateValue} decimals={hasNonStandardRewardHabit ? 1 : 0} size='x-small' inline />
-          </View>
-          {selectedDateAverage !== null ? (
-            <View style={{ ...s.chartSelectionRow, justifyContent }}>
-              <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-                {selectedDateAverageLabel}
-              </Text>
-              <Points points={selectedDateAverage} decimals={1} size='x-small' inline />
+        {selectedHabitDataIndex >= 0 && (
+          <>
+            <View
+              style={
+                [s.chartSelectionLine, 
+                {
+                  top: 54 - chartPadding,
+                  left: (selectedHabitDataIndex / horizontalMax) * (chartWidth - 2 * chartPadding) + chartPadding - 1,
+                  borderColor: globalPalette.primary,
+                }
+              ]}
+            />
+            <View style={[s.chartSelection, { justifyContent }]}>
+              <View>
+                <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                  <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                    {selectedBucketString}
+                  </Text>
+                  <Points points={selectedDateValue} decimals={hasNonStandardRewardHabit ? 1 : 0} size='x-small' inline />
+                </View>
+                {selectedDateAverage !== null ? (
+                  <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                    <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                      {selectedDateAverageLabel}
+                    </Text>
+                    <Points points={selectedDateAverage} decimals={1} size='x-small' inline />
+                  </View>
+                ) : null}
+              </View>
             </View>
-          ) : null}
-        </View>
-        <View style={{ flexGrow: 1 }} />
+          </>
+        )}
       </View>
     )
   }, [...habitChartInputs, selectedHabitDataIndex]);
@@ -996,21 +1056,19 @@ const HabitChartCard = ({
   return habits.length === 0 ? null : (
     <Surface style={s.cardContainer} elevation={0}>
       <Text variant='titleLarge'>Habits</Text>
-      <View style={{ ...s.cardRow, gap: 16, alignItems: 'flex-start', marginTop: 8 }}>
+      <View style={{ ...s.cardRow, gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
         <View style={s.chartControls}>
           {habitBucketSizeDropdown}
           {habitTrendlineDropdown}
         </View>
         {chartStats}
       </View>
-      <View style={s.cardRow}>
-        <View style={{ paddingTop: 52, paddingBottom: 0 }}>
-          {chart}
-          {chartTicks}
-          {chartSelection}
-        </View>
+      <View style={{ paddingHorizontal: 8 }}>
+        {chartSelection}
+        {chart}
+        {chartTicks}
+        {chartDurationButtons}
       </View>
-      {chartDurationButtons}
     </Surface>
   );
 };
@@ -1114,7 +1172,7 @@ const MeasurementChartCard = ({
   else if (chartDuration > 40) dotSize = 5;
   else if (chartDuration > 20) dotSize = 6;
 
-  const chartWidth = dimensions.window.width - 32 - 32;
+  const chartWidth = dimensions.window.width - 16 - 24 - 16;
   const chartPadding = 8;
   const chartHeight = 300;
 
@@ -1163,7 +1221,6 @@ const MeasurementChartCard = ({
     return selectedMeasurementData.length > 1 ? (
       <Area
         data={selectedMeasurementData}
-        smoothing='cubic-spline'
         theme={{
           gradient: {
             from: {
@@ -1199,7 +1256,7 @@ const MeasurementChartCard = ({
         }}
         hideTooltipOnDragEnd
         onTooltipSelect={(value, index) => {
-          if (value.x < horizontalMin) return;
+          if (value.x < horizontalMin - 1) return;
           setSelectedMeasurementDataIndex((prev) => {
             if (prev !== index) {
               triggerHaptic('selection');
@@ -1316,59 +1373,53 @@ const MeasurementChartCard = ({
     const note = selectedMeasurement?.notes?.find(({ date }) => date === selectedSimpleDate.toString());
 
     const ratio = selectedDateDayOffset / horizontalMax;
-    const justifyContent = 'center';
-    return selectedMeasurementDataIndex < 0 ? null : (
+    const justifyContent = note?.content ? 'flex-end' : 'center';
+    return (
       <View style={s.chartSelectionContainer}>
-        <View
-          style={[
-            s.chartSelectionLine,
-            {
-              top: 54 - chartPadding,
-              left: ratio * (chartWidth - 2 * chartPadding) + chartPadding - 1,
-              borderColor: measurementPalette.primary || theme.colors.onSurface,
-            }
-          ]}
-        />
-        <View style={{ flexGrow: 1, flexBasis: 0, minWidth: 48 }}>
-          <IconButton
-            style={{ margin: 0, borderRadius: 4}}
-            icon={noteVisible ? Icons.note : Icons.noteOutline}
-            size={18}
-            iconColor={measurementPalette.primary}
-            containerColor={theme.colors.elevation.level3}
-            onPress={() => setNoteVisible(!noteVisible)}
-            hitSlop={8}
-          />
-        </View>
-        <View style={s.chartSelection}>
-          {note && noteVisible ? (
-            <ScrollView>
-              <Text variant='bodySmall'>"{note?.content}"</Text>
-            </ScrollView>
-          ) : (
-            <>
-              <View style={{ ...s.chartSelectionRow, justifyContent }}>
-                <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-                  {selectedDateString}
-                </Text>
-                <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
-                  {selectedDateValueString}
-                </Text>
-              </View>
-              {selectedDateAverageString ? (
+        {selectedMeasurementDataIndex >= 0 && (
+          <>
+            <View
+              style={[
+                s.chartSelectionLine,
+                {
+                  top: 54 - chartPadding,
+                  left: ratio * (chartWidth - 2 * chartPadding) + chartPadding - 1,
+                  borderColor: measurementPalette.primary || theme.colors.onSurface,
+                }
+              ]}
+            />
+            <View style={[s.chartSelection, { justifyContent }]}>
+              {!!note?.content && (
+                <>
+                  <Icon source={Icons.note} size={16} color={measurementPalette.primary} />
+                  <ScrollView style={s.chartSelectionNote}>
+                    <Text variant='bodySmall'>{note?.content ? `"${note.content}"` : ''}</Text>
+                  </ScrollView>
+                </>
+              )}
+              <View>
                 <View style={{ ...s.chartSelectionRow, justifyContent }}>
                   <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
-                    {selectedDateAverageLabel}
+                    {selectedDateString}
                   </Text>
                   <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
-                    {selectedDateAverageString}
+                    {selectedDateValueString}
                   </Text>
                 </View>
-              ) : null}
-            </>
-          )}
-        </View>
-        <View style={{ flexGrow: 1, minWidth: note && noteVisible ? 0 : 48 }} />
+                {selectedDateAverageString ? (
+                  <View style={{ ...s.chartSelectionRow, justifyContent }}>
+                    <Text style={s.chartSelectionLabel} numberOfLines={1} variant='bodyMedium'>
+                      {selectedDateAverageLabel}
+                    </Text>
+                    <Text style={s.chartSelectionValue} numberOfLines={1} variant='titleSmall'>
+                      {selectedDateAverageString}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </>
+        )}
       </View>
     )
   }, [...measurementChartInputs, selectedMeasurementDataIndex, noteVisible]);
@@ -1404,21 +1455,19 @@ const MeasurementChartCard = ({
   return measurements.length === 0 ? null : (
     <View style={s.cardContainer}>
       <Text variant='titleLarge'>Measurements</Text>
-      <View style={{ ...s.cardRow, gap: 16, alignItems: 'flex-start', marginTop: 8 }}>
+      <View style={{ ...s.cardRow, gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
         <View style={s.chartControls}>
           {measurementDropdown}
           {measurementTrendlineDropdown}
         </View>
         {chartStats}
       </View>
-      <View style={s.cardRow}>
-        <View style={{ paddingTop: 52, paddingBottom: 0 }}>
-          {chart}
-          {chartTicks}
-          {chartSelection}
-        </View>
+      <View style={{ paddingHorizontal: 8 }}>
+        {chartSelection}
+        {chart}
+        {chartTicks}
+        {chartDurationButtons}
       </View>
-      {chartDurationButtons}
     </View>
   );
 };
