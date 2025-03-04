@@ -69,7 +69,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
   const handleSave = () => {
     if (hasErrors()) {
       setSaveAttempted(true);
-      return;
+      return false;
     }
 
     const step = isBool ? 1 : isCombo ? 0 : isTime ? parseFloat(formMeasurement.step) / 60 : parseFloat(formMeasurement.step);
@@ -93,6 +93,7 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
 
     isNew ? handleAddMeasurement(nextMeasurement) : handleEditMeasurement(nextMeasurement);
     handleFormClose();
+    return true;
   };
 
   const handleCancel = () => {
@@ -645,6 +646,29 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
                 </>}
               </>
             )}
+            {!isUnset && !hasErrors() &&
+              <Button
+                mode='text'
+                style={s.createHabitButton}
+                onPress={() => {
+                  const success = handleSave();
+                  if (success) {
+                    const step = isBool ? 1 : isCombo ? 0 : isTime ? parseFloat(formMeasurement.step) / 60 : parseFloat(formMeasurement.step);
+                    const initial = isBool ? 0 : parseFloat(formMeasurement.initial);
+                    const suggestedTarget = step + initial;
+                    router.push(`/habit/create?name=${formMeasurement.name}&category=${formMeasurement.category}&baseColor=${formMeasurement.baseColor}&measurementId=${formMeasurement.id}&target=${suggestedTarget}`);
+                  }
+                }}
+                textColor={palette.primary}
+              >
+                <View style={{ flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                  <Text variant='labelLarge' style={s.createHabitButtonText}>
+                    {isNew ? 'Create with Habit' : 'Save with Habit'}
+                  </Text>
+                  <Icon source={'chevron-right'} size={20} color={palette.primary} />
+                </View>
+              </Button>
+            }
           </View>
         </ScrollView>
         <View style={s.buttons}>
@@ -665,9 +689,9 @@ export default function MeasurementForm({ measurement, formType } : MeasurementF
             labelStyle={s.buttonLabel}
             onPress={() => handleSave()}
             textColor={palette.primary}
-            disabled={saveAttempted && hasErrors()}
+            disabled={hasErrors()}
           >
-            <Text variant='labelLarge' style={[s.buttonText, saveAttempted && hasErrors() ? { color: theme.colors.onSurfaceDisabled } : {}]}>
+            <Text variant='labelLarge' style={[s.buttonText, hasErrors() ? { color: theme.colors.onSurfaceDisabled } : {}]}>
               {isNew ? 'Create' : 'Save'}
             </Text>
           </Button>
@@ -737,7 +761,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     backgroundColor: theme.colors.background,
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingBottom: 72,
+    paddingBottom: 80,
   },
   scrollContainer: {
     paddingVertical: 16,
@@ -751,7 +775,6 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     flexShrink: 1,
     maxWidth: 600,
     paddingHorizontal: 24,
-    paddingBottom: 24,
   },
   formSectionHeader: {
     gap: 4,
@@ -837,6 +860,15 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     lineHeight: 30,
     marginVertical: -3,
   },
+  createHabitButton: {
+    borderRadius: 4,
+    width: '100%',
+    marginTop: 16,
+  },
+  createHabitButtonText: {
+    color: palette.primary,
+    textTransform: 'uppercase',
+  },
   buttons: {
     width: '100%',
     position: 'absolute',
@@ -859,6 +891,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   buttonText: {
     fontSize: 16,
     color: palette.primary,
+    textTransform: 'uppercase',
   },
   cancelButton: {
 

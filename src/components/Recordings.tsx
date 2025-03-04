@@ -35,7 +35,7 @@ const Recordings = () => {
   const theme = useTheme();
   const { baseColor, globalPalette, basePalette } = usePalettes();
   const styles = useMemo(() => createStyles(theme, globalPalette), [theme, globalPalette]);
-  const { top, bottom } = useSafeAreaInsets();
+  const { top } = useSafeAreaInsets();
 
   const measurements = useMeasurements();
 
@@ -305,10 +305,39 @@ const Recordings = () => {
   }, [measurements, selectedWeekDates, mergedRecordingsMap]);
 
   const dispatch = useDispatch();
-  const updateRecordings = useRef<null | NodeJS.Timeout>(null);
+  const submitRecordingUpdatesTimeout = useRef<null | NodeJS.Timeout>(null);
+  const pendingRecordingUpdates = useRef<null | Map<string, Map<string, number | null>>>(null);
+  const submitRecordingUpdates = useCallback(() => {
+    if (!pendingRecordingUpdates.current) return;
+
+    const updatedMeasurements: Measurement[] = [];
+    [...pendingRecordingUpdates.current.entries()].forEach(([measurementId, recordingsMap]) => {
+      const measurement = measurements.find((m) => m.id === measurementId);
+      if (!measurement) return;
+
+      let hasUpdates = false;
+      const nextRecordings = [...measurement.recordings];
+      [...recordingsMap.entries()].forEach(([date, value]) => {
+        const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
+        const recording = nextRecordings[recordingIndex];
+        if (recording?.value !== value) {
+          recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
+          hasUpdates = true;
+        }
+      });
+
+      if (hasUpdates) {
+        updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
+      }
+    });
+
+    if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
+    pendingRecordingUpdates.current = null;
+  }, [measurements, dispatch]);
+
   const updateRecording = useCallback((value: number | null, measurement: Measurement, date: string) => {
-    setTempRecordingsMap(prevMap => {
-      const nextTempRecordingsMap = new Map([...prevMap.entries()].map(([ id, recordingsMap]) => [
+    setTempRecordingsMap(() => {
+      const nextTempRecordingsMap = new Map([...tempRecordingsMap.entries()].map(([ id, recordingsMap]) => [
         id,
         new Map([...recordingsMap.entries()]),
       ]));
@@ -317,32 +346,15 @@ const Recordings = () => {
       recordingsMap.set(date, value);
       nextTempRecordingsMap.set(measurement.id, recordingsMap);
   
-      if (updateRecordings.current) clearTimeout(updateRecordings.current);
-      updateRecordings.current = setTimeout(() => {
-        const updatedMeasurements: Measurement[] = [];
-        [...nextTempRecordingsMap.entries()].forEach(([_, recordingsMap]) => {
-          let hasUpdates = false;
-          const nextRecordings = [...measurement.recordings];
-          [...recordingsMap.entries()].forEach(([date, value]) => {
-            const recordingIndex = nextRecordings.findIndex((recording) => recording.date === date);
-            const recording = nextRecordings[recordingIndex];
-            if (recording?.value !== value) {
-              recordingIndex ===  -1 ? nextRecordings.push({ date, value }) : nextRecordings.splice(recordingIndex, 1, { ...recording, value });
-              hasUpdates = true;
-            }
-          });
-    
-          if (hasUpdates) {
-            updatedMeasurements.push({ ...measurement, recordings: nextRecordings.filter(({ value }) => value !== null) });
-          }
-        });
-    
-        if (updatedMeasurements.length) dispatch(callUpdateMeasurements(updatedMeasurements));
-      }, 750);
+      pendingRecordingUpdates.current = nextTempRecordingsMap;
+      if (submitRecordingUpdatesTimeout.current) clearTimeout(submitRecordingUpdatesTimeout.current);
+      submitRecordingUpdatesTimeout.current = setTimeout(() => {
+        submitRecordingUpdates();
+      }, 1000);
 
       return nextTempRecordingsMap;
     });
-  }, [dispatch, updateRecordings, setTempRecordingsMap]);
+  }, [submitRecordingUpdatesTimeout, tempRecordingsMap, setTempRecordingsMap, submitRecordingUpdates]);
 
   const updateNote = useCallback((content: string | null, measurement: Measurement, date: string) => {
     const nextNotes = [...(measurement.notes || [])];
@@ -367,7 +379,7 @@ const Recordings = () => {
 
   const clearRecordings = (date = selectedDate) => {
     setTempRecordingsMap(new Map());
-    if (updateRecordings.current) clearTimeout(updateRecordings.current);
+    if (submitRecordingUpdatesTimeout.current) clearTimeout(submitRecordingUpdatesTimeout.current);
 
     const updatedMeasurements: Measurement[] = [];
     measurements.forEach((measurement) => {
@@ -715,6 +727,7 @@ const Recordings = () => {
     )
   }, [isReordering, isArchiving, baseColor, showMeasurements, showHabits, styles]);
 
+  const [showTimelineStatuses, setShowTimelineStatuses] = useState(false);
   const timelineStatuses = useMemo(() => {
     return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
@@ -809,7 +822,12 @@ const Recordings = () => {
           tickWidth={3}
           tickColor={theme.colors.onSurfaceDisabled}
         />
-        <View style={{ position: 'absolute', width: '100%', left: 20,top: 16, overflow: 'visible' }}>
+        <Pressable
+          style={{ position: 'absolute', width: '100%', top: 16, paddingLeft: 20, overflow: 'visible' }}
+          onPress={() => {
+            setShowTimelineStatuses(prev => !prev);
+          }}
+        >
           <View style={{ alignSelf: 'center' }}>
             <View style={styles.weekPointsContainer}>
               <Points
@@ -823,12 +841,13 @@ const Recordings = () => {
               />
               <Text variant='bodyMedium' style={styles.weekPointsDivider}>/</Text>
               <Text variant='bodyLarge' style={{ textAlign: 'right' }}>{perWeekPointTarget}</Text>
+              <Icon source={showTimelineStatuses ? Icons.up : Icons.down} size={16} color={theme.colors.onSurface} />
             </View>
           </View>
-        </View>
+        </Pressable>
       </View>
     );
-  }, [displayedHabits.length, dimensions.width, selectedWeekPointTotal, perWeekPointTarget, daysThisWeek, styles]);
+  }, [displayedHabits.length, dimensions.width, selectedWeekPointTotal, perWeekPointTarget, daysThisWeek, styles, showTimelineStatuses]);
 
   const renderSectionTitle = useCallback(() => {
     const buttonStyle: ViewStyle = {
@@ -1161,7 +1180,7 @@ const Recordings = () => {
         let switchColor = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
         if (isDisabled) switchColor = theme.colors.surfaceDisabled;
         else if (baseColor) switchColor = globalPalette.backdrop;
-
+      
         const measurementCount = measurementCounts[selectedDayOfWeek];
         const measurementCompletion = measurementCompletions[selectedDayOfWeek];
         
@@ -1180,47 +1199,6 @@ const Recordings = () => {
             alignSelf: 'stretch',
             position: 'relative',
           }}>
-            {/* <View style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 64,
-              height: 56,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
-                <CircularProgress
-                  size={20}
-                  strokeWidth={2}
-                  progress={measurementCompletion / measurementCount}
-                  color={measurementColor}
-                  trackColor={theme.colors.surfaceDisabled}
-                  icon={Icons.measurement}
-                  iconColor={measurementCompletion === measurementCount ? measurementColor : theme.colors.surfaceDisabled}
-                />
-              </View>
-              
-            </View>
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              width: 64,
-              height: 56,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <Points
-                style={styles.dailyPointTotal}
-                points={total}
-                size='medium'
-                inline
-                decimals={hasNonStandardRewardHabit ? 1 : 0}
-                // hideIcon={hasNonStandardRewardHabit}
-                color={habitColor}
-              />
-            </View> */}
             <View style={{ flexDirection: 'row', alignItems: 'center'}}>
               <Animated.View
                 style={[{
@@ -1240,37 +1218,59 @@ const Recordings = () => {
               />
               <Pressable
                 style={[
-                  { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+                  { width: '50%', height: 40, gap: 6, paddingLeft: 20, paddingRight: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
                 ]}
                 onPressIn={() => setContentSwitchValue(0)}
                 disabled={isDisabled}
               >
-                <View>
+                {/* <View>
                   <Icon source={Icons.measurement} size={14} color={showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
-                </View>
+                </View> */}
                 <Text variant='labelLarge' style={[
                   { color: showMeasurements ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
                 ]}>
                   MEASUREMENTS
                 </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 20 }}>
+                  <CircularProgress
+                    size={18}
+                    strokeWidth={2}
+                    progress={measurementCompletion / measurementCount}
+                    color={measurementColor}
+                    trackColor={theme.colors.surfaceDisabled}
+                    icon={Icons.measurement}
+                    iconColor={measurementCompletion === measurementCount ? measurementColor : theme.colors.surfaceDisabled}
+                  />
+                </View>
               </Pressable>
               <Pressable
                 style={[
-                  { width: '50%', height: 40, gap: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+                  { width: '50%', height: 40, gap: 6, paddingLeft: 20, paddingRight: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
                 ]}
                 onPressIn={() => setContentSwitchValue(1)}
                 disabled={isDisabled}
               >
-                <View>
+                {/* <View>
                   <Icon source={Icons.habit} size={14} color={showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled} />
-                </View>
+                </View> */}
                 <Text variant='labelLarge' style={[
                   { color: showHabits ? theme.colors.onSurface : theme.colors.onSurfaceDisabled }
                 ]}>
                   HABITS
                 </Text>
+
+                <Points
+                  style={styles.dailyPointTotal}
+                  points={total}
+                  size='medium'
+                  inline
+                  decimals={hasNonStandardRewardHabit ? 1 : 0}
+                  // hideIcon={hasNonStandardRewardHabit}
+                  color={habitColor}
+                />
               </Pressable>
-            </View>
+
+          </View>
           </View>
         )
       }}
@@ -1297,7 +1297,7 @@ const Recordings = () => {
           {timeline}
           {habitProgressBar}
           {/* {renderTimelineHeader()} */}
-          {/* {timelineStatuses} */}
+          {showTimelineStatuses && timelineStatuses}
           {contentHeader}
         </View>
         {tabs}
@@ -1588,6 +1588,8 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
       const valueWithoutOffset = (24 + (startingValue % 24)) % 24;
       setValueString(formatTimeValue(valueWithoutOffset));
       setTimeOffsetString(Math.floor(startingValue / 24).toFixed(0));
+    } else if (isBool) {
+      setValueString(startingValue ? 'Yes' : 'No');
     } else {
       setValueString(startingValue.toString());
     }
@@ -1684,7 +1686,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
             triggerHaptic('selection');
             handleShowValueDialog();
           }}
-          disabled={isCombo || isBool}
+          disabled={isCombo}
         >
           {isBool ? (
             <Icon source={value ? Icons.complete : Icons.incomplete} color={combinedPalette.primary} size={14} />
@@ -1699,7 +1701,7 @@ const RecordingMeasurementItem = (props : RecordingMeasurementItemProps) : JSX.E
           style={[styles.value, styles.defaultValue]}
           onPress={() => onValueChange ? onValueChange(measurement.initial) : null}
           disabled={isCombo}
-          onLongPress={isCombo || isBool ? undefined : () => {
+          onLongPress={isCombo ? undefined : () => {
             triggerHaptic('selection');
             handleShowValueDialog();
           }}

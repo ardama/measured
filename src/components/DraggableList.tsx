@@ -265,7 +265,7 @@ const DraggableList = ({
             triggerHaptic('selection');
             isDragging.current = true;
           }})}
-          delayLongPress={100}
+          delayLongPress={250}
         >
           {renderItem(item, index, isDraggingThis)}
         </Pressable>

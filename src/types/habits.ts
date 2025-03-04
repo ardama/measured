@@ -143,7 +143,7 @@ export const emptyHabitUpdate: HabitUpdate = {
 };
 
 const createInitialHabit = (
-  userId: string, name: string,
+  userId: string, name: string, category: string, baseColor: BaseColor,
   conditions: HabitCondition[],
   priority: number, isWeekly: boolean = false,
   daysPerWeek: number = 7, points: number = 1,
@@ -153,7 +153,7 @@ const createInitialHabit = (
   updates: [{
     date: SimpleDate.today().toString(),
     name,
-    category: '',
+    category: category || '',
     isWeekly,
     daysPerWeek,
     points,
@@ -164,6 +164,7 @@ const createInitialHabit = (
     conditions,
     predicate: 'AND',
     priority,
+    baseColor: baseColor || undefined,
   }],
 });
 

@@ -4,7 +4,7 @@ import Header from '@c/Header';
 import OptionButton from '@c/OptionButton';
 import { callCreateHabit, callDeleteHabit, callUpdateHabit } from '@s/dataReducer';
 import { useCategories, useMeasurements } from '@s/selectors';
-import { getHabitOperatorData, getHabitOperatorLabel, habitOperators, type ComputedHabit, type FormHabit, type HabitOperator, type HabitUpdate } from '@t/habits';
+import { getHabitOperatorData, getHabitOperatorLabel, habitOperators, type ComputedHabit, type FormHabit, type FormHabitCondition, type HabitOperator, type HabitUpdate } from '@t/habits';
 import { emptyMeasurement, getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
 import type { BaseColor, Palette } from '@u/colors';
 import { EmptyError, NoError } from '@u/constants/Errors';
@@ -107,7 +107,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
 
   const hasErrors = () => {
     if (getNameErrors().hasError) return true;
-    if (getConditionErrors().hasError) return true;
+    if (getConditionsErrors().hasError) return true;
 
     return false
   }
@@ -121,14 +121,15 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     return NoError;
   }
 
-  const getConditionErrors = () => {
+  const getConditionsErrors = () => {
     if (!formHabit.conditions || !formHabit.conditions.length) return EmptyError;
-    if (formHabit.conditions.find(({ measurementId, operator, target }) => {
-      if (!measurementId || (isStandardReward && !operator) || !target) return true;
-      return isNaN(parseFloat(target));
-    })) return EmptyError;
+    return formHabit.conditions.map((condition) => getConditionErrors(condition)).find(({ hasError }) => hasError) ? EmptyError : NoError;
+  }
 
-    return NoError;
+  const getConditionErrors = (condition: FormHabitCondition) => {
+    const { measurementId, operator, target } = condition;
+    if (!measurementId || (isStandardReward && !operator) || !target) return EmptyError;
+    return isNaN(parseFloat(target)) ? EmptyError : NoError;
   }
 
   const theme = useTheme();
@@ -288,7 +289,6 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     return formHabit.category?.trim() === category.trim() && (formHabit.baseColor === baseColor || (!formHabit.baseColor && !baseColor));
   });
 
-  console.log(isMinTargetTime, isMaxTargetTime, activeTimeConditionIndex);
   const renderDateTimePicker = (index?: number) => {
     const condition = index !== undefined ? formHabit.conditions[index] : formHabit.conditions[activeTimeConditionIndex];
     const target = isMinTargetTime ? condition.minTarget : isMaxTargetTime ? condition.maxTarget : condition.target;
@@ -635,6 +635,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 const rawValue = parseFloat(condition.target || suggestedTarget.toString());
 
                 const showTargetAffix = !isNaN(rawValue) && (isTime || isDuration);
+                const hasError = saveAttempted && getConditionErrors(condition).hasError;
 
                 const targetInput = isTime ? (
                   <>
@@ -647,7 +648,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       placeholderTextColor={theme.colors.onSurfaceDisabled}
                       dense
                       readOnly={Platform.OS === 'ios'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       value={timeTargetStrings[index][0] || ''}
                       onFocus={() => {
                         setActiveTimeConditionIndex(index);
@@ -705,7 +706,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       mode='outlined'
                       label='Offset'
                       value={timeOffsetStrings[index][0] || '0'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       activeOutlineColor={palette.primary || undefined}
                       keyboardType="numeric"
                       right={
@@ -744,7 +745,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     placeholder={suggestedTarget.toString()}
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
                     dense
-                    error={saveAttempted && getConditionErrors().hasError}
+                    error={hasError}
                     value={isBool ? 'Yes' : condition.target || ''}
                     onChangeText={(text) => {
                       const nextHabit = { ...formHabit };
@@ -773,7 +774,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       placeholderTextColor={theme.colors.onSurfaceDisabled}
                       dense
                       readOnly={Platform.OS === 'ios'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       value={timeTargetStrings[index][1] || ''}
                       onFocus={() => {
                         setActiveTimeConditionIndex(index);
@@ -831,7 +832,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       mode='outlined'
                       label='Offset'
                       value={timeOffsetStrings[index][1] || '0'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       activeOutlineColor={palette.primary || undefined}
                       keyboardType="numeric"
                       right={
@@ -870,7 +871,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     placeholder={suggestedTarget.toString()}
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
                     dense
-                    error={saveAttempted && getConditionErrors().hasError}
+                    error={hasError}
                     value={isBool ? 'Yes' : condition.minTarget || ''}
                     onChangeText={(text) => {
                       const nextHabit = { ...formHabit };
@@ -899,7 +900,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       placeholderTextColor={theme.colors.onSurfaceDisabled}
                       dense
                       readOnly={Platform.OS === 'ios'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       value={timeTargetStrings[index][2] || ''}
                       onFocus={() => {
                         setActiveTimeConditionIndex(index);
@@ -957,7 +958,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                       mode='outlined'
                       label='Offset'
                       value={timeOffsetStrings[index][2] || '0'}
-                      error={saveAttempted && getConditionErrors().hasError}
+                      error={hasError}
                       activeOutlineColor={palette.primary || undefined}
                       keyboardType="numeric"
                       right={
@@ -996,7 +997,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                     placeholder={suggestedTarget.toString()}
                     placeholderTextColor={theme.colors.onSurfaceDisabled}
                     dense
-                    error={saveAttempted && getConditionErrors().hasError}
+                    error={hasError}
                     value={isBool ? 'Yes' : condition.maxTarget || ''}
                     onChangeText={(text) => {
                       const nextHabit = { ...formHabit };
@@ -1023,11 +1024,18 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                         <BottomDrawer<string>
                           title='Measurement'
                           anchor={(
-                            <Pressable style={{
-                              ...s.dropdownButton,
-                              width: condition.measurementId ? 'auto' : '100%',
-                              minWidth: 120,
-                            }}>
+                            <Pressable style={[
+                              s.dropdownButton,
+                              hasError && {
+                                borderColor: theme.colors.error,
+                                borderWidth: 2,
+                                padding: 0,
+                              },
+                              {
+                                width: condition.measurementId ? 'auto' : '100%',
+                                minWidth: 120,
+                              }
+                            ]}>
                               <View style={s.dropdownButtonContent}>
                                 {condition.measurementId ? (
                                   <MeasurementLabel measurement={conditionMeasurement} size='medium' />
@@ -1063,11 +1071,18 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                           <BottomDrawer<string>
                             title='Operator'
                             anchor={
-                              <Pressable style={{
-                                ...s.dropdownButton,
-                                flexGrow: condition.operator ? 0 : 1,
-                                flexShrink: condition.operator ? 0 : 0,
-                              }}>
+                              <Pressable style={[
+                                s.dropdownButton,
+                                {
+                                  flexGrow: condition.operator ? 0 : 1,
+                                  flexShrink: condition.operator ? 0 : 0,
+                                },
+                                hasError && {
+                                  borderColor: theme.colors.error,
+                                  borderWidth: 2,
+                                  padding: 0,
+                                }
+                              ]}>
                                 <View style={s.dropdownButtonContent}>
                                   {condition.operator ? (
                                     <Icon source={getHabitOperatorData(condition.operator).icon} size={16} />
@@ -1237,9 +1252,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
             labelStyle={s.buttonLabel}
             onPress={() => handleSave()}
             textColor={palette.primary}
-            disabled={saveAttempted && hasErrors()}
+            disabled={hasErrors()}
           >
-            <Text variant='labelLarge' style={[s.buttonText, saveAttempted && hasErrors() ? { color: theme.colors.onSurfaceDisabled } : {}]}>
+            <Text variant='labelLarge' style={[s.buttonText, hasErrors() ? { color: theme.colors.onSurfaceDisabled } : {}]}>
               {isNew ? 'Create' : 'Save'}
             </Text>
           </Button>
@@ -1291,7 +1306,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     backgroundColor: theme.colors.surface,
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingBottom: 72,
+    paddingBottom: 80,
   },
   scrollContainer: {
     paddingVertical: 16,
@@ -1305,7 +1320,6 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     flexShrink: 1,
     maxWidth: 600,
     paddingHorizontal: 24,
-    paddingBottom: 24,
   },
   formSectionHeader: {
     gap: 4,
@@ -1374,6 +1388,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     borderColor: theme.colors.outline,
     height: 42,
     marginTop: 6,
+    padding: 1,
   },
   dropdownButtonContent: {
     flexShrink: 1,
@@ -1382,7 +1397,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
   },
   measurementActivity: {
     flexShrink: 4,
@@ -1452,6 +1467,7 @@ const createFormStyles = (theme: MD3Theme, palette: Palette) => StyleSheet.creat
   buttonText: {
     fontSize: 16,
     color: palette.primary,
+    textTransform: 'uppercase',
   },
   cancelButton: {
 

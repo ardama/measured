@@ -19,7 +19,7 @@ const dataStateSlice = createSlice({
           if (!measurement.category && !!measurement.variant) {
             return { ...measurement, category: measurement.name, name: measurement.variant, variant: undefined };
           }
-          return measurement;
+          return { ...measurement, category: measurement.category || '' };
         })
         .sort((a, b) => a.priority - b.priority);
       state.dataLoaded |= 1;
