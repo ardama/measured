@@ -87,25 +87,94 @@ const mergeHabitUpdate = (computedHabit: ComputedHabit, update: HabitUpdate): Co
     }, emptyComputedHabit());
   }, newComputedHabit);
 }
+// Cache for computed habits: Map<habitId, Map<effectiveDate, ComputedHabit>>
+const computedHabitCache = new Map<string, Map<string, ComputedHabit>>();
+
+// Helper to compute update dates for a habit computation
+// Returns [effectiveDate, allRelevantDates] for efficient multi-version caching
+const getHabitUpdateDates = (habit: Habit, requestedDate: SimpleDate): [string, string[]] => {
+  // Compute sorted update dates (cheap operation for typical habits with <10 updates)
+  const updateDates = habit.updates
+    .map(update => update.date)
+    .sort()
+    .filter((date, index, arr) => arr.indexOf(date) === index); // Remove duplicates
+  
+  // Find the most recent update date <= requested date and collect all relevant dates
+  const requestedDateStr = requestedDate.toString();
+  let effectiveDate = updateDates[0]; // Default to first update
+  const relevantDates: string[] = [];
+  
+  for (const updateDate of updateDates) {
+    if (updateDate <= requestedDateStr) {
+      effectiveDate = updateDate;
+      relevantDates.push(updateDate);
+    } else {
+      break;
+    }
+  }
+  
+  return [effectiveDate, relevantDates];
+};
+
 const computeHabit = (habit: Habit, date: SimpleDate = SimpleDate.today()): ComputedHabit => {
-  const initialHabit: ComputedHabit = {
+  const habitId = habit.id;
+  const [effectiveDate, relevantDates] = getHabitUpdateDates(habit, date);
+  
+  // Check cache first
+  const habitCache = computedHabitCache.get(habitId);
+  if (habitCache?.has(effectiveDate)) {
+    return habitCache.get(effectiveDate)!;
+  }
+  
+  // Initialize cache for this habit if needed
+  if (!computedHabitCache.has(habitId)) {
+    computedHabitCache.set(habitId, new Map());
+  }
+  const cache = computedHabitCache.get(habitId)!;
+  
+  // Build up habit incrementally, caching each version along the way
+  let currentHabit: ComputedHabit = {
     ...emptyComputedHabit(),
-    
     id: habit.id,
     userId: habit.userId,
+  };
+  
+  // Sort all updates once
+  const sortedUpdates = [...habit.updates].sort((a, b) => 
+    a.date >= b.date ? 1 : -1
+  );
+  
+  let updateIndex = 0;
+  
+  // Process each effective date and cache the result
+  for (const updateDate of relevantDates) {
+    // Skip if already cached
+    if (cache.has(updateDate)) {
+      currentHabit = cache.get(updateDate)!;
+      // Move updateIndex to skip already-applied updates
+      while (updateIndex < sortedUpdates.length && 
+             sortedUpdates[updateIndex].date <= updateDate) {
+        updateIndex++;
+      }
+      continue;
+    }
+    
+    // Apply all updates up to this date
+    while (updateIndex < sortedUpdates.length && 
+           sortedUpdates[updateIndex].date <= updateDate) {
+      currentHabit = mergeHabitUpdate(currentHabit, sortedUpdates[updateIndex]);
+      updateIndex++;
+    }
+    
+    // Cache this version (create a shallow copy to avoid mutation issues)
+    cache.set(updateDate, { ...currentHabit });
   }
 
-  const updates = habit.updates
-    .filter((update) => update.date <= date.toString())
-    .sort((a, b) => a.date >= b.date ? 1 : -1);
-  const computedHabit = updates.reduce((habit, update) => {
-    return mergeHabitUpdate(habit, update);
-  }, initialHabit);
+  if (!currentHabit.id) console.error('Habit id unset');
 
-  if (!computedHabit.id) console.error('Habit id unset');
-
-  return computedHabit;
+  return currentHabit;
 }
+
 
 interface HabitUpdate {
   date: string;
@@ -267,8 +336,10 @@ const getHabitPredicateIcon = (predicate: string) => predicate === 'OR' ? Icons.
 
 
 const getHabitCompletion = (
-  habit: ComputedHabit | null, measurements: Measurement[], dates: SimpleDate[],
-  recordingData?: Map<string, Map<string, number | null>>,
+  habit: ComputedHabit | null, 
+  measurements: Measurement[], 
+  dates: SimpleDate[],
+  recordingData: Map<string, Map<string, number | null>>,
 ): [boolean, number, boolean[], (number | null)[], (number | null)[]] => {
   let conditionCompletions: boolean[] = [];
   let conditionValues: (number | null)[] = [];
@@ -383,7 +454,7 @@ export {
   type FormHabit,
   type FormHabitCondition,
   mergeHabitUpdate,
-  computeHabit, 
+  computeHabit,
 
   type HabitUpdate,
   createInitialHabit,

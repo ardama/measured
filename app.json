@@ -2,7 +2,7 @@
   "expo": {
     "name": "Measured",
     "slug": "habits",
-    "version": "1.3.4",
+    "version": "1.10.19",
     "orientation": "portrait",
     "icon": "./src/assets/images/icon_yellow_solid_192x192.png",
     "scheme": "myapp",
@@ -33,7 +33,17 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

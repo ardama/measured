@@ -165,22 +165,27 @@ const getMeasurementOperatorData = (operator: (MeasurementOperator | undefined))
 type MeasurementRecording = { date: string, value: number | null };
 type MeasurementNote = { date: string, content: string };
 
+const buildRecordingDataMap = (measurements: Measurement[]): Map<string, Map<string, number | null>> => {
+  return new Map(measurements.map(({ id, recordings }) => [id, new Map(recordings.map(({ date, value }) => [date, value]))]));
+}
+
 const getMeasurementRecordingValue = (
-  measurementId: (string | undefined), date: SimpleDate, measurements: Measurement[],
-  recordingData?: Map<string, Map<string, number | null>>, visited?: string[]
+  measurementId: (string | undefined), 
+  date: SimpleDate, 
+  measurements: Measurement[],
+  recordingData: Map<string, Map<string, number | null>>,
+  visited?: string[]
 ): number | null => {
   if (!measurementId) return null;
   const measurement = measurements.find(({ id }) => id === measurementId);
   if (!measurement) return null;
 
-  const recordingDataMap = recordingData || new Map(measurements.map(({ id, recordings }) => [id, new Map(recordings.map(({ date, value }) => [date, value]))]));
-
   const isCombo = measurement.type === 'combo';
   if (isCombo) {
     if (visited && visited.indexOf(measurementId) >= 0) return null;
 
-    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, date, measurements, recordingDataMap, [...visited || [], measurementId]);
-    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, date, measurements, recordingDataMap, [...visited || [], measurementId]);
+    const leftValue = getMeasurementRecordingValue(measurement.comboLeftId, date, measurements, recordingData, [...visited || [], measurementId]);
+    const rightValue = getMeasurementRecordingValue(measurement.comboRightId, date, measurements, recordingData, [...visited || [], measurementId]);
     if (leftValue === null && rightValue === null) return null;
 
     const left = leftValue || 0;
@@ -194,7 +199,7 @@ const getMeasurementRecordingValue = (
     return null;
   }
 
-  const value = recordingDataMap.get(measurementId)?.get(date.toString());
+  const value = recordingData.get(measurementId)?.get(date.toString());
   return value === undefined ? null : value;
 }
 
@@ -203,7 +208,7 @@ const getMeasurementStartDate = (measurementId: (string | undefined), measuremen
   const measurement = measurements.find((m) => m.id === measurementId);
   if (!measurement) return null;
   
-  const recordingDataMap = recordingData || new Map(measurements.map(({ id, recordings }) => [id, new Map(recordings.map(({ date, value }) => [date, value]))]));
+  const recordingDataMap = recordingData || buildRecordingDataMap(measurements);
   let entries = [...(recordingDataMap.get(measurementId)?.entries() || [])];
   
   const isCombo = measurement?.type === 'combo';
@@ -246,6 +251,7 @@ export {
   getMeasurementOperatorData,
 
   type MeasurementRecording,
+  buildRecordingDataMap,
   getMeasurementRecordingValue,
   getMeasurementStartDate,
   getDateRecordings,

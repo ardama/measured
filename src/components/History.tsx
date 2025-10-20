@@ -8,7 +8,7 @@ import { SimpleDate } from '@u/dates';
 import Points from '@c/Points';
 import Heatmap from '@c/Heatmap';
 import { computeHabit, getHabitCompletion, type ComputedHabit } from '@t/habits';
-import { getMeasurementRecordingValue, getMeasurementTypeIcon, type Measurement, type MeasurementRecording } from '@t/measurements';
+import { buildRecordingDataMap, getMeasurementRecordingValue, getMeasurementTypeIcon, type Measurement, type MeasurementRecording } from '@t/measurements';
 import BottomDrawer, { type BottomDrawerItem } from '@c/BottomDrawer';
 import useDimensions from '@u/hooks/useDimensions';
 import { Icons } from '@u/constants/Icons';
@@ -478,6 +478,10 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
   const habits = useComputedHabits();
   const hasNonStandardRewardHabit = useHasNonStandardRewardHabit();
   const measurements = useMeasurements();
+  
+  // Build recording data map once for all computations
+  const recordingData = useMemo(() => buildRecordingDataMap(measurements), [measurements]);
+  
   const filteredHabits = habits.filter(({ isWeekly }) => includeWeeklyHabits || !isWeekly);
   const dailyPointTarget = filteredHabits.reduce((previous: number, current: ComputedHabit) => {
     return previous + current.points * (current.isWeekly ? 1 : current.daysPerWeek);
@@ -490,12 +494,12 @@ const MonthSummaryCard = (_: MonthSummaryCardProps) : JSX.Element | null => {
 
     const weekDates = SimpleDate.generateWeek(monthDate).slice(0, monthDate.getDayOfWeek() + 1);
     return filteredHabits.reduce((datePoints, habit) => {
-      const [_, points] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, habit.isWeekly ? weekDates : [monthDate]);
+      const [_, points] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, habit.isWeekly ? weekDates : [monthDate], recordingData);
       if (!points) return datePoints;
       if (!habit.isWeekly || monthDate.getDayOfWeek() === 0) return datePoints + points;
 
       const previousDateWeekDates = weekDates.slice(0, -1);
-      const [__, pointsPreviousDate] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, previousDateWeekDates);
+      const [__, pointsPreviousDate] = getHabitCompletion(computeHabit(habit, useRelativeHabits ? monthDate : today), measurements, previousDateWeekDates, recordingData);
       return datePoints + (points - pointsPreviousDate);
     }, 0);
   });
@@ -684,6 +688,10 @@ const HabitChartCard = ({
 
   const habits = useComputedHabits();
   const hasNonStandardRewardHabit = useHasNonStandardRewardHabit();
+  
+  // Build recording data map once for all computations
+  const recordingData = useMemo(() => buildRecordingDataMap(measurements), [measurements]);
+  
   const computeHabitPointData = useCallback((
     startDate: SimpleDate,
     endDate: SimpleDate = today,
@@ -707,7 +715,7 @@ const HabitChartCard = ({
       
       const currentWeekDates = SimpleDate.generateWeek(currentDate).slice(0, currentDate.getDayOfWeek() + 1);
       filteredHabits.forEach((habit) => {
-        const [_, dateHabitPoints] = getHabitCompletion(computeHabit(habit, useRelative ? currentDate : today), measurements, habit.isWeekly ? currentWeekDates : [currentDate]);
+        const [_, dateHabitPoints] = getHabitCompletion(computeHabit(habit, useRelative ? currentDate : today), measurements, habit.isWeekly ? currentWeekDates : [currentDate], recordingData);
         currentDatePoints.set(habit.id, dateHabitPoints);
         
         if (!dateHabitPoints) return;
@@ -724,7 +732,7 @@ const HabitChartCard = ({
     }
 
     return pointTotals;
-  }, [habits, measurements]);
+  }, [habits, measurements, recordingData]);
   
   const habitPoints = useMemo(() => {
     const points = computeHabitPointData(firstMeasurementDate);
@@ -1084,6 +1092,9 @@ const MeasurementChartCard = ({
   const dimensions = useDimensions();
 
   const { globalPalette, getCombinedPalette } = usePalettes();
+  
+  // Build recording data map once for all computations
+  const recordingData = useMemo(() => buildRecordingDataMap(measurements), [measurements]);
 
   const [selectedMeasurementDataIndex, setSelectedMeasurementDataIndex] = useState(-1);
   const [measurementChartDuration, setMeasurementChartDuration] = useState(MEASUREMENT_CHART_DURATION_ITEMS[1]);
@@ -1143,12 +1154,12 @@ const MeasurementChartCard = ({
 
   const selectedMeasurementData = useMemo(() => selectedMeasurementRecordingDates.map((date) => {
     const daysAgo = SimpleDate.daysBetween(today, date);
-    const value = getMeasurementRecordingValue(id, date, measurements);
+    const value = getMeasurementRecordingValue(id, date, measurements, recordingData);
     return value === null ? null : {
       x: chartDuration - daysAgo,
       y: value,
     };
-  }).filter((data) => data !== null), [id, measurementRecordingDates, chartDuration, today]);
+  }).filter((data) => data !== null), [id, measurementRecordingDates, chartDuration, today, recordingData]);
   const selectedVisibleData = useMemo(() => selectedMeasurementData.filter(({ x }) => x >= 0), [selectedMeasurementData]);
 
   const averageData = useMemo(() => {

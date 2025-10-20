@@ -727,7 +727,7 @@ const Recordings = () => {
     )
   }, [isReordering, isArchiving, baseColor, showMeasurements, showHabits, styles]);
 
-  const [showTimelineStatuses, setShowTimelineStatuses] = useState(false);
+  const [showTimelineStatuses, setShowTimelineStatuses] = useState(true);
   const timelineStatuses = useMemo(() => {
     return displayedMeasurements.length > 0 && (
       <View style={[{ borderRadius: 4, flexShrink: 1, marginHorizontal: 16 }]}>
