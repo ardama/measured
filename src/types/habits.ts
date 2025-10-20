@@ -287,7 +287,7 @@ interface HabitCondition {
   maxTarget?: number,
 }
 
-type HabitRewardType = 'standard' | 'partial' | 'extra';
+type HabitRewardType = 'standard' | 'partial' | 'extra' | 'both';
 type HabitOperator = '>=' | '<=' |'>' | '<' | '==' | '!=';
 const habitOperators: HabitOperator[] = [
   '>=',
@@ -373,7 +373,7 @@ const getHabitCompletion = (
     conditionValue = measurementValues.reduce((acc, curr) => acc + curr, 0);
     
     let operator = condition.operator;
-    if (habit.rewardType === 'partial' && condition.minTarget !== undefined) {
+    if ((habit.rewardType === 'partial' || habit.rewardType === 'both') && condition.minTarget !== undefined) {
       operator = condition.target > condition.minTarget ? '>=' : '<=';
     } else if (habit.rewardType === 'extra' && condition.maxTarget !== undefined) {
       operator = condition.maxTarget > condition.target ? '>=' : '<=';
@@ -425,7 +425,8 @@ const getHabitCompletion = (
 
   const complete = habit.predicate === 'OR' ? !!conditionCompletions.find((c) => c) : conditionCompletions.findIndex((c) => !c) === -1;
   points = complete ? habit.points : 0;
-  if (habit.rewardType === 'partial') {
+  
+  if (habit.rewardType === 'partial' || habit.rewardType === 'both') {
     const condition = habit.conditions[0];
     const conditionValue = conditionValues[0];
 
@@ -434,7 +435,9 @@ const getHabitCompletion = (
     const partialPointProgress = partialPointValue / partialPointWindow;
     const partialPoints = Math.min(partialPointProgress * (habit.points - habit.minimumPoints), habit.points - habit.minimumPoints);
     if (partialPoints >= 0) points = partialPoints + habit.minimumPoints;
-  } else if (habit.rewardType === 'extra') {
+  }
+  
+  if (habit.rewardType === 'extra' || habit.rewardType === 'both') {
     const condition = habit.conditions[0];
     const conditionValue = conditionValues[0];
 
@@ -460,6 +463,8 @@ export {
   createInitialHabit,
   constructHabitUpdate,
   isEmptyHabitUpdate,
+  
+  type HabitRewardType,
   
   type HabitOperator,
   habitOperators,

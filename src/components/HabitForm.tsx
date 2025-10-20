@@ -4,7 +4,7 @@ import Header from '@c/Header';
 import OptionButton from '@c/OptionButton';
 import { callCreateHabit, callDeleteHabit, callUpdateHabit } from '@s/dataReducer';
 import { useCategories, useMeasurements } from '@s/selectors';
-import { getHabitOperatorData, getHabitOperatorLabel, habitOperators, type ComputedHabit, type FormHabit, type FormHabitCondition, type HabitOperator, type HabitUpdate } from '@t/habits';
+import { getHabitOperatorData, getHabitOperatorLabel, habitOperators, type ComputedHabit, type FormHabit, type FormHabitCondition, type HabitOperator, type HabitRewardType, type HabitUpdate } from '@t/habits';
 import { emptyMeasurement, getMeasurementTypeData, getMeasurementTypeIcon } from '@t/measurements';
 import type { BaseColor, Palette } from '@u/colors';
 import { EmptyError, NoError } from '@u/constants/Errors';
@@ -50,8 +50,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   
   if (formHabit === null) return;
   
-  const isPartialReward = formHabit.rewardType === 'partial';
-  const isExtraReward = formHabit.rewardType === 'extra';
+  const hasPartialReward = formHabit.rewardType === 'partial' || formHabit.rewardType === 'both';
+  const hasExtraReward = formHabit.rewardType === 'extra' || formHabit.rewardType === 'both';
   const isStandardReward = formHabit.rewardType === 'standard';
 
   const handleFormEdit = (nextHabit: FormHabit) => {
@@ -84,8 +84,8 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
       ...formHabit,
       name: formHabit.name.trim(),
       category: formHabit.category.trim(),
-      daysPerWeek: formHabit.daysPerWeek || 7,
-      points: formHabit.points || 1,
+      daysPerWeek: formHabit.daysPerWeek || 0,
+      points: formHabit.points || 0,
       maximumPoints: formHabit.maximumPoints || 0,
       minimumPoints: formHabit.minimumPoints || 0,
       conditions: formHabit.conditions.map((condition) => ({
@@ -127,9 +127,34 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
   }
 
   const getConditionErrors = (condition: FormHabitCondition) => {
-    const { measurementId, operator, target } = condition;
+    const { measurementId, operator, target, minTarget, maxTarget } = condition;
     if (!measurementId || (isStandardReward && !operator) || !target) return EmptyError;
-    return isNaN(parseFloat(target)) ? EmptyError : NoError;
+    if (isNaN(parseFloat(target))) return EmptyError;
+    
+    const targetValue = parseFloat(target);
+    const minTargetValue = minTarget ? parseFloat(minTarget) : undefined;
+    const maxTargetValue = maxTarget ? parseFloat(maxTarget) : undefined;
+    
+    // When we have both partial and extra credit, ensure all three targets are consistently ordered
+    if (minTargetValue !== undefined && !isNaN(minTargetValue) && 
+        maxTargetValue !== undefined && !isNaN(maxTargetValue)) {
+      // Check if they're all increasing OR all decreasing
+      const isIncreasing = minTargetValue < targetValue && targetValue < maxTargetValue;
+      const isDecreasing = minTargetValue > targetValue && targetValue > maxTargetValue;
+      
+      if (!isIncreasing && !isDecreasing) return EmptyError;
+    } else {
+      // Only partial or only extra credit - check individual ordering
+      if (minTargetValue !== undefined && !isNaN(minTargetValue)) {
+        if (minTargetValue === targetValue) return EmptyError;
+      }
+      
+      if (maxTargetValue !== undefined && !isNaN(maxTargetValue)) {
+        if (maxTargetValue === targetValue) return EmptyError;
+      }
+    }
+    
+    return NoError;
   }
 
   const theme = useTheme();
@@ -145,7 +170,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     disabled: measurement.type === 'bool' && !isStandardReward,
   }));
 
-  const daysPerWeekItems: BottomDrawerItem<number>[] = [1, 2, 3, 4, 5, 6, 7].map((num) => ({
+  const daysPerWeekItems: BottomDrawerItem<number>[] = [0, 1, 2, 3, 4, 5, 6, 7].map((num) => ({
     value: num,
     title: `${num} day${num === 1 ? '' : 's'} / week`,
   }));
@@ -154,9 +179,9 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
     value: num,
     title: `${num} point${num === 1 ? '' : 's'}`,
     disabled: (
-      isExtraReward && (num >= (formHabit.maximumPoints || 9))
+      hasExtraReward && (num >= (formHabit.maximumPoints || 9))
     ) || (
-      isPartialReward && (num <= (formHabit.minimumPoints || 0))
+      hasPartialReward && (num <= (formHabit.minimumPoints || 0))
     ),
   }));
 
@@ -493,64 +518,13 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
               </Text>}
             </View>
             <View style={s.formSection}>
-              <OptionButton
-                selected={isStandardReward}
-                onPress={() => {
-                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'standard' };
-                  handleFormEdit(nextHabit);
-                }}
-                icon={Icons.fullCredit}
-                title='ALL OR NOTHING'
-                subtitle='Hit the target to earn all the points.'
-                palette={palette}
-                isRadio
-              />
-              <OptionButton
-                selected={isPartialReward}
-                onPress={() => {
-                  const minimumPoints = Math.max(0, formHabit.points - 1);
-                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'partial', minimumPoints, points: Math.min(9, minimumPoints + 1) };
-                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
-                  const measurementId = nextHabit.conditions[0]?.measurementId;
-                  if (measurementId) {
-                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
-                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
-                  }
-                  handleFormEdit(nextHabit);
-                }}
-                icon={Icons.partialCredit}
-                title='PARTIAL CREDIT'
-                subtitle='Get near the target to earn some of the points.'
-                palette={palette}
-                isRadio
-              />
-              <OptionButton
-                selected={isExtraReward}
-                onPress={() => {
-                  const maximumPoints = Math.min(9, formHabit.points + 1);
-                  const nextHabit: FormHabit = { ...formHabit, rewardType: 'extra', maximumPoints, points: Math.max(0, maximumPoints - 1) };
-                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
-                  const measurementId = nextHabit.conditions[0]?.measurementId;
-                  if (measurementId) {
-                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
-                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
-                  }
-                  handleFormEdit(nextHabit);
-                }}
-                icon={Icons.extraCredit}
-                iconStyle={{ transform: [{ rotate: '180deg' }] }}
-                title='EXTRA CREDIT'
-                subtitle='Do better than the target to earn extra points.'
-                palette={palette}
-                isRadio
-              />
-              <View style={s.formRow}>
+              <View style={[s.formRow, { marginBottom: 12 }]}>
                 <BottomDrawer
                   title='Reward'
                   anchor={(toggleVisibility) => (
                     <Pressable style={s.input} onPress={toggleVisibility}>
                       <TextInput
-                        label={isStandardReward ? 'Base reward' : 'Base reward'}
+                        label='Base reward'
                         mode='outlined'
                         onPress={toggleVisibility}
                         readOnly
@@ -571,31 +545,116 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                 />
                 <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
               </View>
-              {!isStandardReward && (
-                <View style={s.formRow}>
+              <OptionButton
+                selected={hasPartialReward}
+                isCheckbox
+                style={{ marginTop: 8 }}
+                onPress={() => {
+                  const hasPartial = !hasPartialReward;
+                  const hasExtra = hasExtraReward;
+                  
+                  const rewardType: HabitRewardType = 
+                    hasPartial && hasExtra ? 'both' :
+                    hasPartial ? 'partial' :
+                    hasExtra ? 'extra' :
+                    'standard';
+                  
+                  const minimumPoints = hasPartial ? (hasPartialReward ? formHabit.minimumPoints : Math.max(0, formHabit.points - 1)) : 0;
+                  const points = hasPartial && !hasPartialReward ? Math.min(9, minimumPoints + 1) : formHabit.points;
+                  const nextHabit: FormHabit = { ...formHabit, rewardType, minimumPoints, points };
+                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
+                  const measurementId = nextHabit.conditions[0]?.measurementId;
+                  if (measurementId) {
+                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
+                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
+                  }
+                  handleFormEdit(nextHabit);
+                }}
+                icon={Icons.partialCredit}
+                title='PARTIAL CREDIT'
+                subtitle='Get near the target to earn some of the points.'
+                palette={palette}
+              />
+              {hasPartialReward && (
+                <View style={[s.formRow, { marginBottom: 12 }]}>
                   <BottomDrawer
-                    title={isPartialReward ? 'Minimum reward' : 'Maximum reward'}
+                    title='Minimum reward'
                     anchor={(toggleVisibility) => (
                       <Pressable style={s.input} onPress={toggleVisibility}>
                         <TextInput
-                          label={isPartialReward ? 'Minimum reward' : 'Maximum reward'}
+                          label='Minimum reward'
                           mode='outlined'
                           onPress={toggleVisibility}
                           readOnly
-                          value={isPartialReward ? `${formHabit.minimumPoints}` : `${formHabit.maximumPoints}`}
+                          value={`${formHabit.minimumPoints}`}
                           right={<TextInput.Affix text="points" />}
                           activeOutlineColor={palette.primary || undefined}
                         />
                       </Pressable>
                     )}
-                    items={isPartialReward ? partialPointsItems : extraPointsItems}
-                    selectedItem={
-                      isPartialReward ? partialPointsItems.find(({ value }) => value === formHabit.minimumPoints)
-                      : extraPointsItems.find(({ value }) => value === formHabit.maximumPoints) || null}
+                    items={partialPointsItems}
+                    selectedItem={partialPointsItems.find(({ value }) => value === formHabit.minimumPoints) || null}
                     onSelect={(item) => {
-                      const nextHabit: FormHabit = {...formHabit };
-                      if (isPartialReward) nextHabit.minimumPoints = item.value;
-                      else nextHabit.maximumPoints = item.value;
+                      const nextHabit: FormHabit = {...formHabit, minimumPoints: item.value };
+                      handleFormEdit(nextHabit);
+                    }}
+                    showSearchbar={false}
+                    palette={palette}
+                  />
+                  <Icon source={Icons.points} color={theme.colors.onSurface} size={26} />
+                </View>
+              )}
+              <OptionButton
+                selected={hasExtraReward}
+                isCheckbox
+                onPress={() => {
+                  const hasPartial = hasPartialReward;
+                  const hasExtra = !hasExtraReward;
+                  
+                  const rewardType: HabitRewardType = 
+                    hasPartial && hasExtra ? 'both' :
+                    hasPartial ? 'partial' :
+                    hasExtra ? 'extra' :
+                    'standard';
+                  
+                  const maximumPoints = hasExtra ? (hasExtraReward ? formHabit.maximumPoints : Math.min(9, formHabit.points + 1)) : 0;
+                  const points = hasExtra && !hasExtraReward ? Math.max(0, maximumPoints - 1) : formHabit.points;
+                  const nextHabit: FormHabit = { ...formHabit, rewardType, maximumPoints, points };
+                  nextHabit.conditions = nextHabit.conditions.slice(0, 1);
+                  const measurementId = nextHabit.conditions[0]?.measurementId;
+                  if (measurementId) {
+                    const measurement = formMeasurements.find((measurement) => measurement?.id === measurementId);
+                    if (measurement && measurement.type === 'bool') nextHabit.conditions = [{}];
+                  }
+                  handleFormEdit(nextHabit);
+                }}
+                icon={Icons.extraCredit}
+                iconStyle={{ transform: [{ rotate: '180deg' }] }}
+                title='EXTRA CREDIT'
+                subtitle='Do better than the target to earn extra points.'
+                palette={palette}
+              />
+              {hasExtraReward && (
+                <View style={s.formRow}>
+                  <BottomDrawer
+                    title='Maximum reward'
+                    anchor={(toggleVisibility) => (
+                      <Pressable style={s.input} onPress={toggleVisibility}>
+                        <TextInput
+                          label='Maximum reward'
+                          mode='outlined'
+                          onPress={toggleVisibility}
+                          readOnly
+                          value={`${formHabit.maximumPoints}`}
+                          right={<TextInput.Affix text="points" />}
+                          activeOutlineColor={palette.primary || undefined}
+                        />
+                      </Pressable>
+                    )}
+                    items={extraPointsItems}
+                    selectedItem={extraPointsItems.find(({ value }) => value === formHabit.maximumPoints) || null}
+                    onSelect={(item) => {
+                      const nextHabit: FormHabit = {...formHabit, maximumPoints: item.value };
                       handleFormEdit(nextHabit);
                     }}
                     showSearchbar={false}
@@ -763,7 +822,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   />
                 );
                 
-                const minTargetInput = !isPartialReward ? null : isTime ? (
+                const minTargetInput = !hasPartialReward ? null : isTime ? (
                   <>
                     <TextInput
                       mode='outlined'
@@ -889,7 +948,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                   />
                 );
 
-                const maxTargetInput = !isExtraReward ? null : isTime ? (
+                const maxTargetInput = !hasExtraReward ? null : isTime ? (
                   <>
                     <TextInput
                       mode='outlined'
@@ -1112,7 +1171,7 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                           <>
                             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
                               <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
-                                {isExtraReward ? 'BASE REWARD' : 'BASE REWARD'}
+                                {hasExtraReward ? 'BASE REWARD' : 'BASE REWARD'}
                               </Text>
                               <Text style={{ flexShrink: 0 }} variant='titleMedium'>
                                 @
@@ -1124,15 +1183,28 @@ export default function HabitForm({ habit, formType } : HabitFormProps) {
                                 {renderDateTimePicker(index)}
                               </View>
                             )}
-                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
-                              <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
-                                {isExtraReward ? 'MAXIMUM REWARD' : 'MINIMUM REWARD'}
-                              </Text>
-                              <Text style={{ flexShrink: 0 }} variant='titleMedium'>
-                                @
-                              </Text>
-                              {isExtraReward ? maxTargetInput : minTargetInput}
-                            </View>
+                            {hasPartialReward && (
+                              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
+                                <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
+                                  MINIMUM REWARD
+                                </Text>
+                                <Text style={{ flexShrink: 0 }} variant='titleMedium'>
+                                  @
+                                </Text>
+                                {minTargetInput}
+                              </View>
+                            )}
+                            {hasExtraReward && (
+                              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', width: '100%', flexShrink: 0 }}>
+                                <Text style={{ width: 72, flexShrink: 0 }} variant='labelMedium'>
+                                  MAXIMUM REWARD
+                                </Text>
+                                <Text style={{ flexShrink: 0 }} variant='titleMedium'>
+                                  @
+                                </Text>
+                                {maxTargetInput}
+                              </View>
+                            )}
                             {Platform.OS === 'ios' && activeTimeConditionIndex === index && (isMaxTargetTime || isMinTargetTime) && (
                               <View style={{ width: '100%', flexShrink: 0, marginVertical: -8 }}>
                                 {renderDateTimePicker(index)}

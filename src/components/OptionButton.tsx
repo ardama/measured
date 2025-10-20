@@ -137,7 +137,7 @@ const OptionButton = ({
         disabled={disabled}
 
         background={{ foreground: true }}
-        onPress={!disabled && !selected && onPress ? onPress : undefined}
+        onPress={!disabled && (isCheckbox || !selected) && onPress ? onPress : undefined}
       >
         <View style={[
           s.content,
